@@ -72,6 +72,32 @@ void main() {
     }
   });
 
+  test('quality gate pins the project Flutter revision', () {
+    final version = File('.flutter-version').readAsStringSync().trim();
+    final workflow = File('.github/workflows/quality.yml').readAsStringSync();
+
+    expect(
+      workflow,
+      contains('flutter-version: $version'),
+      reason:
+          'Quality gate must not drift to an untested moving stable release',
+    );
+    expect(workflow, contains('python -m pip install debugpy'));
+    expect(workflow, contains('YOUNZCODE_JS_DEBUG:'));
+    expect(
+      workflow,
+      contains('flutter test --exclude-tags integration --concurrency=1'),
+    );
+  });
+
+  test('DAP stress push hanya berjalan pada main', () {
+    final workflow = File(
+      '.github/workflows/dap-load-test.yml',
+    ).readAsLinesSync().join('\n');
+    expect(workflow, contains('push:\n    branches:\n      - main'));
+    expect(workflow, contains("- 'dart_test.yaml'"));
+  });
+
   test('semua workflow memakai permission default fail-closed', () {
     final workflows = _workflowFiles('.github/workflows');
     for (final workflow in workflows) {

@@ -36,9 +36,10 @@ void main() {
     ], workingDirectory: workspace.path);
 
     expect(result.exitCode, 0);
+    final reportedDirectory = Directory('${result.stdout}'.trim());
     expect(
-      '${result.stdout}'.trim().toLowerCase(),
-      workspace.path.toLowerCase(),
+      reportedDirectory.resolveSymbolicLinksSync().toLowerCase(),
+      workspace.resolveSymbolicLinksSync().toLowerCase(),
     );
   });
 

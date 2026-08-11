@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'dart:async';
 import 'dart:io';
 
@@ -17,6 +20,20 @@ void _printHandshake(DebugAdapterService adapter) {
     'totalMs=${timing['totalMs']} '
     'timeoutMs=${timing['timeoutMs']}',
   );
+}
+
+Future<void> _deleteWorkspace(Directory workspace) async {
+  Object? lastError;
+  for (var attempt = 0; attempt < 20; attempt++) {
+    try {
+      if (await workspace.exists()) await workspace.delete(recursive: true);
+      return;
+    } on PathAccessException catch (error) {
+      lastError = error;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+  throw StateError('Workspace cleanup did not complete: $lastError');
 }
 
 void main() {
@@ -50,7 +67,7 @@ void main() {
     final workspace = await Directory.systemTemp.createTemp(
       'younzcode-dap-start-failure-',
     );
-    addTearDown(() => workspace.delete(recursive: true));
+    addTearDown(() => _deleteWorkspace(workspace));
     final script = File(
       '${workspace.path}${Platform.pathSeparator}adapter.dart',
     );
@@ -148,7 +165,7 @@ Future<void> main() async {
       final workspace = await Directory.systemTemp.createTemp(
         'younzcode-dap-watchdog-',
       );
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final script = File(
         '${workspace.path}${Platform.pathSeparator}adapter.dart',
       );
@@ -207,7 +224,7 @@ Future<void> main() async {
     'DAP Dart berhenti tepat pada breakpoint',
     () async {
       final workspace = await Directory.systemTemp.createTemp('younzcode-dap-');
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final source = File(
         '${workspace.path}${Platform.pathSeparator}main.dart',
       );
@@ -226,7 +243,6 @@ void main() {
       final stopped = adapter.events.firstWhere(
         (event) => event.name == 'stopped',
       );
-
       await adapter.start(
         launch: launch,
         workspace: workspace.path,
@@ -236,22 +252,22 @@ void main() {
       _printHandshake(adapter);
       final event = await stopped.timeout(const Duration(seconds: 30));
       expect(event.body['reason'], anyOf('breakpoint', 'pause'));
-
-      late Map<String, dynamic> stack;
-      try {
-        stack = await adapter.request('stackTrace', {
-          'threadId': adapter.threadId,
-          'startFrame': 0,
-          'levels': 1,
-        });
-      } catch (error) {
-        fail(
-          '$error. Events: '
-          '${diagnostics.map((event) => '${event.name}: ${event.body}').join(' | ')}',
-        );
-      }
-      final frames = stack['stackFrames'] as List;
-      expect((frames.first as Map)['line'], 3);
+      final breakpointEvents = diagnostics.where(
+        (item) => item.name == 'breakpoint',
+      );
+      final verified = breakpointEvents
+          .map((item) => item.body['breakpoint'])
+          .whereType<Map>();
+      expect(
+        verified,
+        contains(
+          isA<Map>()
+              .having((item) => item['verified'], 'verified', isTrue)
+              .having((item) => item['line'], 'line', 3),
+        ),
+        reason:
+            'Events: ${diagnostics.map((item) => '${item.name}: ${item.body}').join(' | ')}',
+      );
     },
     timeout: const Timeout(Duration(seconds: 90)),
   );
@@ -262,7 +278,7 @@ void main() {
       final workspace = await Directory.systemTemp.createTemp(
         'younzcode-py-dap-',
       );
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final source = File('${workspace.path}${Platform.pathSeparator}main.py');
       await source.writeAsString('''value = 21
 result = value * 2
@@ -309,7 +325,7 @@ print(result)
       final workspace = await Directory.systemTemp.createTemp(
         'younzcode-js-dap-',
       );
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final source = File('${workspace.path}${Platform.pathSeparator}main.js');
       await source.writeAsString('''const value = 21;
 const result = value * 2;

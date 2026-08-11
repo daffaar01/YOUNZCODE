@@ -360,42 +360,46 @@ class _ModelDialogState extends State<_ModelDialog> {
                         color: colors.surface,
                         border: Border.all(color: theme.dividerColor),
                       ),
-                      child: SilkyListView.separated(
-                        silkyConfig: _silkyScrollConfig,
-                        shrinkWrap: true,
-                        itemCount: _models.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final model = _models[index];
-                          final selected = model == _selectedModel;
-                          return ListTile(
-                            dense: true,
-                            onTap: () => setState(() => _selectedModel = model),
-                            leading: Icon(
-                              selected
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_off,
-                              size: 17,
-                              color: selected
-                                  ? colors.primary
-                                  : colors.onSurfaceVariant,
-                            ),
-                            title: Text(
-                              model,
-                              style: const TextStyle(
-                                fontFamily: 'Consolas',
-                                fontSize: 12,
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: SilkyListView.separated(
+                          silkyConfig: _silkyScrollConfig,
+                          shrinkWrap: true,
+                          itemCount: _models.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final model = _models[index];
+                            final selected = model == _selectedModel;
+                            return ListTile(
+                              dense: true,
+                              onTap: () =>
+                                  setState(() => _selectedModel = model),
+                              leading: Icon(
+                                selected
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_off,
+                                size: 17,
+                                color: selected
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
                               ),
-                            ),
-                            trailing: IconButton(
-                              onPressed: _models.length == 1
-                                  ? null
-                                  : () => _removeModel(model),
-                              tooltip: 'Hapus model',
-                              icon: const Icon(Icons.close, size: 16),
-                            ),
-                          );
-                        },
+                              title: Text(
+                                model,
+                                style: const TextStyle(
+                                  fontFamily: 'Consolas',
+                                  fontSize: 12,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                onPressed: _models.length == 1
+                                    ? null
+                                    : () => _removeModel(model),
+                                tooltip: 'Hapus model',
+                                icon: const Icon(Icons.close, size: 16),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
