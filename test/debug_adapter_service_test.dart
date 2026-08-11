@@ -226,6 +226,16 @@ void main() {
       final stopped = adapter.events.firstWhere(
         (event) => event.name == 'stopped',
       );
+      final stackAtStop = adapter.events
+          .where((event) => event.name == 'stopped')
+          .asyncMap(
+            (_) => adapter.request('stackTrace', {
+              'threadId': adapter.threadId,
+              'startFrame': 0,
+              'levels': 1,
+            }),
+          )
+          .first;
 
       await adapter.start(
         launch: launch,
@@ -239,11 +249,7 @@ void main() {
 
       late Map<String, dynamic> stack;
       try {
-        stack = await adapter.request('stackTrace', {
-          'threadId': adapter.threadId,
-          'startFrame': 0,
-          'levels': 1,
-        });
+        stack = await stackAtStop.timeout(const Duration(seconds: 30));
       } catch (error) {
         fail(
           '$error. Events: '

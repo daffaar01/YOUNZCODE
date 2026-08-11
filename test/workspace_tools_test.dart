@@ -8,6 +8,18 @@ import 'package:kode_agent_desktop/services/mcp_client.dart';
 import 'package:kode_agent_desktop/services/workspace_tools.dart';
 import 'package:kode_agent_desktop/services/approval_mode.dart';
 
+Future<void> _deleteEventually(Directory directory) async {
+  for (var attempt = 0; attempt < 20; attempt++) {
+    try {
+      if (directory.existsSync()) await directory.delete(recursive: true);
+      return;
+    } on FileSystemException {
+      if (attempt == 19) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+}
+
 void main() {
   test('tool baca file sensitif meminta approval', () async {
     final root = await Directory.systemTemp.createTemp('younzcode-tools-');
@@ -445,7 +457,7 @@ void main() {
     'run_command menghentikan process tree ketika timeout',
     () async {
       final root = await Directory.systemTemp.createTemp('younzcode-tools-');
-      addTearDown(() => root.delete(recursive: true));
+      addTearDown(() => _deleteEventually(root));
       final tools = WorkspaceTools(
         root: root.path,
         requestPermission: (_, _) async => PermissionDecision.allowOnce,
