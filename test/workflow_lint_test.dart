@@ -90,6 +90,14 @@ void main() {
     );
   });
 
+  test('DAP stress push hanya berjalan pada main', () {
+    final workflow = File(
+      '.github/workflows/dap-load-test.yml',
+    ).readAsLinesSync().join('\n');
+    expect(workflow, contains('push:\n    branches:\n      - main'));
+    expect(workflow, contains("- 'dart_test.yaml'"));
+  });
+
   test('semua workflow memakai permission default fail-closed', () {
     final workflows = _workflowFiles('.github/workflows');
     for (final workflow in workflows) {

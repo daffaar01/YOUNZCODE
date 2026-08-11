@@ -22,22 +22,6 @@ void _printHandshake(DebugAdapterService adapter) {
   );
 }
 
-Future<Map<String, dynamic>> _waitForStackFrame(
-  DebugAdapterService adapter,
-) async {
-  Map<String, dynamic> last = const {};
-  for (var attempt = 0; attempt < 20; attempt++) {
-    last = await adapter.request('stackTrace', {
-      'threadId': adapter.threadId,
-      'startFrame': 0,
-      'levels': 1,
-    });
-    if ((last['stackFrames'] as List? ?? const []).isNotEmpty) return last;
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-  }
-  throw StateError('Dart DAP returned no stack frames after breakpoint: $last');
-}
-
 void main() {
   test('memilih debug adapter sesuai bahasa', () {
     final dart = DebugAdapterLaunch.forFile(
@@ -245,11 +229,6 @@ void main() {
       final stopped = adapter.events.firstWhere(
         (event) => event.name == 'stopped',
       );
-      final stackAtStop = adapter.events
-          .where((event) => event.name == 'stopped')
-          .asyncMap((_) => _waitForStackFrame(adapter))
-          .first;
-
       await adapter.start(
         launch: launch,
         workspace: workspace.path,
@@ -259,18 +238,22 @@ void main() {
       _printHandshake(adapter);
       final event = await stopped.timeout(const Duration(seconds: 30));
       expect(event.body['reason'], anyOf('breakpoint', 'pause'));
-
-      late Map<String, dynamic> stack;
-      try {
-        stack = await stackAtStop.timeout(const Duration(seconds: 30));
-      } catch (error) {
-        fail(
-          '$error. Events: '
-          '${diagnostics.map((event) => '${event.name}: ${event.body}').join(' | ')}',
-        );
-      }
-      final frames = stack['stackFrames'] as List;
-      expect((frames.first as Map)['line'], 3);
+      final breakpointEvents = diagnostics.where(
+        (item) => item.name == 'breakpoint',
+      );
+      final verified = breakpointEvents
+          .map((item) => item.body['breakpoint'])
+          .whereType<Map>();
+      expect(
+        verified,
+        contains(
+          isA<Map>()
+              .having((item) => item['verified'], 'verified', isTrue)
+              .having((item) => item['line'], 'line', 3),
+        ),
+        reason:
+            'Events: ${diagnostics.map((item) => '${item.name}: ${item.body}').join(' | ')}',
+      );
     },
     timeout: const Timeout(Duration(seconds: 90)),
   );

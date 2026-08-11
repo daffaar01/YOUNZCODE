@@ -11,9 +11,12 @@ permissions:
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'lib/**'
       - 'test/debug_adapter_service_test.dart'
+      - 'dart_test.yaml'
       - 'tool/cpu_stress.dart'
       - 'tool/run_dap_load_test.sh'
       - '.github/workflows/dap-load-test.yml'
@@ -21,6 +24,7 @@ on:
     paths:
       - 'lib/**'
       - 'test/debug_adapter_service_test.dart'
+      - 'dart_test.yaml'
       - 'tool/cpu_stress.dart'
       - 'tool/run_dap_load_test.sh'
       - '.github/workflows/dap-load-test.yml'
