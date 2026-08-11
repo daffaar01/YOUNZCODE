@@ -22,6 +22,20 @@ void _printHandshake(DebugAdapterService adapter) {
   );
 }
 
+Future<void> _deleteWorkspace(Directory workspace) async {
+  Object? lastError;
+  for (var attempt = 0; attempt < 20; attempt++) {
+    try {
+      if (await workspace.exists()) await workspace.delete(recursive: true);
+      return;
+    } on PathAccessException catch (error) {
+      lastError = error;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+  }
+  throw StateError('Workspace cleanup did not complete: $lastError');
+}
+
 void main() {
   test('memilih debug adapter sesuai bahasa', () {
     final dart = DebugAdapterLaunch.forFile(
@@ -53,7 +67,7 @@ void main() {
     final workspace = await Directory.systemTemp.createTemp(
       'younzcode-dap-start-failure-',
     );
-    addTearDown(() => workspace.delete(recursive: true));
+    addTearDown(() => _deleteWorkspace(workspace));
     final script = File(
       '${workspace.path}${Platform.pathSeparator}adapter.dart',
     );
@@ -151,7 +165,7 @@ Future<void> main() async {
       final workspace = await Directory.systemTemp.createTemp(
         'younzcode-dap-watchdog-',
       );
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final script = File(
         '${workspace.path}${Platform.pathSeparator}adapter.dart',
       );
@@ -210,7 +224,7 @@ Future<void> main() async {
     'DAP Dart berhenti tepat pada breakpoint',
     () async {
       final workspace = await Directory.systemTemp.createTemp('younzcode-dap-');
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final source = File(
         '${workspace.path}${Platform.pathSeparator}main.dart',
       );
@@ -264,7 +278,7 @@ void main() {
       final workspace = await Directory.systemTemp.createTemp(
         'younzcode-py-dap-',
       );
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final source = File('${workspace.path}${Platform.pathSeparator}main.py');
       await source.writeAsString('''value = 21
 result = value * 2
@@ -311,7 +325,7 @@ print(result)
       final workspace = await Directory.systemTemp.createTemp(
         'younzcode-js-dap-',
       );
-      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => _deleteWorkspace(workspace));
       final source = File('${workspace.path}${Platform.pathSeparator}main.js');
       await source.writeAsString('''const value = 21;
 const result = value * 2;
