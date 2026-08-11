@@ -198,6 +198,9 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
         ? null
         : CodeIntelligenceService(workspace);
     _codeIntelligence = service;
+    _contextEngine = service == null
+        ? null
+        : ContextEngine(workspace, intelligence: service);
     if (service == null) return;
     await service.ensureIndexed();
     if (!mounted || workspace != _workspace || _codeIntelligence != service) {

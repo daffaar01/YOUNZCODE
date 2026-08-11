@@ -250,7 +250,10 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
   Future<void> _saveDocument(_OpenDocument document) async {
     try {
       await File(document.path).writeAsString(document.controller.text);
-      _codeIntelligence?.invalidate();
+      final relative = path
+          .relative(document.path, from: _workspace)
+          .replaceAll('\\', '/');
+      await _codeIntelligence?.refreshPaths([relative]);
       if (!mounted) return;
       _updateState(() => document.savedContent = document.controller.text);
       _showMessage('${document.name} disimpan.');

@@ -41,6 +41,8 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 
 ### 🧠 Code Intelligence
 - **Hybrid**: pencarian istilah Indonesia/Inggris, symbol index, go-to-definition, references, dan autocomplete workspace
+- **Context Engine incremental** memperbarui indeks hanya untuk file yang berubah, meranking file relevan, menjelaskan alasan pemilihan, dan menambahkan context otomatis dengan character budget pada workspace tepercaya
+- File environment, credential, direktori build, file besar/biner, dan path di luar workspace tidak pernah dipilih sebagai context otomatis
 - **Checkpoint perubahan** tersimpan per workspace, dapat dipulihkan dari Inspector
 
 ### 🛡️ Keamanan

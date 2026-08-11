@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
+import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:silky_scroll/silky_scroll.dart';
 
@@ -28,6 +29,7 @@ import 'services/provider_routing_service.dart';
 import 'services/provider_usage_store.dart';
 import 'services/chat_session_store.dart';
 import 'services/code_intelligence_service.dart';
+import 'services/context_engine.dart';
 import 'services/debug_adapter_service.dart';
 import 'services/document_extraction_service.dart';
 import 'services/settings_store.dart';
@@ -442,6 +444,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   List<String> _searchResults = [];
   AgentService? _agent;
   CodeIntelligenceService? _codeIntelligence;
+  ContextEngine? _contextEngine;
   _AgentTurnState _turnState = _AgentTurnState.idle;
   _InspectorSection _inspectorSection = _InspectorSection.activity;
   WorkspaceTurnChanges? _pendingChanges;

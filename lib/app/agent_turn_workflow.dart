@@ -442,8 +442,9 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
       }
     }
     if (mounted) _updateState(() {});
-    _codeIntelligence?.invalidate();
-    unawaited(_codeIntelligence?.ensureIndexed());
+    unawaited(
+      _codeIntelligence?.refreshPaths(changes.map((change) => change.path)),
+    );
     if (keptUnsaved) {
       _showMessage(
         'Beberapa file terbuka punya perubahan belum disimpan dan tidak '

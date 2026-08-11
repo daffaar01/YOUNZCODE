@@ -44,6 +44,7 @@ class CodeIntelligenceService {
   final List<_IndexedLine> _lines = [];
   final List<CodeSymbol> _symbols = [];
   Future<void>? _indexing;
+  Future<void> _refreshQueue = Future.value();
   bool _invalidated = true;
 
   static const _extensions = {
@@ -118,6 +119,40 @@ class CodeIntelligenceService {
   Set<String> get symbolNames => {for (final symbol in _symbols) symbol.name};
 
   void invalidate() => _invalidated = true;
+
+  Future<void> refreshPaths(Iterable<String> relativePaths) {
+    final snapshot = relativePaths.toSet();
+    final refresh = _refreshQueue.then((_) => _refreshPaths(snapshot));
+    _refreshQueue = refresh.catchError((_) {});
+    return refresh;
+  }
+
+  Future<void> _refreshPaths(Set<String> relativePaths) async {
+    await ensureIndexed();
+    for (final relativePath in relativePaths) {
+      final normalized = relativePath.replaceAll('\\', '/');
+      if (normalized.isEmpty ||
+          path.isAbsolute(normalized) ||
+          normalized == '..' ||
+          normalized.startsWith('../') ||
+          normalized.contains('/../')) {
+        continue;
+      }
+      _lines.removeWhere((line) => line.path == normalized);
+      _symbols.removeWhere((symbol) => symbol.path == normalized);
+      final file = File(path.join(root, normalized));
+      if (!await file.exists() || !_shouldIndex(file.path)) continue;
+      try {
+        if (await file.length() > 1024 * 1024) continue;
+        final content = await file.readAsString();
+        if (!content.contains('\u0000')) _indexFile(file.path, content);
+      } on FileSystemException {
+        // A file may disappear while an editor is saving it.
+      } on FormatException {
+        // Ignore malformed/non-UTF8 files, matching full indexing behavior.
+      }
+    }
+  }
 
   Future<void> ensureIndexed() {
     if (!_invalidated) return Future.value();
