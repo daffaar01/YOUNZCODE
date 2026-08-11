@@ -515,13 +515,135 @@ extension _CommandWorkflow on _AgentHomePageState {
       await _reviewChanges();
       return;
     }
-    if (_gitStatus.isRepository) {
-      await _showGitDetails();
+    if (!_gitStatus.isRepository || _workspace.isEmpty) {
+      _addLocalResponse(
+        'Tidak ada perubahan agent atau repository Git untuk direview.',
+      );
       return;
     }
-    _addLocalResponse(
-      'Tidak ada perubahan agent atau repository Git untuk direview.',
+    final diff = await _gitService.diff(_workspace);
+    if (diff.isEmpty) {
+      _addLocalResponse('Git diff kosong; tidak ada perubahan untuk direview.');
+      return;
+    }
+    if (_apiKey.isEmpty) {
+      await _openSettings();
+      if (_apiKey.isEmpty) return;
+    }
+    _updateState(() {
+      _busy = true;
+      _agentStatus = 'Mereview Git diff';
+    });
+    final completion = AgentCompletionClient(
+      baseUrl: _baseUrl,
+      apiKey: _apiKey,
+      model: _model,
+      timeoutMs: _timeoutMs,
+      headers: _apiHeaders,
+      maxRequestAttempts: 4,
+      retryBaseDelay: const Duration(milliseconds: 750),
+      onStatus: (status) {
+        if (mounted) _updateState(() => _agentStatus = status);
+      },
+      isCancelled: () => false,
+      shouldStop: () => false,
+      onInsight: ({reasoning, promptTokens, completionTokens, totalTokens}) {
+        _recordProviderUsage(
+          baseUrl: _baseUrl,
+          model: _model,
+          promptTokens: promptTokens,
+          completionTokens: completionTokens,
+          totalTokens: totalTokens,
+        );
+      },
     );
+    try {
+      final reviewer = ReviewService(
+        analyzer: (prompt) async {
+          final message = await completion.request(
+            messages: [
+              {'role': 'user', 'content': prompt},
+            ],
+            toolDefinitions: const [],
+            allowTools: false,
+          );
+          return _reviewMessageText(message['content']);
+        },
+      );
+      final result = await reviewer.review(diff);
+      final applicable = <int>{};
+      for (var index = 0; index < result.findings.length; index++) {
+        final patch = result.findings[index].suggestedPatch;
+        if (patch.isEmpty) continue;
+        try {
+          await _gitService.checkPatch(_workspace, patch);
+          applicable.add(index);
+        } on ProcessException {
+          // The finding remains visible, but unsafe/stale patches cannot be applied.
+        }
+      }
+      if (!mounted) return;
+      final selected = await showDialog<int>(
+        context: context,
+        builder: (context) =>
+            _ReviewDialog(result: result, applicableFindings: applicable),
+      );
+      if (selected == null || !mounted) return;
+      final patch = result.findings[selected].suggestedPatch;
+      await _gitService.applyPatch(_workspace, patch);
+      await _refreshGit();
+      final changedPaths = _gitStatus.entries
+          .map((entry) => entry.path)
+          .toList();
+      final quality = await _qualityGateService.run(
+        _workspace,
+        changedPaths,
+        onStatus: (status) {
+          if (mounted) _updateState(() => _agentStatus = status);
+        },
+      );
+      if (!mounted) return;
+      if (quality.passed || quality.skipped) {
+        _showMessage(
+          quality.skipped
+              ? 'Patch diterapkan; tidak ada quality check yang cocok.'
+              : 'Patch diterapkan; ${quality.checks.length} quality check lulus.',
+        );
+      } else {
+        final revert = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => _ReviewQualityDialog(result: quality),
+        );
+        if (revert == true) {
+          await _gitService.reversePatch(_workspace, patch);
+          await _refreshGit();
+          if (mounted) _showMessage('Patch review dikembalikan.');
+        }
+      }
+    } catch (error) {
+      if (mounted) _addLocalResponse('Review gagal: $error', error: true);
+    } finally {
+      completion.dispose();
+      if (mounted) {
+        _updateState(() {
+          _busy = false;
+          _agentStatus = 'Siap menerima tugas';
+        });
+      }
+    }
+  }
+
+  String _reviewMessageText(Object? content) {
+    if (content is String) return content;
+    if (content is List) {
+      return content
+          .whereType<Map>()
+          .map((item) => '${item['text'] ?? ''}')
+          .where((item) => item.isNotEmpty)
+          .join('\n');
+    }
+    return '$content';
   }
 
   Future<void> _forkChat() async {

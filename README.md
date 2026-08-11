@@ -42,6 +42,8 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 ### 🧠 Code Intelligence
 - **Hybrid**: pencarian istilah Indonesia/Inggris, symbol index, go-to-definition, references, dan autocomplete workspace
 - **Checkpoint perubahan** tersimpan per workspace, dapat dipulihkan dari Inspector
+- **Review Mode** (`/review`) menganalisis staged dan unstaged Git diff dalam mode tanpa tools, meredaksi secret sebelum dikirim ke provider, dan menampilkan temuan terstruktur dengan file/baris
+- Suggested patch hanya dapat diterapkan setelah pengguna menekan **APPLY PATCH** dan `git apply --check` lulus; quality gate relevan dijalankan setelah penerapan
 
 ### 🛡️ Keamanan
 - **API key hanya di memori** selama aplikasi berjalan — base URL, model, dan workspace disimpan sebagai preferensi lokal

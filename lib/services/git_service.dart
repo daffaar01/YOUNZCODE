@@ -126,6 +126,20 @@ class GitService {
     return '${staged.stdout}${unstaged.stdout}'.trim();
   }
 
+  Future<void> checkPatch(String workspace, String patch) async {
+    await _runPatch(workspace, patch, checkOnly: true);
+  }
+
+  Future<void> applyPatch(String workspace, String patch) async {
+    await _runPatch(workspace, patch, checkOnly: true);
+    await _runPatch(workspace, patch, checkOnly: false);
+  }
+
+  Future<void> reversePatch(String workspace, String patch) async {
+    await _runPatch(workspace, patch, checkOnly: true, reverse: true);
+    await _runPatch(workspace, patch, checkOnly: false, reverse: true);
+  }
+
   Future<String> history(String workspace) async {
     final result = await _run(workspace, [
       'log',
@@ -258,6 +272,46 @@ class GitService {
       );
     }
     return result;
+  }
+
+  Future<void> _runPatch(
+    String workspace,
+    String patch, {
+    required bool checkOnly,
+    bool reverse = false,
+  }) async {
+    if (patch.trim().isEmpty) {
+      throw const FormatException('Patch tidak boleh kosong.');
+    }
+    final process = await Process.start(
+      'git',
+      [
+        'apply',
+        if (checkOnly) '--check',
+        if (reverse) '--reverse',
+        '--whitespace=nowarn',
+        '-',
+      ],
+      workingDirectory: workspace,
+      runInShell: false,
+    );
+    process.stdin.write(patch);
+    await process.stdin.close();
+    final stdout = await process.stdout
+        .transform(systemEncoding.decoder)
+        .join();
+    final stderr = await process.stderr
+        .transform(systemEncoding.decoder)
+        .join();
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw ProcessException(
+        'git',
+        ['apply', if (checkOnly) '--check', if (reverse) '--reverse', '-'],
+        '$stdout$stderr'.trim(),
+        exitCode,
+      );
+    }
   }
 
   static void _validateBranch(String name) {
