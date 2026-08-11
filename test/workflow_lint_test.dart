@@ -84,6 +84,9 @@ void main() {
       reason:
           'Quality gate must not drift to an untested moving stable release',
     );
+    expect(workflow, contains('python -m pip install debugpy'));
+    expect(workflow, contains('YOUNZCODE_JS_DEBUG:'));
+    expect(workflow, contains('flutter test --concurrency=1'));
   });
 
   test('semua workflow memakai permission default fail-closed', () {
