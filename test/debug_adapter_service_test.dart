@@ -22,6 +22,22 @@ void _printHandshake(DebugAdapterService adapter) {
   );
 }
 
+Future<Map<String, dynamic>> _waitForStackFrame(
+  DebugAdapterService adapter,
+) async {
+  Map<String, dynamic> last = const {};
+  for (var attempt = 0; attempt < 20; attempt++) {
+    last = await adapter.request('stackTrace', {
+      'threadId': adapter.threadId,
+      'startFrame': 0,
+      'levels': 1,
+    });
+    if ((last['stackFrames'] as List? ?? const []).isNotEmpty) return last;
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  }
+  throw StateError('Dart DAP returned no stack frames after breakpoint: $last');
+}
+
 void main() {
   test('memilih debug adapter sesuai bahasa', () {
     final dart = DebugAdapterLaunch.forFile(
@@ -231,13 +247,7 @@ void main() {
       );
       final stackAtStop = adapter.events
           .where((event) => event.name == 'stopped')
-          .asyncMap(
-            (_) => adapter.request('stackTrace', {
-              'threadId': adapter.threadId,
-              'startFrame': 0,
-              'levels': 1,
-            }),
-          )
+          .asyncMap((_) => _waitForStackFrame(adapter))
           .first;
 
       await adapter.start(
