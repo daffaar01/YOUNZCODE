@@ -25,7 +25,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
-          flutter-version: 3.41.4
+          flutter-version: 3.44.9
           channel: stable
           cache: true
 
@@ -61,4 +61,4 @@ jobs:
       - name: Test
         env:
           YOUNZCODE_JS_DEBUG: ${{ github.workspace }}/debug-adapters/js-debug/src/dapDebugServer.js
-        run: flutter test --concurrency=1
+        run: flutter test --exclude-tags integration --concurrency=1

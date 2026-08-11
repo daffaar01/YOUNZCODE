@@ -74,9 +74,7 @@ void main() {
 
   test('quality gate pins the project Flutter revision', () {
     final version = File('.flutter-version').readAsStringSync().trim();
-    final workflow = File(
-      '.github/workflows/quality.yml',
-    ).readAsStringSync();
+    final workflow = File('.github/workflows/quality.yml').readAsStringSync();
 
     expect(
       workflow,
@@ -86,7 +84,10 @@ void main() {
     );
     expect(workflow, contains('python -m pip install debugpy'));
     expect(workflow, contains('YOUNZCODE_JS_DEBUG:'));
-    expect(workflow, contains('flutter test --concurrency=1'));
+    expect(
+      workflow,
+      contains('flutter test --exclude-tags integration --concurrency=1'),
+    );
   });
 
   test('semua workflow memakai permission default fail-closed', () {

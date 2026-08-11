@@ -83,7 +83,7 @@ jobs:
           # nightly schedule keeps this empty so it acts as the drift monitor.
           # Threshold is tunable via the repo variable HANDSHAKE_FAIL_RATIO.
           HANDSHAKE_FAIL_RATIO: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && (vars.HANDSHAKE_FAIL_RATIO || '0.5') || '' }}
-        run: tool/run_dap_load_test.sh
+        run: bash tool/run_dap_load_test.sh
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

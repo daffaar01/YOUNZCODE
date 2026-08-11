@@ -1198,49 +1198,52 @@ class _ComposerState extends State<_Composer> {
                 border: Border.all(color: theme.dividerColor),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: SilkySingleChildScrollView(
-                silkyConfig: _silkyScrollConfig,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final columns = constraints.maxWidth >= 480 ? 2 : 1;
-                    final itemWidth = constraints.maxWidth / columns;
-                    return Wrap(
-                      children: [
-                        for (final command in _matchingCommands)
-                          SizedBox(
-                            width: itemWidth,
-                            child: ListTile(
-                              key: ValueKey(
-                                'slash-command-${command.command.substring(1)}',
-                              ),
-                              dense: true,
-                              minTileHeight: 52,
-                              visualDensity: VisualDensity.compact,
-                              leading: Icon(
-                                command.icon,
-                                size: 17,
-                                color: colors.primary,
-                              ),
-                              title: Text(
-                                command.command,
-                                style: const TextStyle(
-                                  fontFamily: 'Consolas',
-                                  fontWeight: FontWeight.w700,
+              child: Material(
+                type: MaterialType.transparency,
+                child: SilkySingleChildScrollView(
+                  silkyConfig: _silkyScrollConfig,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 480 ? 2 : 1;
+                      final itemWidth = constraints.maxWidth / columns;
+                      return Wrap(
+                        children: [
+                          for (final command in _matchingCommands)
+                            SizedBox(
+                              width: itemWidth,
+                              child: ListTile(
+                                key: ValueKey(
+                                  'slash-command-${command.command.substring(1)}',
                                 ),
+                                dense: true,
+                                minTileHeight: 52,
+                                visualDensity: VisualDensity.compact,
+                                leading: Icon(
+                                  command.icon,
+                                  size: 17,
+                                  color: colors.primary,
+                                ),
+                                title: Text(
+                                  command.command,
+                                  style: const TextStyle(
+                                    fontFamily: 'Consolas',
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  command.description,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onTap: widget.busy
+                                    ? null
+                                    : () => _selectCommand(command),
                               ),
-                              subtitle: Text(
-                                command.description,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: widget.busy
-                                  ? null
-                                  : () => _selectCommand(command),
                             ),
-                          ),
-                      ],
-                    );
-                  },
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
