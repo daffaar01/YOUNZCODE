@@ -111,6 +111,67 @@ void main() {
     expect(diff, contains('+void main() {}'));
     expect(diff, isNot(contains('binary.bin')));
   });
+
+  test(
+    'diff tracked menghitung staged dan unstaged dalam budget file yang sama',
+    () async {
+      final root = await Directory.systemTemp.createTemp('younz-git-');
+      addTearDown(() => root.delete(recursive: true));
+      await _git(root.path, ['init']);
+      await _git(root.path, ['config', 'user.email', 'test@example.com']);
+      await _git(root.path, ['config', 'user.name', 'YOUNZ Test']);
+      final file = File('${root.path}${Platform.pathSeparator}both.txt');
+      await file.writeAsString('base\n');
+      await _git(root.path, ['add', 'both.txt']);
+      await _git(root.path, ['commit', '-m', 'initial']);
+      await file.writeAsString(List.filled(1500, 'staged-change').join('\n'));
+      await _git(root.path, ['add', 'both.txt']);
+      await file.writeAsString(List.filled(1500, 'unstaged-change').join('\n'));
+
+      final diff = await const GitService().diff(root.path);
+
+      expect(diff, contains('REVIEW-DIFF-OMITTED both.txt'));
+      expect(diff.length, lessThanOrEqualTo(gitDiffPerFileMaxChars + 64));
+    },
+  );
+
+  test(
+    'diff tracked membatasi per-file dan melaporkan omission deterministik',
+    () async {
+      final root = await Directory.systemTemp.createTemp('younz-git-');
+      addTearDown(() => root.delete(recursive: true));
+      await _git(root.path, ['init']);
+      await _git(root.path, ['config', 'user.email', 'test@example.com']);
+      await _git(root.path, ['config', 'user.name', 'YOUNZ Test']);
+      for (final name in ['z.txt', 'a.txt']) {
+        await File(
+          '${root.path}${Platform.pathSeparator}$name',
+        ).writeAsString('base\n');
+      }
+      await _git(root.path, ['add', '.']);
+      await _git(root.path, ['commit', '-m', 'initial']);
+      final oversized = List.filled(
+        gitDiffPerFileMaxChars,
+        'changed',
+      ).join('\n');
+      await File(
+        '${root.path}${Platform.pathSeparator}z.txt',
+      ).writeAsString(oversized);
+      await File(
+        '${root.path}${Platform.pathSeparator}a.txt',
+      ).writeAsString(oversized);
+
+      final diff = await const GitService().diff(root.path);
+
+      expect(diff.length, lessThanOrEqualTo(gitDiffAggregateMaxChars));
+      expect(diff, contains('REVIEW-DIFF-OMITTED a.txt'));
+      expect(diff, contains('REVIEW-DIFF-OMITTED z.txt'));
+      expect(
+        diff.indexOf('REVIEW-DIFF-OMITTED a.txt'),
+        lessThan(diff.indexOf('REVIEW-DIFF-OMITTED z.txt')),
+      );
+    },
+  );
 }
 
 Future<int> _gitApplyCheck(String workspace, String patch) async {

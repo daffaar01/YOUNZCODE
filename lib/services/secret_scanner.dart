@@ -28,7 +28,17 @@ class SecretScanner {
     ),
     (
       'credential URI',
-      RegExp(r'https?://[^\s/:@]+:[^\s/@]{8,}@[^\s/]+', caseSensitive: false),
+      RegExp(
+        r'(?:https?|postgresql|mysql|mariadb|mongodb|redis|amqp)://[^\s/?#]*%3a[^\s/?#]*%40',
+        caseSensitive: false,
+      ),
+    ),
+    (
+      'credential URI',
+      RegExp(
+        r'(?:https?|postgresql|mysql|mariadb|mongodb|redis|amqp)://[^\s/?#@]+:[^\s/?#@]*@',
+        caseSensitive: false,
+      ),
     ),
     (
       'cookie',

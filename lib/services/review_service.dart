@@ -36,6 +36,9 @@ class ReviewResult {
 typedef ReviewAnalyzer = Future<String> Function(String prompt);
 
 const reviewProviderMaxAttempts = 1;
+const reviewPromptMaxChars = 128 * 1024;
+const _reviewPromptOverheadMaxChars = 1024;
+const reviewDiffMaxChars = reviewPromptMaxChars - _reviewPromptOverheadMaxChars;
 
 int reviewProviderTimeoutMs({
   required int configuredTimeoutMs,
@@ -84,9 +87,17 @@ class ReviewService {
         'Review provider tidak boleh menerima diff file credential sensitif.',
       );
     }
+    if (diff.length > reviewDiffMaxChars) {
+      throw const FormatException('Git diff melebihi budget prompt review.');
+    }
     final redacted = SecretScanner.redact(
       diff,
     ).replaceAll(RegExp(r'\[REDACTED [^\]]+\]'), '[REDACTED]');
+    if (SecretScanner.containsSecret(redacted)) {
+      throw const FormatException(
+        'Git diff masih mengandung credential setelah redaksi.',
+      );
+    }
     final response = await _analyzer(
       '''Review Git diff berikut. Fokus pada bug nyata, keamanan, regresi perilaku, dan test yang hilang. Jangan laporkan masalah gaya semata.
 

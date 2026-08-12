@@ -91,6 +91,62 @@ ${jsonEncode({
     },
   );
 
+  test(
+    'review menyensor userinfo URI koneksi termasuk yang percent-encoded',
+    () async {
+      late String prompt;
+      final service = ReviewService(
+        analyzer: (value) async {
+          prompt = value;
+          return '{"summary":"aman","findings":[]}';
+        },
+      );
+      const schemes = [
+        'postgresql',
+        'mysql',
+        'mariadb',
+        'mongodb',
+        'redis',
+        'amqp',
+      ];
+      final diff = schemes
+          .map(
+            (scheme) =>
+                '+$scheme://user%40example.com:encoded%5BREDACTED%5D@host/db',
+          )
+          .join('\n');
+
+      await service.review('diff --git a/config.txt b/config.txt\n$diff');
+
+      for (final scheme in schemes) {
+        expect(prompt, isNot(contains('$scheme://user%40example.com:')));
+      }
+      expect(prompt, isNot(contains('encoded%5BREDACTED%5D')));
+      expect(prompt, contains('[REDACTED]'));
+    },
+  );
+
+  test(
+    'review menyensor URI dengan delimiter userinfo percent-encoded',
+    () async {
+      late String prompt;
+      final service = ReviewService(
+        analyzer: (value) async {
+          prompt = value;
+          return '{"summary":"aman","findings":[]}';
+        },
+      );
+
+      await service.review(
+        'diff --git a/config.txt b/config.txt\n'
+        '+postgresql://user%3Aencoded%5BREDACTED%5D%40host/db',
+      );
+
+      expect(prompt, isNot(contains('user%3Aencoded%5BREDACTED%5D%40host')));
+      expect(prompt, contains('[REDACTED]'));
+    },
+  );
+
   test('review menolak suggested patch yang menyentuh file lain', () async {
     final service = ReviewService(
       analyzer: (_) async => jsonEncode({
@@ -294,6 +350,39 @@ diff --git a/good.txt b/good.txt
     );
     await expectLater(tooMany.review('diff'), throwsA(isA<FormatException>()));
   });
+
+  test('request provider tidak melampaui budget prompt review', () async {
+    late String prompt;
+    final service = ReviewService(
+      analyzer: (value) async {
+        prompt = value;
+        return '{"summary":"","findings":[]}';
+      },
+    );
+
+    await service.review('x' * reviewDiffMaxChars);
+
+    expect(prompt.length, lessThanOrEqualTo(reviewPromptMaxChars));
+  });
+
+  test(
+    'review menolak request yang melampaui budget prompt sebelum provider',
+    () async {
+      var analyzerCalled = false;
+      final service = ReviewService(
+        analyzer: (_) async {
+          analyzerCalled = true;
+          return '{"summary":"","findings":[]}';
+        },
+      );
+
+      await expectLater(
+        service.review('x' * (reviewDiffMaxChars + 1)),
+        throwsA(isA<FormatException>()),
+      );
+      expect(analyzerCalled, isFalse);
+    },
+  );
 
   test('patch paths mengekstrak target finding tervalidasi', () {
     const patch = '''diff --git a/lib/client.dart b/lib/client.dart

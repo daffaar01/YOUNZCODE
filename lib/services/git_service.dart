@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
+const gitDiffPerFileMaxChars = 48 * 1024;
+const gitDiffAggregateMaxChars = 127 * 1024;
+
 class GitFileStatus {
   const GitFileStatus({
     required this.path,
@@ -125,7 +128,68 @@ class GitService {
       ...pathArguments,
     ]);
     final untracked = filePath == null ? await _untrackedDiff(workspace) : '';
-    return '${staged.stdout}${unstaged.stdout}$untracked'.trim();
+    return _boundedDiff('${staged.stdout}${unstaged.stdout}$untracked');
+  }
+
+  static String _boundedDiff(String raw) {
+    final starts = RegExp(
+      r'^diff --git ',
+      multiLine: true,
+    ).allMatches(raw).map((match) => match.start).toList(growable: false);
+    if (starts.isEmpty) return raw.trim();
+    final sections = <({String path, int order, String text})>[];
+    for (var index = 0; index < starts.length; index++) {
+      final text = raw.substring(
+        starts[index],
+        index + 1 < starts.length ? starts[index + 1] : raw.length,
+      );
+      final header = RegExp(
+        r'^\+\+\+ (?:b/)?(.+)$',
+        multiLine: true,
+      ).firstMatch(text);
+      final fallback = RegExp(
+        r'^--- (?:a/)?(.+)$',
+        multiLine: true,
+      ).firstMatch(text);
+      final sectionPath =
+          (header?.group(1) ?? fallback?.group(1) ?? '<unknown>').trim();
+      sections.add((path: sectionPath, order: index, text: text.trimRight()));
+    }
+    sections.sort((left, right) {
+      final byPath = left.path.compareTo(right.path);
+      return byPath != 0 ? byPath : left.order.compareTo(right.order);
+    });
+
+    final grouped = <String, List<String>>{};
+    for (final section in sections) {
+      grouped.putIfAbsent(section.path, () => []).add(section.text);
+    }
+    final included = <String>[];
+    final omitted = <String>[];
+    var used = 0;
+    for (final entry in grouped.entries) {
+      final fileDiff = entry.value.join('\n');
+      final separator = included.isEmpty ? 0 : 1;
+      if (fileDiff.length > gitDiffPerFileMaxChars ||
+          used + separator + fileDiff.length > gitDiffAggregateMaxChars) {
+        omitted.add(entry.key);
+        continue;
+      }
+      included.add(fileDiff);
+      used += separator + fileDiff.length;
+    }
+    final report = omitted.toSet().toList()..sort();
+    var output = included.join('\n');
+    for (final omittedPath in report) {
+      final marker = 'REVIEW-DIFF-OMITTED $omittedPath';
+      final separator = output.isEmpty ? '' : '\n';
+      if (output.length + separator.length + marker.length >
+          gitDiffAggregateMaxChars) {
+        break;
+      }
+      output = '$output$separator$marker';
+    }
+    return output.trim();
   }
 
   Future<String> _untrackedDiff(String workspace) async {
