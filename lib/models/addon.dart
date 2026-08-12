@@ -45,18 +45,27 @@ class McpServerConfig {
     this.environment = const {},
     this.url,
     this.headers = const {},
+    this.headerReferences = const {},
   });
 
-  factory McpServerConfig.fromJson(Map<String, dynamic> json) =>
-      McpServerConfig(
-        name: json['name'] as String,
-        transport: McpTransport.values.byName(json['transport'] as String),
-        command: json['command'] as String?,
-        arguments: _stringList(json['arguments']),
-        environment: _stringMap(json['environment']),
-        url: json['url'] as String?,
-        headers: _stringMap(json['headers']),
+  factory McpServerConfig.fromJson(Map<String, dynamic> json) {
+    final headers = _stringMap(json['headers']);
+    if (headers.keys.any(isSensitiveMcpHeaderName)) {
+      throw const FormatException(
+        'Sensitive MCP headers must use headerReferences.',
       );
+    }
+    return McpServerConfig(
+      name: json['name'] as String,
+      transport: McpTransport.values.byName(json['transport'] as String),
+      command: json['command'] as String?,
+      arguments: _stringList(json['arguments']),
+      environment: _stringMap(json['environment']),
+      url: json['url'] as String?,
+      headers: headers,
+      headerReferences: _stringMap(json['headerReferences']),
+    );
+  }
 
   final String name;
   final McpTransport transport;
@@ -65,6 +74,7 @@ class McpServerConfig {
   final Map<String, String> environment;
   final String? url;
   final Map<String, String> headers;
+  final Map<String, String> headerReferences;
 
   Map<String, dynamic> toJson() => {
     'name': name,
@@ -74,7 +84,19 @@ class McpServerConfig {
     if (environment.isNotEmpty) 'environment': environment,
     if (url != null) 'url': url,
     if (headers.isNotEmpty) 'headers': headers,
+    if (headerReferences.isNotEmpty) 'headerReferences': headerReferences,
   };
+}
+
+bool isSensitiveMcpHeaderName(String name) {
+  final normalized = name.trim().toLowerCase();
+  return normalized == 'cookie' ||
+      normalized == 'set-cookie' ||
+      normalized == 'proxy-authorization' ||
+      normalized == 'authorization' ||
+      RegExp(
+        r'(?:^|[-_])(api[-_]?key|auth|access|bearer|credential|secret|token)(?:$|[-_])',
+      ).hasMatch(normalized);
 }
 
 class McpMetadata extends AddonMetadata {

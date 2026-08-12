@@ -313,11 +313,21 @@ class AddonService {
             'MCP server ${entry.key} has an invalid HTTP URL.',
           );
         }
+        final headers = _toStringMap(config['headers'], 'headers');
+        if (headers.keys.any(isSensitiveMcpHeaderName)) {
+          throw AddonImportException(
+            'MCP server ${entry.key} must use headerReferences for credentials.',
+          );
+        }
         return McpServerConfig(
           name: entry.key,
           transport: McpTransport.http,
           url: url,
-          headers: _toStringMap(config['headers'], 'headers'),
+          headers: headers,
+          headerReferences: _toStringMap(
+            config['headerReferences'],
+            'headerReferences',
+          ),
         );
       }
 
