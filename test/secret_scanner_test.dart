@@ -35,6 +35,51 @@ void main() {
     expect(redacted, contains('[REDACTED private key]'));
   });
 
+  test(
+    'menyensor authorization, URI credential, cookie, dan connection string',
+    () {
+      final samples = [
+        'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
+        'https://admin:supersecret@example.com/database',
+        'Cookie: session=abcdefghijklmnopqrstuvwxyz123456',
+        'Server=db;User Id=admin;Password=SuperSecret123;',
+        [
+          'xox',
+          'b',
+          '-123456789012-',
+          '123456789012-',
+          'abcdefghijklmnopqrstuvwx',
+        ].join(),
+      ];
+      for (final sample in samples) {
+        expect(SecretScanner.containsSecret(sample), isTrue, reason: sample);
+        expect(
+          SecretScanner.redact(sample),
+          isNot(equals(sample)),
+          reason: sample,
+        );
+      }
+    },
+  );
+
+  test('mendeteksi npm, Google API, dan nama credential aplikasi', () {
+    const samples = [
+      'npm_abcdefghijklmnopqrstuvwxyz1234567890',
+      'AIzaSyA234567890abcdefghijklmnopqrstuvwxyz',
+      'DATABASE_URL=postgres://user:longpassword@db.example/app',
+      'PRIVATE_TOKEN_NAME=abcdefghijklmnopqrstuvwxyz123456',
+      'SESSION_VALUE=abcdefghijklmnopqrstuvwxyz1234567890',
+    ];
+    for (final sample in samples) {
+      expect(SecretScanner.containsSecret(sample), isTrue, reason: sample);
+      expect(
+        SecretScanner.redact(sample),
+        isNot(equals(sample)),
+        reason: sample,
+      );
+    }
+  });
+
   test('nilai pendek non-rahasia tidak disensor', () {
     // Regression: workspace read_file test relies on SECRET=x round-tripping.
     expect(SecretScanner.redact('SECRET=x'), 'SECRET=x');

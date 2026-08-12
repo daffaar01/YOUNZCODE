@@ -44,6 +44,11 @@ class ReviewService {
     if (diff.trim().isEmpty) {
       throw const FormatException('Tidak ada Git diff untuk direview.');
     }
+    if (_containsSensitiveDiffPath(diff)) {
+      throw const FormatException(
+        'Review provider tidak boleh menerima diff file credential sensitif.',
+      );
+    }
     final redacted = SecretScanner.redact(
       diff,
     ).replaceAll(RegExp(r'\[REDACTED [^\]]+\]'), '[REDACTED]');
@@ -61,6 +66,9 @@ $redacted''',
 
   ReviewResult _parse(String response) {
     final normalized = response.trim();
+    if (normalized.length > 256 * 1024) {
+      throw const FormatException('Respons review terlalu besar.');
+    }
     final fenced = RegExp(
       r'^```(?:json)?\s*([\s\S]*?)\s*```$',
       caseSensitive: false,
@@ -74,6 +82,9 @@ $redacted''',
     final rawFindings = payload['findings'];
     if (rawFindings is! List) {
       throw const FormatException('Daftar findings review tidak valid.');
+    }
+    if (rawFindings.length > 50) {
+      throw const FormatException('Jumlah findings review melebihi batas.');
     }
     final findings = rawFindings
         .map((item) {
@@ -131,36 +142,111 @@ $redacted''',
         'Suggested patch tidak boleh mengubah file environment.',
       );
     }
-    final targets = RegExp(
-      r'^diff --git a/(.+?) b/(.+?)$',
+    final targets = _patchTargets(patchText);
+    if (targets.isEmpty || targets.any((target) => target != findingPath)) {
+      throw const FormatException(
+        'Suggested patch hanya boleh mengubah file pada finding.',
+      );
+    }
+  }
+
+  static List<String> patchPaths(String patchText) => _patchTargets(patchText);
+
+  static List<String> _patchTargets(String patchText) {
+    if (patchText.contains('\r')) {
+      throw const FormatException(
+        'Carriage return tidak didukung dalam Git unified diff.',
+      );
+    }
+    final starts = RegExp(
+      r'^diff --git ',
       multiLine: true,
-    ).allMatches(patchText).toList();
-    if (targets.isEmpty) {
+    ).allMatches(patchText).map((match) => match.start).toList();
+    if (starts.isEmpty) {
       throw const FormatException(
         'Suggested patch harus berupa Git unified diff.',
       );
     }
-    for (final target in targets) {
-      final oldPath = target.group(1)!.replaceAll('\\', '/');
-      final newPath = target.group(2)!.replaceAll('\\', '/');
-      if (oldPath != findingPath || newPath != findingPath) {
-        throw const FormatException(
-          'Suggested patch hanya boleh mengubah file pada finding.',
-        );
+    final targets = <String>[];
+    for (var index = 0; index < starts.length; index++) {
+      final section = patchText.substring(
+        starts[index],
+        index + 1 < starts.length ? starts[index + 1] : patchText.length,
+      );
+      final oldHeaders = RegExp(
+        r'^--- (.+)$',
+        multiLine: true,
+      ).allMatches(section).toList();
+      final newHeaders = RegExp(
+        r'^\+\+\+ (.+)$',
+        multiLine: true,
+      ).allMatches(section).toList();
+      if (oldHeaders.length != 1 || newHeaders.length != 1) {
+        throw const FormatException('Header file patch tidak valid.');
       }
+      final oldPath = _safePatchHeaderPath(oldHeaders.single.group(1)!);
+      final newPath = _safePatchHeaderPath(newHeaders.single.group(1)!);
+      if (newPath == '/dev/null' ||
+          (oldPath != '/dev/null' && oldPath != newPath)) {
+        throw const FormatException('Target patch tidak valid.');
+      }
+      targets.add(newPath);
     }
-    final fileHeaders = RegExp(
-      r'^(---|\+\+\+) (?:[ab]/)?(.+)$',
+    return targets.toSet().toList(growable: false);
+  }
+
+  static bool _containsSensitiveDiffPath(String diff) {
+    if (diff.contains('\r')) {
+      throw const FormatException(
+        'Carriage return tidak didukung dalam Git unified diff.',
+      );
+    }
+    const sensitiveNames = {
+      '.npmrc',
+      '.pypirc',
+      '.netrc',
+      'credentials',
+      'credentials.json',
+      'service-account.json',
+      'id_rsa',
+      'id_ed25519',
+    };
+    for (final match in RegExp(
+      r'^(?:---|\+\+\+) (.+)$',
       multiLine: true,
-    ).allMatches(patchText);
-    for (final header in fileHeaders) {
-      final headerPath = header.group(2)!.trim().replaceAll('\\', '/');
-      if (headerPath == '/dev/null') continue;
-      if (headerPath != findingPath) {
-        throw const FormatException(
-          'Suggested patch hanya boleh mengubah file pada finding.',
-        );
+    ).allMatches(diff)) {
+      final safePath = _safePatchHeaderPath(match.group(1)!);
+      if (safePath == '/dev/null') continue;
+      final name = path.basename(safePath).toLowerCase();
+      if (name == '.env' ||
+          name.startsWith('.env.') ||
+          sensitiveNames.contains(name)) {
+        return true;
       }
     }
+    return false;
+  }
+
+  static String _safePatchHeaderPath(String raw) {
+    final value = raw.trim();
+    if (value.startsWith('"') || value.contains(RegExp(r'[\x00-\x1F\x7F]'))) {
+      throw const FormatException(
+        'Quoted/control-character path tidak didukung.',
+      );
+    }
+    final normalized = value.replaceAll('\\', '/');
+    if (normalized == '/dev/null') return normalized;
+    if (!(normalized.startsWith('a/') || normalized.startsWith('b/'))) {
+      throw const FormatException('Header path patch tidak valid.');
+    }
+    final relative = normalized.substring(2);
+    if (relative.isEmpty ||
+        path.isAbsolute(relative) ||
+        relative == '..' ||
+        relative.startsWith('../') ||
+        relative.contains('/../')) {
+      throw const FormatException('Header path patch harus relatif.');
+    }
+    return relative;
   }
 }

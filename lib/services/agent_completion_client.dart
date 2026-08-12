@@ -30,6 +30,7 @@ class AgentCompletionClient {
     required this.isCancelled,
     required this.shouldStop,
     this.onInsight,
+    this.maxResponseBytes = 8 * 1024 * 1024,
     http.Client? httpClient,
   }) : _injectedHttpClient = httpClient;
 
@@ -44,6 +45,7 @@ class AgentCompletionClient {
   final bool Function() isCancelled;
   final bool Function() shouldStop;
   final CompletionInsight? onInsight;
+  final int maxResponseBytes;
   final http.Client? _injectedHttpClient;
   http.Client? _activeHttpClient;
 
@@ -232,7 +234,7 @@ class AgentCompletionClient {
               );
             },
           );
-      final byteStream = response.stream.timeout(
+      final byteStream = _limitResponseBytes(response.stream).timeout(
         requestTimeout,
         onTimeout: (sink) {
           sink.addError(
@@ -268,6 +270,19 @@ class AgentCompletionClient {
     } finally {
       if (identical(_activeHttpClient, client)) _activeHttpClient = null;
       if (_injectedHttpClient == null) client.close();
+    }
+  }
+
+  Stream<List<int>> _limitResponseBytes(Stream<List<int>> source) async* {
+    var total = 0;
+    await for (final chunk in source) {
+      total += chunk.length;
+      if (total > maxResponseBytes) {
+        throw FormatException(
+          'Provider response byte limit exceeded ($maxResponseBytes bytes).',
+        );
+      }
+      yield chunk;
     }
   }
 

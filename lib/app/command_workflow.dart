@@ -522,14 +522,16 @@ extension _CommandWorkflow on _AgentHomePageState {
       return;
     }
     final diff = await _gitService.diff(_workspace);
+    if (!mounted) return;
     if (diff.isEmpty) {
       _addLocalResponse('Git diff kosong; tidak ada perubahan untuk direview.');
       return;
     }
     if (_apiKey.isEmpty) {
       await _openSettings();
-      if (_apiKey.isEmpty) return;
+      if (!mounted || _apiKey.isEmpty) return;
     }
+    if (!mounted) return;
     _updateState(() {
       _busy = true;
       _agentStatus = 'Mereview Git diff';
@@ -547,6 +549,7 @@ extension _CommandWorkflow on _AgentHomePageState {
       },
       isCancelled: () => false,
       shouldStop: () => false,
+      maxResponseBytes: 256 * 1024,
       onInsight: ({reasoning, promptTokens, completionTokens, totalTokens}) {
         _recordProviderUsage(
           baseUrl: _baseUrl,
@@ -590,18 +593,20 @@ extension _CommandWorkflow on _AgentHomePageState {
       );
       if (selected == null || !mounted) return;
       final patch = result.findings[selected].suggestedPatch;
+      if (!_workspaceTrusted && !await _trustCurrentWorkspace()) return;
+      if (!mounted) return;
       await _gitService.applyPatch(_workspace, patch);
-      await _refreshGit();
-      final changedPaths = _gitStatus.entries
-          .map((entry) => entry.path)
-          .toList();
-      final quality = await _qualityGateService.run(
-        _workspace,
-        changedPaths,
-        onStatus: (status) {
-          if (mounted) _updateState(() => _agentStatus = status);
-        },
-      );
+      if (!mounted) return;
+      final changedPaths = ReviewService.patchPaths(patch);
+      final quality = _qualityGateEnabled
+          ? await _qualityGateService.run(
+              _workspace,
+              changedPaths,
+              onStatus: (status) {
+                if (mounted) _updateState(() => _agentStatus = status);
+              },
+            )
+          : const QualityGateResult(checks: []);
       if (!mounted) return;
       if (quality.passed || quality.skipped) {
         _showMessage(

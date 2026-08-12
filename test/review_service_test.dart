@@ -102,6 +102,60 @@ ${jsonEncode({
     await expectLater(service.review('diff'), throwsA(isA<FormatException>()));
   });
 
+  test(
+    'review menolak diff file sensitif sebelum memanggil provider',
+    () async {
+      var analyzerCalled = false;
+      final service = ReviewService(
+        analyzer: (_) async {
+          analyzerCalled = true;
+          return '{"summary":"","findings":[]}';
+        },
+      );
+      const diff = '''diff --git a/.env.production b/.env.production
+--- a/.env.production
++++ b/.env.production
+@@ -1 +1 @@
+-old
++new
+''';
+
+      await expectLater(service.review(diff), throwsA(isA<FormatException>()));
+      expect(analyzerCalled, isFalse);
+    },
+  );
+
+  test('review menolak penghapusan file sensitif sebelum provider', () async {
+    var analyzerCalled = false;
+    final service = ReviewService(
+      analyzer: (_) async {
+        analyzerCalled = true;
+        return '{"summary":"","findings":[]}';
+      },
+    );
+    const diff = '''diff --git a/.env.production b/.env.production
+--- a/.env.production
++++ /dev/null
+@@ -1 +0,0 @@
+-DATABASE_URL=postgresql://user:unknown-value@db/app
+''';
+
+    await expectLater(service.review(diff), throwsA(isA<FormatException>()));
+    expect(analyzerCalled, isFalse);
+  });
+
+  test('patch path menolak lone CR sebagai line delimiter', () {
+    const patch =
+        'diff --git a/lib/client.dart b/lib/client.dart\r'
+        '--- a/lib/client.dart\r'
+        '+++ b/lib/client.dart\r'
+        '@@ -1 +1 @@\r'
+        '-before\r'
+        '+after\r';
+
+    expect(() => ReviewService.patchPaths(patch), throwsFormatException);
+  });
+
   test('review menolak suggested patch untuk environment file', () async {
     final service = ReviewService(
       analyzer: (_) async => jsonEncode({
@@ -147,6 +201,75 @@ ${jsonEncode({
     );
 
     await expectLater(service.review('diff'), throwsA(isA<FormatException>()));
+  });
+
+  test('review membatasi respons provider dan jumlah findings', () async {
+    final oversized = ReviewService(analyzer: (_) async => 'x' * 300000);
+    await expectLater(
+      oversized.review('diff'),
+      throwsA(isA<FormatException>()),
+    );
+
+    final tooMany = ReviewService(
+      analyzer: (_) async => jsonEncode({
+        'summary': 'many',
+        'findings': [
+          for (var index = 0; index < 51; index++)
+            {
+              'severity': 'low',
+              'category': 'quality',
+              'title': 'Finding $index',
+              'path': 'lib/file.dart',
+              'line': 1,
+              'description': 'description',
+            },
+        ],
+      }),
+    );
+    await expectLater(tooMany.review('diff'), throwsA(isA<FormatException>()));
+  });
+
+  test('patch paths mengekstrak target finding tervalidasi', () {
+    const patch = '''diff --git a/lib/client.dart b/lib/client.dart
+--- a/lib/client.dart
++++ b/lib/client.dart
+@@ -1 +1 @@
+-before
++after
+''';
+    expect(ReviewService.patchPaths(patch), ['lib/client.dart']);
+  });
+
+  test('patch path mendukung delimiter b slash tanpa salah target', () async {
+    const target = 'lib/a b/x.dart';
+    final service = ReviewService(
+      analyzer: (_) async => jsonEncode({
+        'summary': 'ok',
+        'findings': [
+          {
+            'severity': 'medium',
+            'category': 'bug',
+            'title': 'fix',
+            'path': target,
+            'line': 1,
+            'description': 'fix',
+            'suggestedPatch': '''diff --git a/lib/a b/x.dart b/lib/a b/x.dart
+--- a/lib/a b/x.dart
++++ b/lib/a b/x.dart
+@@ -1 +1 @@
+-old
++new
+''',
+          },
+        ],
+      }),
+    );
+
+    final result = await service.review('diff --git a/x b/x');
+    expect(result.findings.single.path, target);
+    expect(ReviewService.patchPaths(result.findings.single.suggestedPatch), [
+      target,
+    ]);
   });
 
   test('GitService memeriksa patch sebelum menerapkannya', () async {

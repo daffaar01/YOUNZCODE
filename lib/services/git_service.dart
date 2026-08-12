@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
@@ -123,7 +124,69 @@ class GitService {
       '--no-ext-diff',
       ...pathArguments,
     ]);
-    return '${staged.stdout}${unstaged.stdout}'.trim();
+    final untracked = filePath == null ? await _untrackedDiff(workspace) : '';
+    return '${staged.stdout}${unstaged.stdout}$untracked'.trim();
+  }
+
+  Future<String> _untrackedDiff(String workspace) async {
+    final listed = await _run(workspace, [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '-z',
+    ]);
+    final paths = '${listed.stdout}'
+        .split('\u0000')
+        .where((value) => value.isNotEmpty)
+        .take(64);
+    final output = StringBuffer();
+    final root = path.normalize(path.absolute(workspace));
+    final canonicalRoot = path.normalize(
+      path.absolute(await Directory(root).resolveSymbolicLinks()),
+    );
+    var totalBytes = 0;
+    for (final relative in paths) {
+      final target = path.normalize(path.absolute(path.join(root, relative)));
+      if (!path.isWithin(root, target)) continue;
+      String canonicalTarget;
+      try {
+        canonicalTarget = path.normalize(
+          path.absolute(await File(target).resolveSymbolicLinks()),
+        );
+      } on FileSystemException {
+        continue;
+      }
+      if (!path.isWithin(canonicalRoot, canonicalTarget)) continue;
+      final file = File(canonicalTarget);
+      if (!await file.exists()) continue;
+      try {
+        final bytes = await file.readAsBytes();
+        if (bytes.length > 512 * 1024 || bytes.contains(0)) continue;
+        utf8.decode(bytes, allowMalformed: false);
+        totalBytes += bytes.length;
+        if (totalBytes > 2 * 1024 * 1024) break;
+        final revalidated = path.normalize(
+          path.absolute(await file.resolveSymbolicLinks()),
+        );
+        if (revalidated != canonicalTarget ||
+            !path.isWithin(canonicalRoot, revalidated)) {
+          continue;
+        }
+      } on FileSystemException {
+        continue;
+      } on FormatException {
+        continue;
+      }
+      final generated = await Process.run(
+        'git',
+        ['diff', '--no-index', '--binary', '--', '/dev/null', relative],
+        workingDirectory: root,
+        runInShell: false,
+      );
+      if (generated.exitCode != 0 && generated.exitCode != 1) continue;
+      output.write(generated.stdout);
+    }
+    return output.toString();
   }
 
   Future<void> checkPatch(String workspace, String patch) async {
