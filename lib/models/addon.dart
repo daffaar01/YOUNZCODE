@@ -2,6 +2,35 @@ enum AddonKind { nativePlugin, skill, mcpServer, vsix }
 
 enum McpTransport { stdio, http }
 
+String formatMcpSummaryForChat(List<Addon> addons, {String filter = ''}) {
+  final normalizedFilter = filter.trim().toLowerCase();
+  final entries = <({bool enabled, McpServerConfig server})>[
+    for (final addon in addons)
+      if (addon.kind == AddonKind.mcpServer)
+        for (final server in (addon.metadata as McpMetadata).servers)
+          if (normalizedFilter.isEmpty ||
+              server.name.toLowerCase().contains(normalizedFilter))
+            (enabled: addon.enabled, server: server),
+  ];
+  if (entries.isEmpty) {
+    if (normalizedFilter.isNotEmpty) {
+      return 'Tidak ada MCP server bernama "$filter". Buka ADD-ONS untuk '
+          'memeriksa konfigurasi atau mengimpor MCP JSON.';
+    }
+    return 'Belum ada MCP server yang diimpor. Buka ADD-ONS > IMPORT FILE, '
+        'pilih konfigurasi mcp.json, lalu aktifkan servernya.';
+  }
+  final buffer = StringBuffer('MCP SERVERS — ${entries.length}');
+  for (final entry in entries) {
+    buffer
+      ..writeln()
+      ..writeln()
+      ..write('${entry.enabled ? '✅' : '⏸️'} ${entry.server.name}\n')
+      ..write(entry.server.transport.name.toUpperCase());
+  }
+  return buffer.toString();
+}
+
 sealed class AddonMetadata {
   const AddonMetadata();
 
@@ -45,18 +74,27 @@ class McpServerConfig {
     this.environment = const {},
     this.url,
     this.headers = const {},
+    this.headerReferences = const {},
   });
 
-  factory McpServerConfig.fromJson(Map<String, dynamic> json) =>
-      McpServerConfig(
-        name: json['name'] as String,
-        transport: McpTransport.values.byName(json['transport'] as String),
-        command: json['command'] as String?,
-        arguments: _stringList(json['arguments']),
-        environment: _stringMap(json['environment']),
-        url: json['url'] as String?,
-        headers: _stringMap(json['headers']),
+  factory McpServerConfig.fromJson(Map<String, dynamic> json) {
+    final headers = _stringMap(json['headers']);
+    if (headers.keys.any(isSensitiveMcpHeaderName)) {
+      throw const FormatException(
+        'Sensitive MCP headers must use headerReferences.',
       );
+    }
+    return McpServerConfig(
+      name: json['name'] as String,
+      transport: McpTransport.values.byName(json['transport'] as String),
+      command: json['command'] as String?,
+      arguments: _stringList(json['arguments']),
+      environment: _stringMap(json['environment']),
+      url: json['url'] as String?,
+      headers: headers,
+      headerReferences: _stringMap(json['headerReferences']),
+    );
+  }
 
   final String name;
   final McpTransport transport;
@@ -65,6 +103,7 @@ class McpServerConfig {
   final Map<String, String> environment;
   final String? url;
   final Map<String, String> headers;
+  final Map<String, String> headerReferences;
 
   Map<String, dynamic> toJson() => {
     'name': name,
@@ -74,7 +113,19 @@ class McpServerConfig {
     if (environment.isNotEmpty) 'environment': environment,
     if (url != null) 'url': url,
     if (headers.isNotEmpty) 'headers': headers,
+    if (headerReferences.isNotEmpty) 'headerReferences': headerReferences,
   };
+}
+
+bool isSensitiveMcpHeaderName(String name) {
+  final normalized = name.trim().toLowerCase();
+  return normalized == 'cookie' ||
+      normalized == 'set-cookie' ||
+      normalized == 'proxy-authorization' ||
+      normalized == 'authorization' ||
+      RegExp(
+        r'(?:^|[-_])(api[-_]?key|auth|access|bearer|credential|secret|token)(?:$|[-_])',
+      ).hasMatch(normalized);
 }
 
 class McpMetadata extends AddonMetadata {
