@@ -10,6 +10,7 @@ import 'agent_completion_client.dart';
 import 'agent_errors.dart';
 import 'browser_agent_service.dart';
 import 'mcp_client.dart';
+import 'prompt_budget.dart';
 import 'tool_permission_store.dart';
 import 'workspace_tools.dart';
 
@@ -525,7 +526,7 @@ class AgentService {
         : const <Map<String, Object>>[];
     try {
       return await _completionClient.request(
-        messages: _messages,
+        messages: PromptBudget.constrainMessages(_messages),
         toolDefinitions: definitions,
         allowTools: allowTools,
         finalInstruction: finalInstruction,

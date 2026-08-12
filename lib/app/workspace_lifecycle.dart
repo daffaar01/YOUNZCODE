@@ -144,6 +144,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       }
       _documents.clear();
       _activeFile = null;
+      _contextFiles.clear();
       _terminalOutput.clear();
       _workspace = selected;
       _workspaceTrusted = trust == true;
@@ -173,6 +174,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _activities.clear();
       _turnState = _AgentTurnState.idle;
       _searchResults = [];
+      _searchBusy = false;
       _searchController.clear();
     });
     await _saveSettings();
@@ -198,6 +200,9 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
         ? null
         : CodeIntelligenceService(workspace);
     _codeIntelligence = service;
+    _contextEngine = service == null
+        ? null
+        : ContextEngine(workspace, intelligence: service);
     if (service == null) return;
     await service.ensureIndexed();
     if (!mounted || workspace != _workspace || _codeIntelligence != service) {
@@ -241,24 +246,32 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
   Future<void> _searchWorkspace() async {
     final query = _searchController.text.trim();
     if (query.isEmpty || _searchBusy) return;
+    final service = _codeIntelligence ?? CodeIntelligenceService(_workspace);
+    _codeIntelligence = service;
+    final guard = WorkspaceSearchGuard(workspace: _workspace, service: service);
     _updateState(() {
       _searchBusy = true;
       _searchResults = [];
     });
-    final searchedWorkspace = _workspace;
     try {
-      final service =
-          _codeIntelligence ?? CodeIntelligenceService(searchedWorkspace);
-      _codeIntelligence = service;
       final result = await service.search(query, limit: 500);
-      if (!mounted || searchedWorkspace != _workspace) return;
+      if (!mounted ||
+          !guard.isCurrent(workspace: _workspace, service: _codeIntelligence)) {
+        return;
+      }
       _updateState(() {
         _searchResults = result.map((item) => item.displayLine).toList();
       });
     } catch (error) {
-      if (mounted) _showMessage('Pencarian gagal: $error');
+      if (mounted &&
+          guard.isCurrent(workspace: _workspace, service: _codeIntelligence)) {
+        _showMessage('Pencarian gagal: $error');
+      }
     } finally {
-      if (mounted) _updateState(() => _searchBusy = false);
+      if (mounted &&
+          guard.isCurrent(workspace: _workspace, service: _codeIntelligence)) {
+        _updateState(() => _searchBusy = false);
+      }
     }
   }
 }

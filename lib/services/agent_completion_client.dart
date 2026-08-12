@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import 'agent_errors.dart';
+import 'prompt_budget.dart';
 import 'provider_adapter.dart';
 import 'settings_store.dart';
 
@@ -164,11 +165,13 @@ class AgentCompletionClient {
     final native = protocol != ProviderProtocol.openai;
     final client = _injectedHttpClient ?? http.Client();
     _activeHttpClient = client;
-    final requestMessages = <Map<String, dynamic>>[
-      ...messages,
-      if (finalInstruction != null)
-        {'role': 'system', 'content': finalInstruction},
-    ];
+    final requestMessages = PromptBudget.constrainMessages(
+      <Map<String, dynamic>>[
+        ...messages,
+        if (finalInstruction != null)
+          {'role': 'system', 'content': finalInstruction},
+      ],
+    );
     final toolDefs = allowTools
         ? toolDefinitions
         : const <Map<String, Object>>[];
