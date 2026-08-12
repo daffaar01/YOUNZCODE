@@ -209,12 +209,22 @@ extension _CommandWorkflow on _AgentHomePageState {
     }
     if (!mounted || !await _confirmMainBranchWork()) return;
     final promptWithContext = await _buildPromptWithContext(renderedPrompt);
-    if (!mounted) return;
+    if (!mounted || promptWithContext == null) return;
     _promptController.clear();
-    await _runAgentOperation(
-      (agent) => agent.send(promptWithContext),
-      userEntry: ChatEntry(role: ChatRole.user, content: userInput),
-    );
+    await _runAgentOperation((agent) async {
+      final lease = promptWithContext.lease;
+      if (lease != null &&
+          !await lease.isCurrent(
+            workspace: _workspace,
+            trusted: _workspaceTrusted,
+            engine: _contextEngine,
+          )) {
+        throw StateError(
+          'Workspace berubah saat context disiapkan; context lama dibuang.',
+        );
+      }
+      return agent.send(promptWithContext.prompt);
+    }, userEntry: ChatEntry(role: ChatRole.user, content: userInput));
   }
 
   Future<void> _runMultiAgents(String argument) async {
