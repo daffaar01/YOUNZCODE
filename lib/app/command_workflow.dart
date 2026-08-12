@@ -98,6 +98,7 @@ extension _CommandWorkflow on _AgentHomePageState {
         _showAddonSummary(AddonKind.mcpServer, argument);
       case '/review':
         await _openReview();
+
       case '/fork':
         await _forkChat();
       case '/model' || '/models':
@@ -511,17 +512,115 @@ extension _CommandWorkflow on _AgentHomePageState {
   }
 
   Future<void> _openReview() async {
-    if (_pendingChanges != null) {
-      await _reviewChanges();
+    if (!_gitStatus.isRepository || _workspace.isEmpty) {
+      _addLocalResponse(
+        'Tidak ada perubahan agent atau repository Git untuk direview.',
+      );
       return;
     }
-    if (_gitStatus.isRepository) {
-      await _showGitDetails();
+    final reviewedWorkspace = _workspace;
+    final reviewedWorkspaceIdentity = await _trustService
+        .canonicalWorkspaceIdentity(reviewedWorkspace);
+    if (reviewedWorkspaceIdentity == null || reviewedWorkspace != _workspace) {
+      _addLocalResponse(
+        'Workspace tidak dapat diresolusi dengan aman untuk review.',
+        error: true,
+      );
       return;
     }
-    _addLocalResponse(
-      'Tidak ada perubahan agent atau repository Git untuk direview.',
+    final diff = await _gitService.diff(reviewedWorkspaceIdentity);
+    if (!mounted || reviewedWorkspace != _workspace) return;
+    if (diff.isEmpty) {
+      _addLocalResponse('Git diff kosong; tidak ada perubahan untuk direview.');
+      return;
+    }
+    if (_apiKey.isEmpty) {
+      await _openSettings();
+      if (!mounted || _apiKey.isEmpty || reviewedWorkspace != _workspace) {
+        return;
+      }
+    }
+    if (!mounted) return;
+    _updateState(() {
+      _busy = true;
+      _agentStatus = 'Mereview Git diff';
+    });
+    final completion = AgentCompletionClient(
+      baseUrl: _baseUrl,
+      apiKey: _apiKey,
+      model: _model,
+      timeoutMs: reviewProviderTimeoutMs(
+        configuredTimeoutMs: _timeoutMs,
+        model: _model,
+      ),
+      headers: _apiHeaders,
+      maxRequestAttempts: reviewProviderMaxAttempts,
+      retryBaseDelay: const Duration(milliseconds: 750),
+      onStatus: (status) {
+        if (mounted) _updateState(() => _agentStatus = status);
+      },
+      isCancelled: () => false,
+      shouldStop: () => false,
+      maxResponseBytes: 256 * 1024,
+      onInsight: ({reasoning, promptTokens, completionTokens, totalTokens}) {
+        _recordProviderUsage(
+          baseUrl: _baseUrl,
+          model: _model,
+          promptTokens: promptTokens,
+          completionTokens: completionTokens,
+          totalTokens: totalTokens,
+        );
+      },
     );
+    try {
+      final reviewer = ReviewService(
+        analyzer: (prompt) async {
+          final message = await completion.request(
+            messages: [
+              {'role': 'user', 'content': prompt},
+            ],
+            toolDefinitions: const [],
+            allowTools: false,
+          );
+          return _reviewMessageText(message['content']);
+        },
+      );
+      final result = await reviewer.review(diff);
+      if (!mounted) return;
+      final currentIdentity = await _trustService.canonicalWorkspaceIdentity(
+        _workspace,
+      );
+      if (reviewedWorkspace != _workspace ||
+          currentIdentity != reviewedWorkspaceIdentity) {
+        throw const FileSystemException(
+          'Target workspace berubah selama review.',
+        );
+      }
+
+      _addLocalResponse(formatReviewForChat(result));
+    } catch (error) {
+      if (mounted) _addLocalResponse('Review gagal: $error', error: true);
+    } finally {
+      completion.dispose();
+      if (mounted) {
+        _updateState(() {
+          _busy = false;
+          _agentStatus = 'Siap menerima tugas';
+        });
+      }
+    }
+  }
+
+  String _reviewMessageText(Object? content) {
+    if (content is String) return content;
+    if (content is List) {
+      return content
+          .whereType<Map>()
+          .map((item) => '${item['text'] ?? ''}')
+          .where((item) => item.isNotEmpty)
+          .join('\n');
+    }
+    return '$content';
   }
 
   Future<void> _forkChat() async {
