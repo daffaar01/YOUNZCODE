@@ -301,13 +301,19 @@ extension _CommandWorkflow on _AgentHomePageState {
               TaskArtifact(
                 kind: 'result',
                 label: 'Agent result',
-                value: task.result,
+                value: taskGraphSafeDetail(task.result),
               ),
             if (task.error.isNotEmpty)
               TaskArtifact(
                 kind: 'error',
                 label: 'Agent error',
-                value: task.error,
+                value: taskGraphSafeDetail(task.error),
+              ),
+            if (task.worktreeStatus != AgentWorktreeStatus.none)
+              TaskArtifact(
+                kind: 'worktree-status',
+                label: 'Worktree status',
+                value: task.worktreeStatus.name,
               ),
           ];
           TaskGraph updated = currentGraph;
@@ -333,7 +339,9 @@ extension _CommandWorkflow on _AgentHomePageState {
               updated = updated.transition(
                 nodeId,
                 terminal,
-                detail: task.error.isEmpty ? task.result : task.error,
+                detail: taskGraphSafeDetail(
+                  task.error.isEmpty ? task.result : task.error,
+                ),
                 agentId: task.id,
                 worktree: worktreeAlias,
                 artifacts: artifacts,

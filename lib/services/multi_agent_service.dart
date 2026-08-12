@@ -5,6 +5,12 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 
 import '../models/task_graph.dart';
+import 'secret_scanner.dart';
+
+String taskGraphSafeDetail(String value) {
+  final redacted = SecretScanner.redact(value);
+  return redacted.length <= 12000 ? redacted : redacted.substring(0, 12000);
+}
 
 int multiAgentRequestTimeoutMs({
   required String model,
@@ -80,6 +86,14 @@ enum AgentTaskStatus {
   cancelled,
 }
 
+enum AgentWorktreeStatus {
+  none,
+  retainedSuccess,
+  retainedDirty,
+  retainedCleanupFailed,
+  removedCleanFailure,
+}
+
 class AgentTask {
   const AgentTask({
     required this.id,
@@ -90,6 +104,7 @@ class AgentTask {
     this.worktree = '',
     this.result = '',
     this.error = '',
+    this.worktreeStatus = AgentWorktreeStatus.none,
     this.startedAt,
     this.finishedAt,
   });
@@ -102,6 +117,7 @@ class AgentTask {
   final String worktree;
   final String result;
   final String error;
+  final AgentWorktreeStatus worktreeStatus;
   final DateTime? startedAt;
   final DateTime? finishedAt;
 
@@ -111,6 +127,7 @@ class AgentTask {
     String? worktree,
     String? result,
     String? error,
+    AgentWorktreeStatus? worktreeStatus,
     DateTime? startedAt,
     DateTime? finishedAt,
   }) => AgentTask(
@@ -122,6 +139,7 @@ class AgentTask {
     worktree: worktree ?? this.worktree,
     result: result ?? this.result,
     error: error ?? this.error,
+    worktreeStatus: worktreeStatus ?? this.worktreeStatus,
     startedAt: startedAt ?? this.startedAt,
     finishedAt: finishedAt ?? this.finishedAt,
   );
@@ -196,7 +214,17 @@ class GitWorktreeManager {
         resolvedWorktree == resolvedWorkspace) {
       throw StateError('Worktree berada di luar storage YOUNZCODE.');
     }
-    await _git(workspace, ['worktree', 'remove', '--force', resolvedWorktree]);
+    await _git(workspace, ['worktree', 'remove', resolvedWorktree]);
+    await _git(workspace, ['worktree', 'prune']);
+  }
+
+  Future<bool> isClean(String worktree) async {
+    final result = await _git(worktree, [
+      'status',
+      '--porcelain',
+      '--untracked-files=all',
+    ]);
+    return '${result.stdout}'.trim().isEmpty;
   }
 
   Future<ProcessResult> _git(
@@ -318,7 +346,9 @@ class MultiAgentOrchestrator {
         graph = graph.transition(
           task.nodeId,
           terminal,
-          detail: task.error.isEmpty ? task.result : task.error,
+          detail: taskGraphSafeDetail(
+            task.error.isEmpty ? task.result : task.error,
+          ),
           agentId: task.id,
           worktree: worktreeAlias,
         );
@@ -347,7 +377,7 @@ class MultiAgentOrchestrator {
       status: AgentTaskStatus.preparing,
       startedAt: DateTime.now(),
     );
-    onTaskChanged?.call(current);
+    _notify(current);
     try {
       final prepared = await worktreeManager.prepare(
         workspace,
@@ -359,7 +389,7 @@ class MultiAgentOrchestrator {
         branch: prepared.branch,
         worktree: prepared.worktree,
       );
-      onTaskChanged?.call(current);
+      _notify(current);
       final result = await runner(current, prepared.worktree);
       current = current.copyWith(
         status: AgentTaskStatus.completed,
@@ -373,7 +403,40 @@ class MultiAgentOrchestrator {
         finishedAt: DateTime.now(),
       );
     }
-    onTaskChanged?.call(current);
+    current = await _applyWorktreePolicy(current);
+    _notify(current);
     return current;
+  }
+
+  void _notify(AgentTask task) {
+    try {
+      onTaskChanged?.call(task);
+    } catch (_) {
+      // Observability must never change orchestration outcome.
+    }
+  }
+
+  Future<AgentTask> _applyWorktreePolicy(AgentTask task) async {
+    if (task.worktree.isEmpty) return task;
+    if (task.status == AgentTaskStatus.completed) {
+      return task.copyWith(worktreeStatus: AgentWorktreeStatus.retainedSuccess);
+    }
+    if (task.status != AgentTaskStatus.failed &&
+        task.status != AgentTaskStatus.cancelled) {
+      return task;
+    }
+    try {
+      if (!await worktreeManager.isClean(task.worktree)) {
+        return task.copyWith(worktreeStatus: AgentWorktreeStatus.retainedDirty);
+      }
+      await worktreeManager.remove(workspace, task.worktree);
+      return task.copyWith(
+        worktreeStatus: AgentWorktreeStatus.removedCleanFailure,
+      );
+    } catch (_) {
+      return task.copyWith(
+        worktreeStatus: AgentWorktreeStatus.retainedCleanupFailed,
+      );
+    }
   }
 }

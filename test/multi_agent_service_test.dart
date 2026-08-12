@@ -234,4 +234,117 @@ void main() {
     expect(tasks.first.status, AgentTaskStatus.failed);
     expect(tasks.last.status, AgentTaskStatus.completed);
   });
+
+  test('hasil 12001+ utuh untuk chat tetapi aman di graph', () async {
+    final longResult = 'token=super-secret\n${'x' * 12001}';
+    final result =
+        await MultiAgentOrchestrator(
+          workspace: 'C:/repo',
+          worktreeManager: _manager((_) => ''),
+          runner: (_, _) async => longResult,
+        ).runGraph(
+          TaskGraph(
+            id: 'large',
+            objective: 'Large',
+            nodes: const [TaskNode(id: 'task', title: 'Task')],
+          ),
+        );
+    expect(result.tasks.single.result, longResult);
+    expect(result.graph.node('task').status, TaskNodeStatus.completed);
+    expect(result.graph.node('task').detail.length, lessThanOrEqualTo(12000));
+    expect(result.graph.node('task').detail, isNot(contains('super-secret')));
+  });
+
+  test('error 12001+ utuh untuk chat tetapi aman di graph', () async {
+    final longError = 'api_key=super-secret\n${'e' * 12001}';
+    final result =
+        await MultiAgentOrchestrator(
+          workspace: 'C:/repo',
+          worktreeManager: _manager((_) => ''),
+          runner: (_, _) async => throw StateError(longError),
+        ).runGraph(
+          TaskGraph(
+            id: 'large-error',
+            objective: 'Large error',
+            nodes: const [TaskNode(id: 'task', title: 'Task')],
+          ),
+        );
+    expect(result.tasks.single.error, contains(longError));
+    expect(result.graph.node('task').status, TaskNodeStatus.failed);
+    expect(result.graph.node('task').detail.length, lessThanOrEqualTo(12000));
+    expect(result.graph.node('task').detail, isNot(contains('super-secret')));
+  });
+
+  test('exception callback observability tidak menggagalkan task', () async {
+    final tasks = await MultiAgentOrchestrator(
+      workspace: 'C:/repo',
+      worktreeManager: _manager((_) => ''),
+      onTaskChanged: (_) => throw StateError('UI disposed'),
+      runner: (_, _) async => 'chat result',
+    ).run(['task']);
+    expect(tasks.single.status, AgentTaskStatus.completed);
+    expect(tasks.single.result, 'chat result');
+  });
+
+  test('worktree gagal clean dihapus tanpa force', () async {
+    final commands = <List<String>>[];
+    final task = (await MultiAgentOrchestrator(
+      workspace: 'C:/repo',
+      worktreeManager: _manager((args) {
+        commands.add(args);
+        return '';
+      }),
+      runner: (_, _) async => throw StateError('boom'),
+    ).run(['task'])).single;
+    expect(task.worktreeStatus, AgentWorktreeStatus.removedCleanFailure);
+    expect(
+      commands.any(
+        (command) =>
+            command.join(' ') == 'status --porcelain --untracked-files=all',
+      ),
+      isTrue,
+    );
+    expect(
+      commands.any(
+        (c) =>
+            c.take(2).join(' ') == 'worktree remove' && !c.contains('--force'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('worktree dirty gagal dan sukses dipertahankan', () async {
+    final commands = <List<String>>[];
+    final tasks = await MultiAgentOrchestrator(
+      workspace: 'C:/repo',
+      worktreeManager: _manager((args) {
+        commands.add(args);
+        return args.first == 'status' ? ' M lib/a.dart\n' : '';
+      }),
+      runner: (task, _) async {
+        if (task.prompt == 'dirty') throw StateError('boom');
+        return 'done';
+      },
+    ).run(['dirty', 'success']);
+    expect(tasks.first.worktreeStatus, AgentWorktreeStatus.retainedDirty);
+    expect(tasks.last.worktreeStatus, AgentWorktreeStatus.retainedSuccess);
+    expect(
+      commands.any((c) => c.take(2).join(' ') == 'worktree remove'),
+      isFalse,
+    );
+  });
 }
+
+GitWorktreeManager _manager(String Function(List<String>) output) =>
+    GitWorktreeManager(
+      storageRoot: r'C:\temp\younz-worktrees',
+      processRunner: (executable, arguments, {workingDirectory}) async {
+        if (arguments.contains('--show-toplevel')) {
+          return ProcessResult(1, 0, 'C:/repo', '');
+        }
+        if (arguments.contains('HEAD')) {
+          return ProcessResult(1, 0, 'abc123', '');
+        }
+        return ProcessResult(1, 0, output(arguments), '');
+      },
+    );
