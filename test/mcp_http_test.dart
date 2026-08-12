@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -133,7 +134,112 @@ class _SlowDripClient extends http.BaseClient {
   }
 }
 
+class _PersistentSseClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final body =
+        jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+    final id = body['id'];
+    final method = body['method'];
+    if (method == 'notifications/initialized') {
+      return http.StreamedResponse(const Stream.empty(), 202);
+    }
+    final result = method == 'initialize'
+        ? <String, dynamic>{
+            'protocolVersion': '2025-03-26',
+            'serverInfo': {'name': 'test', 'version': '1'},
+          }
+        : <String, dynamic>{'tools': const []};
+    final controller = StreamController<List<int>>();
+    scheduleMicrotask(() {
+      controller.add(
+        utf8.encode(
+          'event: message\ndata: ${jsonEncode({'jsonrpc': '2.0', 'id': id, 'result': result})}\n\n',
+        ),
+      );
+    });
+    return http.StreamedResponse(
+      controller.stream,
+      200,
+      headers: {'content-type': 'text/event-stream'},
+    );
+  }
+}
+
 void main() {
+  test('MCP endpoint policy rejects userinfo and private addresses', () async {
+    await expectLater(
+      validateMcpHttpEndpoint(Uri.parse('https://user:pass@example.test/mcp')),
+      throwsStateError,
+    );
+    await expectLater(
+      validateMcpHttpEndpoint(
+        Uri.parse('https://public.example/mcp'),
+        lookup: (_) async => [InternetAddress('169.254.169.254')],
+      ),
+      throwsStateError,
+    );
+  });
+
+  test('MCP HTTP rejects redirects instead of following them', () async {
+    final server = MockClient(
+      (_) async => http.Response(
+        '',
+        302,
+        headers: {'location': 'http://127.0.0.1/internal'},
+      ),
+    );
+    final client = _client(server);
+    addTearDown(client.dispose);
+    await expectLater(
+      client.initialize(approveLaunch: (_, _) async => true),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('MCP SSE returns before persistent stream closes', () async {
+    final client = McpClient(
+      const McpServerConfig(
+        name: 'remote',
+        transport: McpTransport.http,
+        url: 'https://mcp.test/rpc',
+      ),
+      workspace: '.',
+      httpClient: _PersistentSseClient(),
+      requestTimeout: const Duration(seconds: 2),
+    );
+    addTearDown(client.dispose);
+    await client.initialize(approveLaunch: (_, _) async => true);
+    expect(client.status, McpConnectionStatus.ready);
+  });
+
+  test(
+    'MCP redacts exact opaque resolved credential reflected by server',
+    () async {
+      const opaque = 'opaque-value-without-token-shape';
+      final server = MockClient((_) async => http.Response(opaque, 500));
+      final client = McpClient(
+        const McpServerConfig(
+          name: 'remote',
+          transport: McpTransport.http,
+          url: 'https://mcp.test/rpc',
+          headerReferences: {'X-Credential': 'env:TEST'},
+        ),
+        workspace: '.',
+        httpClient: server,
+        resolveCredential: (_) async => opaque,
+      );
+      addTearDown(client.dispose);
+      try {
+        await client.initialize(approveLaunch: (_, _) async => true);
+        fail('expected failure');
+      } catch (error) {
+        expect('$error', contains('[REDACTED]'));
+        expect('$error', isNot(contains(opaque)));
+      }
+    },
+  );
+
   test('MCP HTTP initialize + tools/list + tools/call (JSON)', () async {
     final client = _client(_server());
     addTearDown(client.dispose);

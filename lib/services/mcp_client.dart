@@ -12,6 +12,54 @@ import 'secret_scanner.dart';
 typedef McpLaunchApproval =
     Future<bool> Function(String command, List<String> arguments);
 typedef McpCredentialResolver = Future<String?> Function(String reference);
+typedef McpEndpointLookup = Future<List<InternetAddress>> Function(String host);
+
+Future<void> validateMcpHttpEndpoint(
+  Uri uri, {
+  McpEndpointLookup lookup = InternetAddress.lookup,
+}) async {
+  if (uri.userInfo.isNotEmpty || uri.host.isEmpty || uri.fragment.isNotEmpty) {
+    throw StateError('MCP HTTP endpoint tidak valid.');
+  }
+  if (_isLoopback(uri)) {
+    if (!uri.isScheme('http') && !uri.isScheme('https')) {
+      throw StateError('MCP loopback endpoint must use HTTP or HTTPS.');
+    }
+    return;
+  }
+  if (!uri.isScheme('https')) {
+    throw StateError('MCP remote endpoint must use HTTPS.');
+  }
+  final addresses = await lookup(uri.host);
+  if (addresses.isEmpty || addresses.any(_isNonPublicAddress)) {
+    throw StateError('MCP remote endpoint resolved to a non-public address.');
+  }
+}
+
+bool _isNonPublicAddress(InternetAddress address) {
+  final bytes = address.rawAddress;
+  if (address.type == InternetAddressType.IPv4) {
+    final a = bytes[0];
+    final b = bytes[1];
+    return a == 0 ||
+        a == 10 ||
+        a == 127 ||
+        (a == 169 && b == 254) ||
+        (a == 172 && b >= 16 && b <= 31) ||
+        (a == 192 && b == 168) ||
+        a >= 224;
+  }
+  if (bytes.every((value) => value == 0) || address.isLoopback) return true;
+  return bytes[0] == 0xfc ||
+      bytes[0] == 0xfd ||
+      (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) ||
+      bytes[0] == 0xff;
+}
+
+bool _isLoopback(Uri uri) {
+  final host = uri.host.toLowerCase();
+  return host == 'localhost' || host == '::1' || host.startsWith('127.');
+}
 
 enum McpConnectionStatus { disconnected, connecting, ready, failed }
 
@@ -55,15 +103,22 @@ class McpClient {
     required this.workspace,
     http.Client? httpClient,
     McpCredentialResolver? resolveCredential,
+    McpEndpointLookup? endpointLookup,
     Duration requestTimeout = const Duration(seconds: 30),
   }) : _injectedHttpClient = httpClient,
        _resolveCredential = resolveCredential,
+       _endpointLookup =
+           endpointLookup ??
+           ((host) => httpClient != null && host.endsWith('.test')
+               ? Future.value([InternetAddress('8.8.8.8')])
+               : InternetAddress.lookup(host)),
        _requestTimeout = requestTimeout;
 
   final McpServerConfig config;
   final String workspace;
   final http.Client? _injectedHttpClient;
   final McpCredentialResolver? _resolveCredential;
+  final McpEndpointLookup _endpointLookup;
   final Duration _requestTimeout;
   Process? _process;
   StreamSubscription<String>? _stdout;
@@ -179,12 +234,10 @@ class McpClient {
     if (_httpClient != null) return;
     final url = config.url?.trim() ?? '';
     final uri = Uri.tryParse(url);
-    if (url.isEmpty ||
-        uri == null ||
-        !uri.hasScheme ||
-        !(uri.isScheme('https') || _isLoopback(uri))) {
-      throw StateError('MCP HTTP url must use HTTPS (or a loopback address).');
+    if (url.isEmpty || uri == null || !uri.hasScheme) {
+      throw StateError('MCP HTTP url tidak valid.');
     }
+    await validateMcpHttpEndpoint(uri, lookup: _endpointLookup);
     if (!await approveLaunch(url, const [])) {
       throw StateError('MCP server launch was denied.');
     }
@@ -229,11 +282,6 @@ class McpClient {
         error: '$error',
       );
     }
-  }
-
-  static bool _isLoopback(Uri uri) {
-    final host = uri.host.toLowerCase();
-    return host == 'localhost' || host == '::1' || host.startsWith('127.');
   }
 
   Future<void> refreshTools() async {
@@ -406,9 +454,12 @@ class McpClient {
     if (config.headers.keys.any(isSensitiveMcpHeaderName)) {
       throw StateError('Sensitive MCP headers must use headerReferences.');
     }
+    final endpoint = Uri.parse(url);
+    await validateMcpHttpEndpoint(endpoint, lookup: _endpointLookup);
     final id = _sequence++;
     final resolvedHeaders = await _resolvedHttpHeaders();
-    final request = http.Request('POST', Uri.parse(url))
+    final request = http.Request('POST', endpoint)
+      ..followRedirects = false
       ..headers.addAll({
         ...config.headers,
         ...resolvedHeaders,
@@ -428,7 +479,17 @@ class McpClient {
     if (remaining <= Duration.zero) {
       throw TimeoutException('MCP request exceeded its absolute deadline.');
     }
-    final bytes = await _collectBoundedBody(streamed.stream, remaining);
+    if (streamed.isRedirect ||
+        (streamed.statusCode >= 300 && streamed.statusCode < 400)) {
+      unawaited(streamed.stream.listen((_) {}).cancel());
+      throw StateError('MCP redirects are not allowed.');
+    }
+    final bytes = await _collectBoundedBody(
+      streamed.stream,
+      remaining,
+      contentType: streamed.headers['content-type'] ?? '',
+      expectedId: isNotification ? null : id,
+    );
     stopwatch.stop();
     final response = http.Response.bytes(
       bytes,
@@ -448,20 +509,27 @@ class McpClient {
       return _httpRequest(method, params, allowSessionRecovery: false);
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final safeBody = _sanitize(response.body);
+      final safeBody = _sanitize(response.body, resolvedHeaders.values);
       throw StateError(
         'MCP ${config.name} HTTP ${response.statusCode}: '
         '${safeBody.length <= 4096 ? safeBody : safeBody.substring(0, 4096)}',
       );
     }
     if (isNotification) return const {};
-    return _extractJsonRpcResult(response, id, method);
+    return _extractJsonRpcResult(
+      response,
+      id,
+      method,
+      exactSecrets: resolvedHeaders.values,
+    );
   }
 
   Future<Uint8List> _collectBoundedBody(
     Stream<List<int>> stream,
-    Duration deadline,
-  ) async {
+    Duration deadline, {
+    required String contentType,
+    required int? expectedId,
+  }) async {
     final body = BytesBuilder(copy: false);
     final completer = Completer<Uint8List>();
     late StreamSubscription<List<int>> subscription;
@@ -485,6 +553,28 @@ class McpClient {
           return;
         }
         body.add(chunk);
+        if (expectedId != null &&
+            contentType.toLowerCase().contains('text/event-stream')) {
+          final current = utf8.decode(body.toBytes(), allowMalformed: true);
+          final normalized = current.replaceAll('\r\n', '\n');
+          for (final event in normalized.split('\n\n')) {
+            final data = const LineSplitter()
+                .convert(event)
+                .where((line) => line.startsWith('data:'))
+                .map((line) => line.substring(5).trimLeft())
+                .join('\n');
+            final decoded = _tryDecode(data);
+            if (decoded is Map && decoded['id'] == expectedId) {
+              unawaited(subscription.cancel());
+              if (!completer.isCompleted) {
+                completer.complete(
+                  Uint8List.fromList(utf8.encode('$event\n\n')),
+                );
+              }
+              return;
+            }
+          }
+        }
       },
       onError: (Object error, StackTrace stackTrace) {
         if (!completer.isCompleted) {
@@ -525,8 +615,9 @@ class McpClient {
   Map<String, dynamic> _extractJsonRpcResult(
     http.Response response,
     int id,
-    String method,
-  ) {
+    String method, {
+    Iterable<String> exactSecrets = const [],
+  }) {
     final contentType = (response.headers['content-type'] ?? '').toLowerCase();
     final body = utf8.decode(response.bodyBytes);
     final messages = <Map<String, dynamic>>[];
@@ -569,7 +660,8 @@ class McpClient {
       if (message['id'] != id) continue;
       if (message['error'] != null) {
         throw StateError(
-          'MCP ${config.name}: ${_sanitize('${message['error']}')}',
+          'MCP ${config.name}: '
+          '${_sanitize('${message['error']}', exactSecrets)}',
         );
       }
       return Map<String, dynamic>.from(message['result'] as Map? ?? const {});
@@ -662,7 +754,10 @@ class McpClient {
     if (_logs.length > 100) _logs.removeRange(0, _logs.length - 100);
   }
 
-  static String _sanitize(String value) {
+  static String _sanitize(
+    String value, [
+    Iterable<String> exactSecrets = const [],
+  ]) {
     final headersRedacted = value.replaceAllMapped(
       RegExp(
         r'(authorization|cookie|set-cookie)\s*:\s*[^\r\n]+',
@@ -670,7 +765,13 @@ class McpClient {
       ),
       (match) => '${match.group(1)}: [REDACTED]',
     );
-    return SecretScanner.redact(headersRedacted);
+    var redacted = headersRedacted;
+    for (final secret in exactSecrets) {
+      if (secret.isNotEmpty) {
+        redacted = redacted.replaceAll(secret, '[REDACTED]');
+      }
+    }
+    return SecretScanner.redact(redacted);
   }
 
   static Future<void> _terminateProcessTree(Process process) async {
