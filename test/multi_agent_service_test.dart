@@ -49,6 +49,7 @@ void main() {
         const Duration(minutes: 30),
       );
       expect(multiAgentRequestAttempts('http://127.0.0.1:20128/v1'), 1);
+      expect(multiAgentMaxParallel('http://127.0.0.1:20128/v1'), 1);
     },
   );
 
@@ -65,6 +66,7 @@ void main() {
       const Duration(minutes: 10),
     );
     expect(multiAgentRequestAttempts('https://api.example.test/v1'), 4);
+    expect(multiAgentMaxParallel('https://api.example.test/v1'), 3);
   });
 
   test('menjalankan task paralel pada branch dan worktree berbeda', () async {

@@ -21,11 +21,17 @@ Duration multiAgentTurnDuration(String model) =>
     ? const Duration(minutes: 30)
     : const Duration(minutes: 10);
 
-int multiAgentRequestAttempts(String baseUrl) {
+bool _isLocalMultiAgentProvider(String baseUrl) {
   final uri = Uri.tryParse(baseUrl.trim());
   final host = uri?.host.toLowerCase();
-  return host == '127.0.0.1' || host == 'localhost' ? 1 : 4;
+  return host == '127.0.0.1' || host == 'localhost';
 }
+
+int multiAgentRequestAttempts(String baseUrl) =>
+    _isLocalMultiAgentProvider(baseUrl) ? 1 : 4;
+
+int multiAgentMaxParallel(String baseUrl) =>
+    _isLocalMultiAgentProvider(baseUrl) ? 1 : 3;
 
 String formatMultiAgentResultsForChat(
   List<AgentTask> tasks, {

@@ -259,7 +259,7 @@ extension _CommandWorkflow on _AgentHomePageState {
     });
     final orchestrator = MultiAgentOrchestrator(
       workspace: _workspace,
-      maxParallel: 3,
+      maxParallel: multiAgentMaxParallel(_baseUrl),
       onTaskChanged: (task) {
         if (!mounted) return;
         final nodeId = task.nodeId;
