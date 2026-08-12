@@ -94,6 +94,18 @@ class GitWorktreeManager {
     if (repositoryRoot.isEmpty) {
       throw StateError('Workspace bukan repository Git.');
     }
+    final headResult = await _processRunner('git', [
+      'rev-parse',
+      '--verify',
+      'HEAD',
+    ], workingDirectory: repositoryRoot);
+    if (headResult.exitCode != 0 || '${headResult.stdout}'.trim().isEmpty) {
+      throw StateError(
+        'Repository belum memiliki commit. Commit file yang akan diperiksa '
+        'sebelum menjalankan /agents; file untracked tidak dapat disalin ke '
+        'worktree agent.',
+      );
+    }
     final stamp = _clock().microsecondsSinceEpoch;
     final slug = _slug(prompt);
     final branch = 'codex/agent-$slug-$stamp-$index';

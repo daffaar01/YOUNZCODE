@@ -14,8 +14,12 @@ void main() {
       clock: () => DateTime.fromMicrosecondsSinceEpoch(1000),
       processRunner: (executable, arguments, {workingDirectory}) async {
         commands.add(arguments);
-        if (arguments.first == 'rev-parse') {
-          return ProcessResult(1, 0, r'C:\repo', '');
+        if (arguments.first == 'rev-parse' &&
+            arguments.contains('--show-toplevel')) {
+          return ProcessResult(1, 0, 'C:/repo', '');
+        }
+        if (arguments.first == 'rev-parse' && arguments.contains('HEAD')) {
+          return ProcessResult(1, 0, 'abc123', '');
         }
         return ProcessResult(1, 0, '', '');
       },
@@ -64,14 +68,48 @@ void main() {
     );
   });
 
+  test('menolak repository tanpa commit sebelum membuat worktree', () async {
+    final commands = <List<String>>[];
+    final manager = GitWorktreeManager(
+      storageRoot: r'C:\temp\younz-worktrees',
+      processRunner: (executable, arguments, {workingDirectory}) async {
+        commands.add(arguments);
+        if (arguments.first == 'rev-parse' &&
+            arguments.contains('--show-toplevel')) {
+          return ProcessResult(1, 0, 'C:/repo', '');
+        }
+        if (arguments.first == 'rev-parse' && arguments.contains('HEAD')) {
+          return ProcessResult(1, 128, '', 'fatal: ambiguous argument HEAD');
+        }
+        return ProcessResult(1, 0, '', '');
+      },
+    );
+
+    await expectLater(
+      manager.prepare('C:/repo', 'audit aksesibilitas', 0),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('belum memiliki commit'),
+        ),
+      ),
+    );
+    expect(commands.any((command) => command.first == 'worktree'), isFalse);
+  });
+
   test(
     'runGraph hanya dispatch runnable dan memblokir descendant gagal',
     () async {
       final manager = GitWorktreeManager(
         storageRoot: r'C:\temp\younz-worktrees',
         processRunner: (executable, arguments, {workingDirectory}) async {
-          if (arguments.first == 'rev-parse') {
-            return ProcessResult(1, 0, r'C:\repo', '');
+          if (arguments.first == 'rev-parse' &&
+              arguments.contains('--show-toplevel')) {
+            return ProcessResult(1, 0, 'C:/repo', '');
+          }
+          if (arguments.first == 'rev-parse' && arguments.contains('HEAD')) {
+            return ProcessResult(1, 0, 'abc123', '');
           }
           return ProcessResult(1, 0, '', '');
         },
@@ -108,8 +146,12 @@ void main() {
     final manager = GitWorktreeManager(
       storageRoot: r'C:\temp\younz-worktrees',
       processRunner: (executable, arguments, {workingDirectory}) async {
-        if (arguments.first == 'rev-parse') {
-          return ProcessResult(1, 0, r'C:\repo', '');
+        if (arguments.first == 'rev-parse' &&
+            arguments.contains('--show-toplevel')) {
+          return ProcessResult(1, 0, 'C:/repo', '');
+        }
+        if (arguments.first == 'rev-parse' && arguments.contains('HEAD')) {
+          return ProcessResult(1, 0, 'abc123', '');
         }
         return ProcessResult(1, 0, '', '');
       },
