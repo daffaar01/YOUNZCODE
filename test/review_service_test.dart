@@ -22,70 +22,16 @@ void main() {
       ],
     );
 
-    final message = formatReviewForChat(result, applicableFindings: {0});
+    final message = formatReviewForChat(result);
 
     expect(message, contains('Git Diff Review'));
     expect(message, contains('Ditemukan satu bug.'));
     expect(message, contains('1. MEDIUM — Halaman terkunci'));
     expect(message, contains('script.js:50'));
     expect(message, contains('Listener dipasang terlalu lambat.'));
-    expect(message, contains('/review-apply 1'));
+    expect(message, contains('Perbaikan otomatis dinonaktifkan'));
+    expect(message, isNot(contains('/review-apply')));
     expect(message, isNot(contains('patch')));
-  });
-
-  test('apply selection terikat identity workspace dan finding applicable', () {
-    expect(
-      canApplyReviewFinding(
-        requestedNumber: 1,
-        findingCount: 2,
-        applicableFindings: {0},
-        reviewedWorkspaceIdentity: 'C:/trusted/workspace',
-        currentWorkspaceIdentity: 'C:/trusted/workspace',
-      ),
-      isTrue,
-    );
-    expect(
-      canApplyReviewFinding(
-        requestedNumber: 1,
-        findingCount: 2,
-        applicableFindings: {0},
-        reviewedWorkspaceIdentity: 'C:/trusted/workspace',
-        currentWorkspaceIdentity: 'C:/other-target',
-      ),
-      isFalse,
-    );
-    expect(
-      canApplyReviewFinding(
-        requestedNumber: 2,
-        findingCount: 2,
-        applicableFindings: {0},
-        reviewedWorkspaceIdentity: 'C:/trusted/workspace',
-        currentWorkspaceIdentity: 'C:/trusted/workspace',
-      ),
-      isFalse,
-    );
-    for (final requestedNumber in [0, 3]) {
-      expect(
-        canApplyReviewFinding(
-          requestedNumber: requestedNumber,
-          findingCount: 2,
-          applicableFindings: {0, 1},
-          reviewedWorkspaceIdentity: 'C:/trusted/workspace',
-          currentWorkspaceIdentity: 'C:/trusted/workspace',
-        ),
-        isFalse,
-      );
-    }
-    expect(
-      canApplyReviewFinding(
-        requestedNumber: 1,
-        findingCount: 2,
-        applicableFindings: {0},
-        reviewedWorkspaceIdentity: '',
-        currentWorkspaceIdentity: '',
-      ),
-      isFalse,
-    );
   });
 
   test('review max memakai satu attempt dan deadline khusus', () {

@@ -47,25 +47,7 @@ int reviewProviderTimeoutMs({
   return configured < 600000 ? 600000 : configured;
 }
 
-bool canApplyReviewFinding({
-  required int requestedNumber,
-  required int findingCount,
-  required Set<int> applicableFindings,
-  required String reviewedWorkspaceIdentity,
-  required String currentWorkspaceIdentity,
-}) {
-  final index = requestedNumber - 1;
-  return requestedNumber > 0 &&
-      index < findingCount &&
-      applicableFindings.contains(index) &&
-      reviewedWorkspaceIdentity.isNotEmpty &&
-      reviewedWorkspaceIdentity == currentWorkspaceIdentity;
-}
-
-String formatReviewForChat(
-  ReviewResult result, {
-  required Set<int> applicableFindings,
-}) {
+String formatReviewForChat(ReviewResult result) {
   final output = StringBuffer('Git Diff Review\n\n${result.summary.trim()}');
   if (result.findings.isEmpty) {
     output.write('\n\nTidak ditemukan masalah yang dapat ditindaklanjuti.');
@@ -81,9 +63,7 @@ String formatReviewForChat(
       ..write('\n${finding.description}');
     if (finding.suggestedPatch.isNotEmpty) {
       output.write(
-        applicableFindings.contains(index)
-            ? '\nPerbaikan tersedia dan belum diterapkan. Gunakan /review-apply ${index + 1} untuk meninjaunya melalui alur persetujuan.'
-            : '\nPerbaikan yang disarankan tidak dapat diterapkan karena invalid atau stale.',
+        '\nPerbaikan otomatis dinonaktifkan; lakukan perubahan secara manual setelah memeriksa finding.',
       );
     }
   }

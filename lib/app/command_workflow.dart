@@ -98,8 +98,7 @@ extension _CommandWorkflow on _AgentHomePageState {
         _showAddonSummary(AddonKind.mcpServer, argument);
       case '/review':
         await _openReview();
-      case '/review-apply':
-        await _applyReviewFinding(argument);
+
       case '/fork':
         await _forkChat();
       case '/model' || '/models':
@@ -591,17 +590,6 @@ extension _CommandWorkflow on _AgentHomePageState {
         },
       );
       final result = await reviewer.review(diff);
-      final applicable = <int>{};
-      for (var index = 0; index < result.findings.length; index++) {
-        final patch = result.findings[index].suggestedPatch;
-        if (patch.isEmpty) continue;
-        try {
-          await _gitService.checkPatch(reviewedWorkspaceIdentity, patch);
-          applicable.add(index);
-        } on ProcessException {
-          // The finding remains visible, but unsafe/stale patches cannot be applied.
-        }
-      }
       if (!mounted) return;
       final currentIdentity = await _trustService.canonicalWorkspaceIdentity(
         _workspace,
@@ -612,14 +600,8 @@ extension _CommandWorkflow on _AgentHomePageState {
           'Target workspace berubah selama review.',
         );
       }
-      _updateState(() {
-        _lastReviewResult = result;
-        _lastApplicableReviewFindings = Set<int>.unmodifiable(applicable);
-        _lastReviewWorkspaceIdentity = reviewedWorkspaceIdentity;
-      });
-      _addLocalResponse(
-        formatReviewForChat(result, applicableFindings: applicable),
-      );
+
+      _addLocalResponse(formatReviewForChat(result));
     } catch (error) {
       if (mounted) _addLocalResponse('Review gagal: $error', error: true);
     } finally {
@@ -631,115 +613,6 @@ extension _CommandWorkflow on _AgentHomePageState {
         });
       }
     }
-  }
-
-  Future<void> _applyReviewFinding(String argument) async {
-    final requested = int.tryParse(argument);
-    final result = _lastReviewResult;
-    if (requested == null || requested < 1) {
-      _addLocalResponse('Gunakan: /review-apply <nomor finding>', error: true);
-      return;
-    }
-    final index = requested - 1;
-    final currentIdentity = await _trustService.canonicalWorkspaceIdentity(
-      _workspace,
-    );
-    if (result == null ||
-        currentIdentity == null ||
-        !canApplyReviewFinding(
-          requestedNumber: requested,
-          findingCount: result.findings.length,
-          applicableFindings: _lastApplicableReviewFindings,
-          reviewedWorkspaceIdentity: _lastReviewWorkspaceIdentity,
-          currentWorkspaceIdentity: currentIdentity,
-        )) {
-      _addLocalResponse(
-        'Finding tidak tersedia untuk diterapkan. Jalankan /review lagi pada workspace ini.',
-        error: true,
-      );
-      return;
-    }
-    final patch = result.findings[index].suggestedPatch;
-    try {
-      await _gitService.checkPatch(currentIdentity, patch);
-    } on ProcessException {
-      _addLocalResponse(
-        'Patch finding sudah stale atau tidak valid. Jalankan /review lagi.',
-        error: true,
-      );
-      return;
-    }
-    if (!mounted) return;
-    final selected = await showDialog<int>(
-      context: context,
-      builder: (context) =>
-          _ReviewDialog(result: result, applicableFindings: {index}),
-    );
-    if (selected != index || !mounted) return;
-    try {
-      if (!_workspaceTrusted && !await _trustCurrentWorkspace()) return;
-      if (!mounted) return;
-      var canonicalWorkspace = await _reviewApplyCanonicalWorkspace();
-      if (canonicalWorkspace == null) {
-        _addLocalResponse(
-          'Workspace berubah atau tidak lagi dipercaya. Jalankan /review lagi.',
-          error: true,
-        );
-        return;
-      }
-      await _gitService.checkPatch(canonicalWorkspace, patch);
-      canonicalWorkspace = await _reviewApplyCanonicalWorkspace();
-      if (canonicalWorkspace == null) {
-        _addLocalResponse(
-          'Workspace berubah atau tidak lagi dipercaya. Patch dibatalkan.',
-          error: true,
-        );
-        return;
-      }
-      await _gitService.applyValidatedPatch(canonicalWorkspace, patch);
-      if (!mounted) return;
-      final changedPaths = ReviewService.patchPaths(patch);
-      final quality = _qualityGateEnabled
-          ? await _qualityGateService.run(
-              canonicalWorkspace,
-              changedPaths,
-              onStatus: (status) {
-                if (mounted) _updateState(() => _agentStatus = status);
-              },
-            )
-          : const QualityGateResult(checks: []);
-      if (!mounted) return;
-      if (quality.passed || quality.skipped) {
-        _showMessage(
-          quality.skipped
-              ? 'Patch diterapkan; tidak ada quality check yang cocok.'
-              : 'Patch diterapkan; ${quality.checks.length} quality check lulus.',
-        );
-      } else {
-        final revert = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => _ReviewQualityDialog(result: quality),
-        );
-        if (revert == true) {
-          await _gitService.reversePatch(canonicalWorkspace, patch);
-          await _refreshGit();
-          if (mounted) _showMessage('Patch review dikembalikan.');
-        }
-      }
-    } catch (error) {
-      if (mounted) {
-        _addLocalResponse('Patch review gagal diterapkan: $error', error: true);
-      }
-    }
-  }
-
-  Future<String?> _reviewApplyCanonicalWorkspace() async {
-    final identity = await _trustService.canonicalWorkspaceIdentity(_workspace);
-    if (identity == null || identity != _lastReviewWorkspaceIdentity) {
-      return null;
-    }
-    return await _trustService.isTrusted(identity) ? identity : null;
   }
 
   String _reviewMessageText(Object? content) {
