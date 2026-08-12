@@ -14,6 +14,10 @@ typedef McpLaunchApproval =
     Future<bool> Function(String command, List<String> arguments);
 typedef McpCredentialResolver = Future<String?> Function(String reference);
 typedef McpEndpointLookup = Future<List<InternetAddress>> Function(String host);
+typedef McpSecureSocket =
+    Future<SecureSocket> Function(Socket socket, String host);
+typedef McpSocketConnect =
+    Future<ConnectionTask<Socket>> Function(InternetAddress address, int port);
 
 Future<void> validateMcpHttpEndpoint(
   Uri uri, {
@@ -68,7 +72,11 @@ Future<InternetAddress> resolveMcpConnectAddress(
   return addresses.first;
 }
 
-http.Client createPinnedMcpHttpClient(McpEndpointLookup lookup) {
+http.Client createPinnedMcpHttpClient(
+  McpEndpointLookup lookup, {
+  McpSocketConnect connect = Socket.startConnect,
+  McpSecureSocket secure = _secureMcpSocket,
+}) {
   final native = HttpClient()..findProxy = (_) => 'DIRECT';
   native.connectionFactory = (uri, proxyHost, proxyPort) async {
     if (proxyHost != null || proxyPort != null) {
@@ -76,16 +84,43 @@ http.Client createPinnedMcpHttpClient(McpEndpointLookup lookup) {
     }
     final address = await resolveMcpConnectAddress(uri, lookup: lookup);
     final port = uri.hasPort ? uri.port : (uri.isScheme('https') ? 443 : 80);
-    final connection = await Socket.startConnect(address, port);
-    final Future<Socket> socket = uri.isScheme('https')
-        ? connection.socket.then(
-            (plain) => SecureSocket.secure(plain, host: uri.host),
-          )
-        : connection.socket;
-    return ConnectionTask.fromSocket<Socket>(socket, connection.cancel);
+    final connection = await connect(address, port);
+    Socket? activeSocket;
+    final cancelled = Completer<Socket>();
+
+    final socket = Future.any<Socket>([connection.socket, cancelled.future])
+        .then<Socket>((plain) async {
+          activeSocket = plain;
+          if (!uri.isScheme('https')) return plain;
+          final securing = secure(plain, uri.host);
+          unawaited(
+            securing.then((secured) {
+              if (cancelled.isCompleted) secured.destroy();
+            }, onError: (_) {}),
+          );
+          final secured = await Future.any<Socket>([
+            securing,
+            cancelled.future,
+          ]);
+          activeSocket = secured;
+          return secured;
+        });
+
+    return ConnectionTask.fromSocket<Socket>(socket, () {
+      if (!cancelled.isCompleted) {
+        cancelled.completeError(
+          const SocketException('Connection attempt cancelled'),
+        );
+      }
+      activeSocket?.destroy();
+      connection.cancel();
+    });
   };
   return IOClient(native);
 }
+
+Future<SecureSocket> _secureMcpSocket(Socket socket, String host) =>
+    SecureSocket.secure(socket, host: host);
 
 bool _isNonPublicAddress(InternetAddress address) {
   final bytes = address.rawAddress;

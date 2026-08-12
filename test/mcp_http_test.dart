@@ -196,6 +196,141 @@ void main() {
     );
   });
 
+  test(
+    'pinned MCP transport connects the selected address once without re-resolving',
+    () async {
+      final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final subscription = listener.listen((socket) {
+        socket.write(
+          'HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK',
+        );
+        unawaited(socket.flush().whenComplete(socket.destroy));
+      });
+      addTearDown(() async {
+        await subscription.cancel();
+        await listener.close();
+      });
+
+      var lookups = 0;
+      var connects = 0;
+      final selected = InternetAddress.loopbackIPv4;
+      final client = createPinnedMcpHttpClient(
+        (_) async {
+          lookups++;
+          return [selected];
+        },
+        connect: (address, port) {
+          connects++;
+          expect(identical(address, selected), isTrue);
+          expect(port, listener.port);
+          return Socket.startConnect(address, port);
+        },
+      );
+      addTearDown(client.close);
+
+      final response = await client.get(
+        Uri.parse('http://localhost:${listener.port}/mcp'),
+      );
+
+      expect(response.body, 'OK');
+      expect(lookups, 1);
+      expect(connects, 1);
+    },
+  );
+
+  test(
+    'pinned MCP transport preserves TLS hostname and rejects TLS errors',
+    () async {
+      final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final subscription = listener.listen((_) {});
+      addTearDown(() async {
+        await subscription.cancel();
+        await listener.close();
+      });
+      final client = createPinnedMcpHttpClient(
+        (_) async => [InternetAddress.loopbackIPv4],
+        secure: (plain, host) async {
+          expect(host, 'localhost');
+          plain.destroy();
+          throw const HandshakeException('certificate rejected');
+        },
+      );
+      addTearDown(client.close);
+
+      await expectLater(
+        client.get(Uri.parse('https://localhost:${listener.port}/mcp')),
+        throwsA(anything),
+      );
+    },
+  );
+
+  test('pinned MCP transport cancels a stalled TCP connection', () async {
+    final cancelled = Completer<void>();
+    final client = createPinnedMcpHttpClient(
+      (_) async => [InternetAddress.loopbackIPv4],
+      connect: (address, port) async => ConnectionTask.fromSocket<Socket>(
+        Completer<Socket>().future,
+        cancelled.complete,
+      ),
+    );
+    final request = expectLater(
+      client.get(Uri.parse('http://localhost:43123/mcp')),
+      throwsA(anything),
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    client.close();
+
+    await cancelled.future.timeout(const Duration(seconds: 2));
+    await request;
+  });
+
+  test(
+    'pinned MCP transport closes a socket stalled during TLS negotiation',
+    () async {
+      final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final accepted = Completer<Socket>();
+      final subscription = listener.listen((socket) {
+        if (!accepted.isCompleted) accepted.complete(socket);
+      });
+      addTearDown(() async {
+        await subscription.cancel();
+        await listener.close();
+      });
+
+      var lookups = 0;
+      final tlsStarted = Completer<void>();
+      final client = createPinnedMcpHttpClient(
+        (host) async {
+          lookups++;
+          expect(host, 'localhost');
+          return [InternetAddress.loopbackIPv4];
+        },
+        secure: (plain, host) async {
+          expect(host, 'localhost');
+          tlsStarted.complete();
+          return Completer<SecureSocket>().future;
+        },
+      );
+      final request = expectLater(
+        client.get(Uri.parse('https://localhost:${listener.port}/mcp')),
+        throwsA(anything),
+      );
+      final socket = await accepted.future.timeout(const Duration(seconds: 2));
+      final peerClosed = socket.drain<void>();
+      await tlsStarted.future.timeout(const Duration(seconds: 2));
+
+      client.close();
+
+      await expectLater(
+        peerClosed.timeout(const Duration(seconds: 2)),
+        completes,
+      );
+      await request;
+      expect(lookups, 1);
+    },
+  );
+
   test('MCP HTTP rejects redirects instead of following them', () async {
     final server = MockClient(
       (_) async => http.Response(
