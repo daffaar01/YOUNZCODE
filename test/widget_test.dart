@@ -388,7 +388,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('slash command model mcp dan skill membuka manager', (
+  testWidgets('slash command model dan skill membuka manager, mcp masuk chat', (
     tester,
   ) async {
     _setMockPreferences({});
@@ -410,9 +410,11 @@ void main() {
     await tester.enterText(field, '/mcp');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('ADD-ON MANAGER'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('close-addon-manager')));
-    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.textContaining('Belum ada MCP server yang diimpor'),
+      findsOneWidget,
+    );
+    expect(find.text('ADD-ON MANAGER'), findsNothing);
 
     await tester.tap(field);
     await tester.enterText(field, '/skill');
