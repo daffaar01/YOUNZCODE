@@ -35,6 +35,18 @@ class ReviewResult {
 
 typedef ReviewAnalyzer = Future<String> Function(String prompt);
 
+const reviewProviderMaxAttempts = 1;
+
+int reviewProviderTimeoutMs({
+  required int configuredTimeoutMs,
+  required String model,
+}) {
+  final configured = configuredTimeoutMs > 0 ? configuredTimeoutMs : 120000;
+  final normalizedModel = model.trim().toLowerCase();
+  if (!normalizedModel.endsWith('(max)')) return configured;
+  return configured < 600000 ? 600000 : configured;
+}
+
 class ReviewService {
   ReviewService({required ReviewAnalyzer analyzer}) : _analyzer = analyzer;
 

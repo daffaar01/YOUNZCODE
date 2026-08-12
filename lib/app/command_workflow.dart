@@ -540,9 +540,12 @@ extension _CommandWorkflow on _AgentHomePageState {
       baseUrl: _baseUrl,
       apiKey: _apiKey,
       model: _model,
-      timeoutMs: _timeoutMs,
+      timeoutMs: reviewProviderTimeoutMs(
+        configuredTimeoutMs: _timeoutMs,
+        model: _model,
+      ),
       headers: _apiHeaders,
-      maxRequestAttempts: 4,
+      maxRequestAttempts: reviewProviderMaxAttempts,
       retryBaseDelay: const Duration(milliseconds: 750),
       onStatus: (status) {
         if (mounted) _updateState(() => _agentStatus = status);

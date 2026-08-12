@@ -6,6 +6,26 @@ import 'package:kode_agent_desktop/services/git_service.dart';
 import 'package:kode_agent_desktop/services/review_service.dart';
 
 void main() {
+  test('review max memakai satu attempt dan deadline khusus', () {
+    expect(reviewProviderMaxAttempts, 1);
+    expect(
+      reviewProviderTimeoutMs(
+        configuredTimeoutMs: 120000,
+        model: 'cx/gpt-5.6-sol(max)',
+      ),
+      600000,
+    );
+  });
+
+  test('review non-max tidak memperpendek timeout pengguna', () {
+    expect(
+      reviewProviderTimeoutMs(
+        configuredTimeoutMs: 420000,
+        model: 'cx/gpt-5.6-sol(high)',
+      ),
+      420000,
+    );
+  });
   test(
     'review mengirim diff teredaksi dan mengurai temuan terstruktur',
     () async {
