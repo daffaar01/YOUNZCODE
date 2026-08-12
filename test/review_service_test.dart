@@ -64,6 +64,28 @@ void main() {
       ),
       isFalse,
     );
+    for (final requestedNumber in [0, 3]) {
+      expect(
+        canApplyReviewFinding(
+          requestedNumber: requestedNumber,
+          findingCount: 2,
+          applicableFindings: {0, 1},
+          reviewedWorkspaceIdentity: 'C:/trusted/workspace',
+          currentWorkspaceIdentity: 'C:/trusted/workspace',
+        ),
+        isFalse,
+      );
+    }
+    expect(
+      canApplyReviewFinding(
+        requestedNumber: 1,
+        findingCount: 2,
+        applicableFindings: {0},
+        reviewedWorkspaceIdentity: '',
+        currentWorkspaceIdentity: '',
+      ),
+      isFalse,
+    );
   });
 
   test('review max memakai satu attempt dan deadline khusus', () {
@@ -391,7 +413,7 @@ diff --git a/good.txt b/good.txt
 
     await service.checkPatch(root.path, patch);
     expect(await file.readAsString(), 'before\n');
-    await service.applyPatch(root.path, patch);
+    await service.applyValidatedPatch(root.path, patch);
     expect((await file.readAsString()).replaceAll('\r\n', '\n'), 'after\n');
 
     await service.reversePatch(root.path, patch);

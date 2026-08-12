@@ -523,26 +523,29 @@ extension _CommandWorkflow on _AgentHomePageState {
       );
       return;
     }
-    final diff = await _gitService.diff(_workspace);
-    if (!mounted) return;
-    if (diff.isEmpty) {
-      _addLocalResponse('Git diff kosong; tidak ada perubahan untuk direview.');
-      return;
-    }
-    if (_apiKey.isEmpty) {
-      await _openSettings();
-      if (!mounted || _apiKey.isEmpty) return;
-    }
-    if (!mounted) return;
+    final reviewedWorkspace = _workspace;
     final reviewedWorkspaceIdentity = await _trustService
-        .canonicalWorkspaceIdentity(_workspace);
-    if (reviewedWorkspaceIdentity == null) {
+        .canonicalWorkspaceIdentity(reviewedWorkspace);
+    if (reviewedWorkspaceIdentity == null || reviewedWorkspace != _workspace) {
       _addLocalResponse(
         'Workspace tidak dapat diresolusi dengan aman untuk review.',
         error: true,
       );
       return;
     }
+    final diff = await _gitService.diff(reviewedWorkspaceIdentity);
+    if (!mounted || reviewedWorkspace != _workspace) return;
+    if (diff.isEmpty) {
+      _addLocalResponse('Git diff kosong; tidak ada perubahan untuk direview.');
+      return;
+    }
+    if (_apiKey.isEmpty) {
+      await _openSettings();
+      if (!mounted || _apiKey.isEmpty || reviewedWorkspace != _workspace) {
+        return;
+      }
+    }
+    if (!mounted) return;
     _updateState(() {
       _busy = true;
       _agentStatus = 'Mereview Git diff';
@@ -593,7 +596,7 @@ extension _CommandWorkflow on _AgentHomePageState {
         final patch = result.findings[index].suggestedPatch;
         if (patch.isEmpty) continue;
         try {
-          await _gitService.checkPatch(_workspace, patch);
+          await _gitService.checkPatch(reviewedWorkspaceIdentity, patch);
           applicable.add(index);
         } on ProcessException {
           // The finding remains visible, but unsafe/stale patches cannot be applied.
@@ -603,7 +606,8 @@ extension _CommandWorkflow on _AgentHomePageState {
       final currentIdentity = await _trustService.canonicalWorkspaceIdentity(
         _workspace,
       );
-      if (currentIdentity != reviewedWorkspaceIdentity) {
+      if (reviewedWorkspace != _workspace ||
+          currentIdentity != reviewedWorkspaceIdentity) {
         throw const FileSystemException(
           'Target workspace berubah selama review.',
         );
@@ -657,7 +661,7 @@ extension _CommandWorkflow on _AgentHomePageState {
     }
     final patch = result.findings[index].suggestedPatch;
     try {
-      await _gitService.checkPatch(_workspace, patch);
+      await _gitService.checkPatch(currentIdentity, patch);
     } on ProcessException {
       _addLocalResponse(
         'Patch finding sudah stale atau tidak valid. Jalankan /review lagi.',
@@ -675,27 +679,29 @@ extension _CommandWorkflow on _AgentHomePageState {
     try {
       if (!_workspaceTrusted && !await _trustCurrentWorkspace()) return;
       if (!mounted) return;
-      if (!await _reviewApplyWorkspaceIsSafe()) {
+      var canonicalWorkspace = await _reviewApplyCanonicalWorkspace();
+      if (canonicalWorkspace == null) {
         _addLocalResponse(
           'Workspace berubah atau tidak lagi dipercaya. Jalankan /review lagi.',
           error: true,
         );
         return;
       }
-      await _gitService.checkPatch(_workspace, patch);
-      if (!await _reviewApplyWorkspaceIsSafe()) {
+      await _gitService.checkPatch(canonicalWorkspace, patch);
+      canonicalWorkspace = await _reviewApplyCanonicalWorkspace();
+      if (canonicalWorkspace == null) {
         _addLocalResponse(
           'Workspace berubah atau tidak lagi dipercaya. Patch dibatalkan.',
           error: true,
         );
         return;
       }
-      await _gitService.applyPatch(_workspace, patch);
+      await _gitService.applyValidatedPatch(canonicalWorkspace, patch);
       if (!mounted) return;
       final changedPaths = ReviewService.patchPaths(patch);
       final quality = _qualityGateEnabled
           ? await _qualityGateService.run(
-              _workspace,
+              canonicalWorkspace,
               changedPaths,
               onStatus: (status) {
                 if (mounted) _updateState(() => _agentStatus = status);
@@ -716,7 +722,7 @@ extension _CommandWorkflow on _AgentHomePageState {
           builder: (context) => _ReviewQualityDialog(result: quality),
         );
         if (revert == true) {
-          await _gitService.reversePatch(_workspace, patch);
+          await _gitService.reversePatch(canonicalWorkspace, patch);
           await _refreshGit();
           if (mounted) _showMessage('Patch review dikembalikan.');
         }
@@ -728,12 +734,12 @@ extension _CommandWorkflow on _AgentHomePageState {
     }
   }
 
-  Future<bool> _reviewApplyWorkspaceIsSafe() async {
+  Future<String?> _reviewApplyCanonicalWorkspace() async {
     final identity = await _trustService.canonicalWorkspaceIdentity(_workspace);
     if (identity == null || identity != _lastReviewWorkspaceIdentity) {
-      return false;
+      return null;
     }
-    return _trustService.isTrusted(_workspace);
+    return await _trustService.isTrusted(identity) ? identity : null;
   }
 
   String _reviewMessageText(Object? content) {

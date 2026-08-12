@@ -198,6 +198,17 @@ class GitService {
     await _runPatch(workspace, patch, checkOnly: false);
   }
 
+  /// Applies a provider patch in one Git process after the caller has bound and
+  /// revalidated [canonicalWorkspace]. `git apply` validates the full patch
+  /// before committing file writes, avoiding a second mutable-alias check/apply
+  /// window at the final state-changing boundary.
+  Future<void> applyValidatedPatch(
+    String canonicalWorkspace,
+    String patch,
+  ) async {
+    await _runPatch(canonicalWorkspace, patch, checkOnly: false);
+  }
+
   Future<void> reversePatch(String workspace, String patch) async {
     await _runPatch(workspace, patch, checkOnly: true, reverse: true);
     await _runPatch(workspace, patch, checkOnly: false, reverse: true);
