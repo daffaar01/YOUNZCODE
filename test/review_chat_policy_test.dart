@@ -21,6 +21,7 @@ void main() {
     expect(reviewBody, isNot(contains('showDialog<int>(')));
     expect(reviewBody, isNot(contains('applyPatch(')));
     expect(reviewBody, isNot(contains('applyValidatedPatch(')));
+    expect(reviewBody, isNot(contains('_reviewChanges(')));
     expect(workflow, isNot(contains('_applyReviewFinding(')));
     expect(workflow, isNot(contains('/review-apply')));
     expect(mainSource, isNot(contains('/review-apply')));

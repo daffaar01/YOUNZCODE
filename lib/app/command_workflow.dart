@@ -512,10 +512,6 @@ extension _CommandWorkflow on _AgentHomePageState {
   }
 
   Future<void> _openReview() async {
-    if (_pendingChanges != null) {
-      await _reviewChanges();
-      return;
-    }
     if (!_gitStatus.isRepository || _workspace.isEmpty) {
       _addLocalResponse(
         'Tidak ada perubahan agent atau repository Git untuk direview.',
