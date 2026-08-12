@@ -281,6 +281,46 @@ void main() {
     expect(selection.promptContext, isNot(contains('hidden')));
   });
 
+  test(
+    'ContextEngine membuang isi bila target berubah saat boundary read',
+    () async {
+      final root = await Directory.systemTemp.createTemp('younz-context-race-');
+      final outside = await Directory.systemTemp.createTemp(
+        'younz-outside-race-',
+      );
+      addTearDown(() async {
+        if (await root.exists()) await root.delete(recursive: true);
+        if (await outside.exists()) await outside.delete(recursive: true);
+      });
+      final indexed = File('${root.path}${Platform.pathSeparator}race.dart');
+      await indexed.writeAsString('class RaceTarget {}\n');
+      final external = File(
+        '${outside.path}${Platform.pathSeparator}race.dart',
+      );
+      await external.writeAsString(
+        'class RaceTarget { String hidden = "leak"; }\n',
+      );
+      final intelligence = CodeIntelligenceService(root.path);
+      await intelligence.ensureIndexed();
+      var swapped = false;
+      final engine = ContextEngine(
+        root.path,
+        intelligence: intelligence,
+        beforeRead: (path) async {
+          if (swapped) return;
+          swapped = true;
+          await File(path).delete();
+          await Link(path).create(external.path);
+        },
+      );
+
+      final selection = await engine.select('RaceTarget');
+
+      expect(selection.files, isEmpty);
+      expect(selection.promptContext, isNot(contains('leak')));
+    },
+  );
+
   test('ContextEngine tidak pernah membaca environment files', () async {
     final root = await Directory.systemTemp.createTemp('younz-context-');
     addTearDown(() => root.delete(recursive: true));

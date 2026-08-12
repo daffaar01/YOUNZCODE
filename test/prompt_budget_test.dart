@@ -23,4 +23,26 @@ void main() {
     expect(budget.toString(), contains('--- large.txt'));
     expect(budget.toString(), endsWith('[TRUNCATED]'));
   });
+
+  test('combined request cap menghitung system addon history dan prompt', () {
+    final messages = <Map<String, dynamic>>[
+      {'role': 'system', 'content': 's' * 12},
+      {'role': 'user', 'content': 'old-secret-${'h' * 12}'},
+      {'role': 'assistant', 'content': 'a' * 12},
+      {'role': 'user', 'content': 'attachment-${'x' * 20}'},
+    ];
+
+    final bounded = PromptBudget.constrainMessages(
+      messages,
+      maxCharacters: 120,
+    );
+
+    expect(PromptBudget.messageCharacters(bounded), lessThanOrEqualTo(120));
+    expect(bounded.first['role'], 'system');
+    expect(bounded.last['content'], contains('attachment-'));
+    expect(
+      bounded.any((message) => '${message['content']}'.contains('old-secret-')),
+      isFalse,
+    );
+  });
 }

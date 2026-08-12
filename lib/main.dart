@@ -31,6 +31,7 @@ import 'services/prompt_budget.dart';
 import 'services/chat_session_store.dart';
 import 'services/code_intelligence_service.dart';
 import 'services/context_engine.dart';
+import 'services/context_request_guard.dart';
 import 'services/debug_adapter_service.dart';
 import 'services/document_extraction_service.dart';
 import 'services/settings_store.dart';

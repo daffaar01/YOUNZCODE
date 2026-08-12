@@ -5,6 +5,8 @@ import 'package:path/path.dart' as path;
 import 'code_intelligence_service.dart';
 import 'secret_scanner.dart';
 
+typedef ContextReadHook = Future<void> Function(String canonicalPath);
+
 class ContextFileSelection {
   const ContextFileSelection({
     required this.path,
@@ -29,12 +31,17 @@ class ContextSelection {
 }
 
 class ContextEngine {
-  ContextEngine(String root, {CodeIntelligenceService? intelligence})
-    : root = path.normalize(path.absolute(root)),
-      _intelligence = intelligence ?? CodeIntelligenceService(root);
+  ContextEngine(
+    String root, {
+    CodeIntelligenceService? intelligence,
+    ContextReadHook? beforeRead,
+  }) : root = path.normalize(path.absolute(root)),
+       _intelligence = intelligence ?? CodeIntelligenceService(root),
+       _beforeRead = beforeRead;
 
   final String root;
   final CodeIntelligenceService _intelligence;
+  final ContextReadHook? _beforeRead;
 
   Future<ContextSelection> select(
     String task, {
@@ -67,13 +74,25 @@ class ContextEngine {
     for (final candidate in ranked) {
       if (selected.length >= maxFiles) break;
       if (CodeIntelligenceService.isSensitivePath(candidate.path)) continue;
-      final safe = await _resolveContained(candidate.path);
-      if (safe == null) continue;
-      final file = File(safe);
-      if (!await file.exists() || await file.length() > 1024 * 1024) continue;
+      final initiallySafe = await _resolveContained(candidate.path);
+      if (initiallySafe == null) continue;
       String content;
       try {
-        final raw = await file.readAsString();
+        await _beforeRead?.call(initiallySafe);
+        final safeBeforeRead = await _resolveContained(candidate.path);
+        if (safeBeforeRead == null || safeBeforeRead != initiallySafe) continue;
+        final file = File(safeBeforeRead);
+        if (!await file.exists() || await file.length() > 1024 * 1024) continue;
+        final revalidatedBeforeRead = await _resolveContained(candidate.path);
+        if (revalidatedBeforeRead == null ||
+            revalidatedBeforeRead != safeBeforeRead) {
+          continue;
+        }
+        final raw = await File(revalidatedBeforeRead).readAsString();
+        final safeAfterRead = await _resolveContained(candidate.path);
+        if (safeAfterRead == null || safeAfterRead != revalidatedBeforeRead) {
+          continue;
+        }
         if (SecretScanner.containsSecret(raw)) continue;
         content = SecretScanner.redact(raw);
       } on FileSystemException {

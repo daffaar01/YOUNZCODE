@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class PromptBudget {
   PromptBudget({required this.maxCharacters}) : assert(maxCharacters >= 0);
 
@@ -46,4 +48,49 @@ class PromptBudget {
 
   @override
   String toString() => _buffer.toString();
+
+  static int messageCharacters(List<Map<String, dynamic>> messages) =>
+      jsonEncode(messages).length;
+
+  /// Keeps the system instruction and newest complete messages, dropping old
+  /// history before truncating the newest content as a fail-safe.
+  static List<Map<String, dynamic>> constrainMessages(
+    List<Map<String, dynamic>> messages, {
+    int maxCharacters = 320000,
+  }) {
+    if (maxCharacters <= 2 || messages.isEmpty) return const [];
+    final copied = messages
+        .map((message) => Map<String, dynamic>.from(message))
+        .toList();
+    if (messageCharacters(copied) <= maxCharacters) return copied;
+    final kept = <Map<String, dynamic>>[];
+    if (copied.first['role'] == 'system') kept.add(copied.first);
+    for (var index = copied.length - 1; index >= 0; index--) {
+      final candidate = copied[index];
+      if (identical(candidate, copied.first) && kept.isNotEmpty) continue;
+      final insertion = kept.isNotEmpty && kept.first['role'] == 'system'
+          ? 1
+          : 0;
+      final trial = [...kept]..insert(insertion, candidate);
+      if (messageCharacters(trial) <= maxCharacters) {
+        kept
+          ..clear()
+          ..addAll(trial);
+      }
+    }
+    while (kept.isNotEmpty && messageCharacters(kept) > maxCharacters) {
+      if (kept.length > 1) {
+        kept.removeAt(kept.first['role'] == 'system' ? 1 : 0);
+        continue;
+      }
+      final content = kept.single['content'];
+      if (content is! String || content.isEmpty) return const [];
+      final overflow = messageCharacters(kept) - maxCharacters;
+      kept.single['content'] = content.substring(
+        0,
+        (content.length - overflow).clamp(0, content.length),
+      );
+    }
+    return kept;
+  }
 }
