@@ -2,6 +2,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kode_agent_desktop/services/secret_scanner.dart';
 
 void main() {
+  test('menyensor seluruh alias dan delimiter URI koneksi umum', () {
+    const schemes = [
+      'http',
+      'https',
+      'postgres',
+      'postgresql',
+      'mysql',
+      'mariadb',
+      'mongodb',
+      'mongodb+srv',
+      'redis',
+      'rediss',
+      'amqp',
+      'amqps',
+    ];
+    for (final scheme in schemes) {
+      for (final userInfo in const [
+        'user:synthetic-password@',
+        'user%3Asynthetic-password%40',
+        'user%3Asynthetic-password@',
+        'user:synthetic-password%40',
+      ]) {
+        final value =
+            '$scheme://$userInfo'
+            'host.example/app';
+        expect(SecretScanner.containsSecret(value), isTrue, reason: value);
+        expect(
+          SecretScanner.redact(value),
+          isNot(contains('synthetic-password')),
+          reason: value,
+        );
+      }
+    }
+  });
+
   test('menyensor kredensial dalam JSON yang dikutip', () {
     const content = '{"password": "Pr0dPassw0rd!"}';
     final redacted = SecretScanner.redact(content);
@@ -33,6 +68,51 @@ void main() {
     final redacted = SecretScanner.redact(key);
     expect(redacted, isNot(contains('MIIBOwIBAAJBAKj34')));
     expect(redacted, contains('[REDACTED private key]'));
+  });
+
+  test(
+    'menyensor authorization, URI credential, cookie, dan connection string',
+    () {
+      final samples = [
+        'Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456',
+        'https://admin:supersecret@example.com/database',
+        'Cookie: session=abcdefghijklmnopqrstuvwxyz123456',
+        'Server=db;User Id=admin;Password=SuperSecret123;',
+        [
+          'xox',
+          'b',
+          '-123456789012-',
+          '123456789012-',
+          'abcdefghijklmnopqrstuvwx',
+        ].join(),
+      ];
+      for (final sample in samples) {
+        expect(SecretScanner.containsSecret(sample), isTrue, reason: sample);
+        expect(
+          SecretScanner.redact(sample),
+          isNot(equals(sample)),
+          reason: sample,
+        );
+      }
+    },
+  );
+
+  test('mendeteksi npm, Google API, dan nama credential aplikasi', () {
+    const samples = [
+      'npm_abcdefghijklmnopqrstuvwxyz1234567890',
+      'AIzaSyA234567890abcdefghijklmnopqrstuvwxyz',
+      'DATABASE_URL=postgres://user:longpassword@db.example/app',
+      'PRIVATE_TOKEN_NAME=abcdefghijklmnopqrstuvwxyz123456',
+      'SESSION_VALUE=abcdefghijklmnopqrstuvwxyz1234567890',
+    ];
+    for (final sample in samples) {
+      expect(SecretScanner.containsSecret(sample), isTrue, reason: sample);
+      expect(
+        SecretScanner.redact(sample),
+        isNot(equals(sample)),
+        reason: sample,
+      );
+    }
   });
 
   test('nilai pendek non-rahasia tidak disensor', () {

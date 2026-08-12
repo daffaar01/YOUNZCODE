@@ -21,6 +21,7 @@ import 'agent_working_palette.dart';
 import 'editor_support.dart';
 import 'lottie_support.dart';
 import 'services/agent_service.dart';
+import 'services/agent_completion_client.dart';
 import 'services/addon_service.dart';
 import 'services/approval_mode.dart';
 import 'services/browser_agent_service.dart';
@@ -48,6 +49,7 @@ import 'services/workspace_trust_service.dart';
 import 'services/workspace_search_guard.dart';
 import 'services/persistent_terminal_service.dart';
 import 'services/quality_gate_service.dart';
+import 'services/review_service.dart';
 import 'services/update_ping_service.dart';
 import 'services/update_service.dart';
 import 'services/workspace_checkpoint_store.dart';
@@ -118,6 +120,7 @@ const _slashCommands = <_SlashCommand>[
   _SlashCommand('/agents', 'Run isolated parallel agents', Icons.groups_2),
   _SlashCommand('/mcp', 'Manage MCP servers', Icons.device_hub),
   _SlashCommand('/review', 'Review pending or Git changes', Icons.rate_review),
+
   _SlashCommand('/fork', 'Fork the current chat', Icons.call_split),
   _SlashCommand('/model', 'Open model settings', Icons.psychology_outlined),
   _SlashCommand('/usage', 'Open provider usage dashboard', Icons.query_stats),
@@ -452,6 +455,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   _InspectorSection _inspectorSection = _InspectorSection.activity;
   WorkspaceTurnChanges? _pendingChanges;
   WorkspaceTurnChanges? _lastAppliedTurn;
+
   DateTime? _turnStartedAt;
   Duration _lastTurnDuration = Duration.zero;
   GitStatus _gitStatus = const GitStatus(isRepository: false);

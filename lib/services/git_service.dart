@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
+
+const gitDiffPerFileMaxChars = 48 * 1024;
+const gitDiffAggregateMaxChars = 127 * 1024;
 
 class GitFileStatus {
   const GitFileStatus({
@@ -123,7 +127,155 @@ class GitService {
       '--no-ext-diff',
       ...pathArguments,
     ]);
-    return '${staged.stdout}${unstaged.stdout}'.trim();
+    final untracked = filePath == null ? await _untrackedDiff(workspace) : '';
+    return _boundedDiff('${staged.stdout}${unstaged.stdout}$untracked');
+  }
+
+  static String _boundedDiff(String raw) {
+    final starts = RegExp(
+      r'^diff --git ',
+      multiLine: true,
+    ).allMatches(raw).map((match) => match.start).toList(growable: false);
+    if (starts.isEmpty) return raw.trim();
+    final sections = <({String path, int order, String text})>[];
+    for (var index = 0; index < starts.length; index++) {
+      final text = raw.substring(
+        starts[index],
+        index + 1 < starts.length ? starts[index + 1] : raw.length,
+      );
+      final header = RegExp(
+        r'^\+\+\+ (?:b/)?(.+)$',
+        multiLine: true,
+      ).firstMatch(text);
+      final fallback = RegExp(
+        r'^--- (?:a/)?(.+)$',
+        multiLine: true,
+      ).firstMatch(text);
+      final sectionPath =
+          (header?.group(1) ?? fallback?.group(1) ?? '<unknown>').trim();
+      sections.add((path: sectionPath, order: index, text: text.trimRight()));
+    }
+    sections.sort((left, right) {
+      final byPath = left.path.compareTo(right.path);
+      return byPath != 0 ? byPath : left.order.compareTo(right.order);
+    });
+
+    final grouped = <String, List<String>>{};
+    for (final section in sections) {
+      grouped.putIfAbsent(section.path, () => []).add(section.text);
+    }
+    final included = <String>[];
+    final omitted = <String>[];
+    var used = 0;
+    for (final entry in grouped.entries) {
+      final fileDiff = entry.value.join('\n');
+      final separator = included.isEmpty ? 0 : 1;
+      if (fileDiff.length > gitDiffPerFileMaxChars ||
+          used + separator + fileDiff.length > gitDiffAggregateMaxChars) {
+        omitted.add(entry.key);
+        continue;
+      }
+      included.add(fileDiff);
+      used += separator + fileDiff.length;
+    }
+    final report = omitted.toSet().toList()..sort();
+    var output = included.join('\n');
+    for (final omittedPath in report) {
+      final marker = 'REVIEW-DIFF-OMITTED $omittedPath';
+      final separator = output.isEmpty ? '' : '\n';
+      if (output.length + separator.length + marker.length >
+          gitDiffAggregateMaxChars) {
+        break;
+      }
+      output = '$output$separator$marker';
+    }
+    return output.trim();
+  }
+
+  Future<String> _untrackedDiff(String workspace) async {
+    final listed = await _run(workspace, [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '-z',
+    ]);
+    final paths = '${listed.stdout}'
+        .split('\u0000')
+        .where((value) => value.isNotEmpty)
+        .take(64);
+    final output = StringBuffer();
+    final root = path.normalize(path.absolute(workspace));
+    final canonicalRoot = path.normalize(
+      path.absolute(await Directory(root).resolveSymbolicLinks()),
+    );
+    var totalBytes = 0;
+    for (final relative in paths) {
+      final target = path.normalize(path.absolute(path.join(root, relative)));
+      if (!path.isWithin(root, target)) continue;
+      String canonicalTarget;
+      try {
+        canonicalTarget = path.normalize(
+          path.absolute(await File(target).resolveSymbolicLinks()),
+        );
+      } on FileSystemException {
+        continue;
+      }
+      if (!path.isWithin(canonicalRoot, canonicalTarget)) continue;
+      final file = File(canonicalTarget);
+      if (!await file.exists()) continue;
+      try {
+        final bytes = await file.readAsBytes();
+        if (bytes.length > 512 * 1024 || bytes.contains(0)) continue;
+        utf8.decode(bytes, allowMalformed: false);
+        totalBytes += bytes.length;
+        if (totalBytes > 2 * 1024 * 1024) break;
+        final revalidated = path.normalize(
+          path.absolute(await file.resolveSymbolicLinks()),
+        );
+        if (revalidated != canonicalTarget ||
+            !path.isWithin(canonicalRoot, revalidated)) {
+          continue;
+        }
+      } on FileSystemException {
+        continue;
+      } on FormatException {
+        continue;
+      }
+      final generated = await Process.run(
+        'git',
+        ['diff', '--no-index', '--binary', '--', '/dev/null', relative],
+        workingDirectory: root,
+        runInShell: false,
+      );
+      if (generated.exitCode != 0 && generated.exitCode != 1) continue;
+      output.write(generated.stdout);
+    }
+    return output.toString();
+  }
+
+  Future<void> checkPatch(String workspace, String patch) async {
+    await _runPatch(workspace, patch, checkOnly: true);
+  }
+
+  Future<void> applyPatch(String workspace, String patch) async {
+    await _runPatch(workspace, patch, checkOnly: true);
+    await _runPatch(workspace, patch, checkOnly: false);
+  }
+
+  /// Applies a provider patch in one Git process after the caller has bound and
+  /// revalidated [canonicalWorkspace]. `git apply` validates the full patch
+  /// before committing file writes, avoiding a second mutable-alias check/apply
+  /// window at the final state-changing boundary.
+  Future<void> applyValidatedPatch(
+    String canonicalWorkspace,
+    String patch,
+  ) async {
+    await _runPatch(canonicalWorkspace, patch, checkOnly: false);
+  }
+
+  Future<void> reversePatch(String workspace, String patch) async {
+    await _runPatch(workspace, patch, checkOnly: true, reverse: true);
+    await _runPatch(workspace, patch, checkOnly: false, reverse: true);
   }
 
   Future<String> history(String workspace) async {
@@ -258,6 +410,46 @@ class GitService {
       );
     }
     return result;
+  }
+
+  Future<void> _runPatch(
+    String workspace,
+    String patch, {
+    required bool checkOnly,
+    bool reverse = false,
+  }) async {
+    if (patch.trim().isEmpty) {
+      throw const FormatException('Patch tidak boleh kosong.');
+    }
+    final process = await Process.start(
+      'git',
+      [
+        'apply',
+        if (checkOnly) '--check',
+        if (reverse) '--reverse',
+        '--whitespace=nowarn',
+        '-',
+      ],
+      workingDirectory: workspace,
+      runInShell: false,
+    );
+    process.stdin.write(patch);
+    await process.stdin.close();
+    final stdout = await process.stdout
+        .transform(systemEncoding.decoder)
+        .join();
+    final stderr = await process.stderr
+        .transform(systemEncoding.decoder)
+        .join();
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw ProcessException(
+        'git',
+        ['apply', if (checkOnly) '--check', if (reverse) '--reverse', '-'],
+        '$stdout$stderr'.trim(),
+        exitCode,
+      );
+    }
   }
 
   static void _validateBranch(String name) {
