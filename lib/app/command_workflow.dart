@@ -95,7 +95,7 @@ extension _CommandWorkflow on _AgentHomePageState {
       case '/agents':
         await _runMultiAgents(argument);
       case '/mcp':
-        _showAddonSummary(AddonKind.mcpServer, argument);
+        _showMcpSummary(argument);
       case '/review':
         await _openReview();
       case '/fork':
@@ -481,6 +481,10 @@ extension _CommandWorkflow on _AgentHomePageState {
   }
 
   String _powerShellQuote(String value) => "'${value.replaceAll("'", "''")}'";
+
+  void _showMcpSummary(String filter) {
+    _addLocalResponse(formatMcpSummaryForChat(_addons, filter: filter));
+  }
 
   void _showAddonSummary(AddonKind kind, String filter) {
     final matches = _addons.where(

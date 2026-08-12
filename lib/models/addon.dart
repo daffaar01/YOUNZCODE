@@ -2,6 +2,35 @@ enum AddonKind { nativePlugin, skill, mcpServer, vsix }
 
 enum McpTransport { stdio, http }
 
+String formatMcpSummaryForChat(List<Addon> addons, {String filter = ''}) {
+  final normalizedFilter = filter.trim().toLowerCase();
+  final entries = <({bool enabled, McpServerConfig server})>[
+    for (final addon in addons)
+      if (addon.kind == AddonKind.mcpServer)
+        for (final server in (addon.metadata as McpMetadata).servers)
+          if (normalizedFilter.isEmpty ||
+              server.name.toLowerCase().contains(normalizedFilter))
+            (enabled: addon.enabled, server: server),
+  ];
+  if (entries.isEmpty) {
+    if (normalizedFilter.isNotEmpty) {
+      return 'Tidak ada MCP server bernama "$filter". Buka ADD-ONS untuk '
+          'memeriksa konfigurasi atau mengimpor MCP JSON.';
+    }
+    return 'Belum ada MCP server yang diimpor. Buka ADD-ONS > IMPORT FILE, '
+        'pilih konfigurasi mcp.json, lalu aktifkan servernya.';
+  }
+  final buffer = StringBuffer('MCP SERVERS — ${entries.length}');
+  for (final entry in entries) {
+    buffer
+      ..writeln()
+      ..writeln()
+      ..write('${entry.enabled ? '✅' : '⏸️'} ${entry.server.name}\n')
+      ..write(entry.server.transport.name.toUpperCase());
+  }
+  return buffer.toString();
+}
+
 sealed class AddonMetadata {
   const AddonMetadata();
 
