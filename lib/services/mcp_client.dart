@@ -125,21 +125,46 @@ Future<SecureSocket> _secureMcpSocket(Socket socket, String host) =>
 bool _isNonPublicAddress(InternetAddress address) {
   final bytes = address.rawAddress;
   if (address.type == InternetAddressType.IPv4) {
-    final a = bytes[0];
-    final b = bytes[1];
-    return a == 0 ||
-        a == 10 ||
-        a == 127 ||
-        (a == 169 && b == 254) ||
-        (a == 172 && b >= 16 && b <= 31) ||
-        (a == 192 && b == 168) ||
-        a >= 224;
+    return _isNonPublicIpv4(bytes);
   }
   if (bytes.every((value) => value == 0) || address.isLoopback) return true;
+
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d) must inherit the IPv4 policy.
+  final ipv4Mapped =
+      bytes.length == 16 &&
+      bytes.take(10).every((value) => value == 0) &&
+      bytes[10] == 0xff &&
+      bytes[11] == 0xff;
+  if (ipv4Mapped) return _isNonPublicIpv4(bytes.sublist(12));
+
   return bytes[0] == 0xfc ||
       bytes[0] == 0xfd ||
       (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) ||
-      bytes[0] == 0xff;
+      bytes[0] == 0xff ||
+      (bytes[0] == 0x20 &&
+          bytes[1] == 0x01 &&
+          bytes[2] == 0x0d &&
+          bytes[3] == 0xb8);
+}
+
+bool _isNonPublicIpv4(List<int> bytes) {
+  final a = bytes[0];
+  final b = bytes[1];
+  final c = bytes[2];
+  return a == 0 ||
+      a == 10 ||
+      (a == 100 && b >= 64 && b <= 127) ||
+      a == 127 ||
+      (a == 169 && b == 254) ||
+      (a == 172 && b >= 16 && b <= 31) ||
+      (a == 192 && b == 0 && c == 0) ||
+      (a == 192 && b == 0 && c == 2) ||
+      (a == 192 && b == 88 && c == 99) ||
+      (a == 192 && b == 168) ||
+      (a == 198 && (b == 18 || b == 19)) ||
+      (a == 198 && b == 51 && c == 100) ||
+      (a == 203 && b == 0 && c == 113) ||
+      a >= 224;
 }
 
 bool _isLoopback(Uri uri) {

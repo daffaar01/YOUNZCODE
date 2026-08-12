@@ -331,6 +331,31 @@ void main() {
     },
   );
 
+  test('MCP remote policy rejects every non-global address class', () async {
+    const blocked = [
+      '100.64.0.1',
+      '192.0.2.1',
+      '198.18.0.1',
+      '198.51.100.1',
+      '203.0.113.1',
+      '240.0.0.1',
+      '::ffff:127.0.0.1',
+      '::ffff:10.0.0.1',
+      '::ffff:169.254.169.254',
+      '2001:db8::1',
+    ];
+    for (final value in blocked) {
+      await expectLater(
+        resolveMcpConnectAddress(
+          Uri.parse('https://public.example/mcp'),
+          lookup: (_) async => [InternetAddress(value)],
+        ),
+        throwsStateError,
+        reason: value,
+      );
+    }
+  });
+
   test('MCP HTTP rejects redirects instead of following them', () async {
     final server = MockClient(
       (_) async => http.Response(
