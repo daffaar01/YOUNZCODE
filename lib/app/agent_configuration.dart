@@ -218,9 +218,10 @@ extension _AgentConfiguration on _AgentHomePageState {
         }
       } else if (addon.kind == AddonKind.nativePlugin) {
         final metadata = addon.metadata as NativePluginMetadata;
-        final prompt =
-            metadata.manifest['prompt'] ?? metadata.manifest['instructions'];
-        if (prompt is String && prompt.trim().isNotEmpty) {
+        final prompt = metadata.instructions;
+        if (metadata.capabilities.contains('agent.instructions') &&
+            prompt != null &&
+            prompt.trim().isNotEmpty) {
           instructions.add('[PLUGIN: ${addon.name}]\n$prompt');
         }
       }
