@@ -174,6 +174,212 @@ description: Knowledge graph skill
     expect(remote.url, 'https://mcp.example.test/api');
   });
 
+  test('plugin manifest menolak ukuran dan struktur berlebihan', () {
+    expect(
+      () => AddonService.parsePluginManifest(
+        jsonEncode({'name': 'oversized', 'description': 'x' * (256 * 1024)}),
+      ),
+      throwsA(isA<AddonImportException>()),
+    );
+
+    Object nested = 'leaf';
+    for (var index = 0; index < 17; index++) {
+      nested = {'child': nested};
+    }
+    expect(
+      () => AddonService.parsePluginManifest(
+        jsonEncode({'name': 'too-deep', 'metadata': nested}),
+      ),
+      throwsA(isA<AddonImportException>()),
+    );
+  });
+
+  test(
+    'plugin manifest menolak malformed contributes dan raw name panjang',
+    () {
+      expect(
+        () => AddonService.parsePluginManifest(
+          '{"name":"safe","contributes":"invalid"}',
+        ),
+        throwsA(isA<AddonImportException>()),
+      );
+      expect(
+        () => AddonService.parsePluginManifest(
+          jsonEncode({'name': 'x' * 257, 'displayName': 'short'}),
+        ),
+        throwsA(isA<AddonImportException>()),
+      );
+    },
+  );
+
+  test('plugin declarative membutuhkan capability eksplisit', () {
+    expect(
+      () => AddonService.parsePluginManifest(
+        '{"name":"unsafe","instructions":"Read the workspace"}',
+      ),
+      throwsA(isA<AddonImportException>()),
+    );
+    expect(
+      () => AddonService.parsePluginManifest(
+        '{"name":"unsafe","capabilities":["process.execute"]}',
+      ),
+      throwsA(isA<AddonImportException>()),
+    );
+
+    final parsed = AddonService.parsePluginManifest('''
+{
+  "name":"safe-review",
+  "apiVersion":"1",
+  "capabilities":["agent.instructions"],
+  "instructions":"Review without modifying files"
+}
+''');
+    expect(parsed.metadata.apiVersion, '1');
+    expect(parsed.metadata.capabilities, {'agent.instructions'});
+    expect(parsed.metadata.instructions, 'Review without modifying files');
+  });
+
+  test('legacy plugin instructions dimigrasikan tetapi dinonaktifkan', () {
+    final legacy = <String, dynamic>{
+      'id': 'legacy-plugin',
+      'kind': 'nativePlugin',
+      'name': 'Legacy Plugin',
+      'description': '',
+      'sourcePath': 'source',
+      'installedPath': 'installed',
+      'importedAt': DateTime.utc(2026).toIso8601String(),
+      'enabled': true,
+      'metadata': {
+        'manifest': {'name': 'legacy-plugin', 'prompt': 'Legacy instructions'},
+      },
+    };
+
+    final restored = Addon.fromJson(legacy);
+    final metadata = restored.metadata as NativePluginMetadata;
+
+    expect(restored.enabled, isFalse);
+    expect(metadata.capabilities, {'agent.instructions'});
+    expect(metadata.instructions, 'Legacy instructions');
+    expect(metadata.manifest, {'name': 'legacy-plugin'});
+    expect(metadata.manifest, isNot(contains('prompt')));
+  });
+
+  test(
+    'legacy plugin restore menolak manifest oversized dan terlalu dalam',
+    () {
+      Map<String, dynamic> legacyWithManifest(Map<String, dynamic> manifest) =>
+          {
+            'id': 'legacy-plugin',
+            'kind': 'nativePlugin',
+            'name': 'Legacy Plugin',
+            'description': '',
+            'sourcePath': 'source',
+            'installedPath': 'installed',
+            'importedAt': DateTime.utc(2026).toIso8601String(),
+            'enabled': true,
+            'metadata': {'manifest': manifest},
+          };
+
+      expect(
+        () => Addon.fromJson(
+          legacyWithManifest({
+            'name': 'legacy',
+            'prompt': 'Legacy instructions',
+            'padding': 'x' * (256 * 1024),
+          }),
+        ),
+        throwsA(isA<FormatException>()),
+      );
+
+      Object nested = 'leaf';
+      for (var index = 0; index < 17; index++) {
+        nested = {'child': nested};
+      }
+      expect(
+        () => Addon.fromJson(
+          legacyWithManifest({
+            'name': 'legacy',
+            'prompt': 'Legacy instructions',
+            'metadata': nested,
+          }),
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    },
+  );
+
+  test('plugin command description memiliki parse restore boundary sama', () {
+    final description = 'd' * 4001;
+    expect(
+      () => AddonService.parsePluginManifest(
+        jsonEncode({
+          'name': 'description-boundary',
+          'capabilities': ['commands.declarative'],
+          'contributes': {
+            'commands': [
+              {
+                'name': 'describe-code',
+                'description': description,
+                'prompt': 'Describe {{args}}',
+              },
+            ],
+          },
+        }),
+      ),
+      throwsA(isA<AddonImportException>()),
+    );
+  });
+
+  test('restore plugin menolak capability persistence yang dimanipulasi', () {
+    final json = Addon(
+      id: 'plugin',
+      kind: AddonKind.nativePlugin,
+      name: 'Plugin',
+      description: '',
+      sourcePath: 'source',
+      installedPath: 'installed',
+      importedAt: DateTime(2026),
+      metadata: const NativePluginMetadata(manifest: {'name': 'plugin'}),
+    ).toJson();
+    final metadata = json['metadata']! as Map<String, dynamic>;
+    metadata['capabilities'] = ['process.execute'];
+
+    expect(() => Addon.fromJson(json), throwsFormatException);
+  });
+
+  test('plugin declarative memvalidasi slash command capability', () {
+    expect(
+      () => AddonService.parsePluginManifest('''
+{
+  "name":"unsafe-command",
+  "apiVersion":"1",
+  "capabilities":["commands.declarative"],
+  "contributes":{"commands":[{"name":"help","prompt":"override"}]}
+}
+'''),
+      throwsA(isA<AddonImportException>()),
+    );
+
+    final parsed = AddonService.parsePluginManifest('''
+{
+  "name":"safe-command",
+  "apiVersion":"1",
+  "capabilities":["commands.declarative"],
+  "contributes":{"commands":[{
+    "name":"explain-code",
+    "description":"Explain selected code",
+    "prompt":"Explain this request safely: {{args}}"
+  }]}
+}
+''');
+    expect(parsed.metadata.commands, hasLength(1));
+    expect(parsed.metadata.commands.single.name, 'explain-code');
+    expect(
+      parsed.metadata.commands.single.render('lib/main.dart'),
+      'Explain this request safely: lib/main.dart',
+    );
+  });
+
   test('parses native plugin manifest and VSIX filename metadata', () {
     final plugin = AddonService.parsePluginManifest('''
 {"name":"native.git","displayName":"Native Git","version":"1.2.0","main":"bin/plugin.exe"}

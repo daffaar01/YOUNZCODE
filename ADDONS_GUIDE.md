@@ -72,42 +72,59 @@ Anda juga dapat memilih `IMPORT FILE` dan membuka `SKILL.md` secara langsung.
 
 Skill aktif otomatis ditambahkan ke instruksi agent. Skill tidak perlu dipanggil dengan slash command.
 
-## Memasang Plugin
+## Extension SDK Declarative v1
 
-Plugin YOUNZCODE menggunakan manifest JSON. Pada versi ini, field `prompt` atau `instructions` dapat menambahkan perilaku khusus pada agent. Kode executable plugin tidak dijalankan otomatis.
+Plugin YOUNZCODE menggunakan manifest JSON deklaratif. Runtime v1 **tidak** menjalankan JavaScript, executable, entry point, process, akses file, atau akses network dari plugin.
+
+Kontribusi hanya aktif pada workspace tepercaya dan capability harus dideklarasikan secara eksplisit. Capability yang tidak dikenal membuat import ditolak.
+
+### Capability yang tersedia
+
+| Capability | Fungsi | Batas |
+|---|---|---|
+| `agent.instructions` | Menambahkan instruksi ke agent | 12.000 karakter |
+| `commands.declarative` | Menambahkan slash command yang merender prompt agent biasa | 32 command; prompt 4.000 karakter |
 
 ### Struktur Folder
 
 ```text
 security-review/
-|-- younzcode-plugin.json
-`-- resources/
-    `-- rules.md
+`-- younzcode-plugin.json
 ```
 
-### Contoh Manifest
+### Contoh Manifest v1
 
 ```json
 {
   "name": "security-review",
   "displayName": "Security Review",
   "version": "1.0.0",
-  "description": "Menambahkan aturan pemeriksaan keamanan.",
-  "instructions": "Periksa hardcoded secret, path traversal, command injection, SQL injection, SSRF, dan penyimpanan credential yang tidak aman."
+  "apiVersion": "1",
+  "description": "Aturan dan command review keamanan.",
+  "capabilities": [
+    "agent.instructions",
+    "commands.declarative"
+  ],
+  "instructions": "Periksa hardcoded secret, path traversal, command injection, SQL injection, dan SSRF.",
+  "contributes": {
+    "commands": [
+      {
+        "name": "secure-review",
+        "description": "Review keamanan dengan argumen opsional.",
+        "prompt": "Review keamanan untuk: {{args}}"
+      }
+    ]
+  }
 }
 ```
 
-Alternatif menggunakan `prompt`:
+`{{args}}` diganti secara literal dengan teks setelah slash command. Contoh `/secure-review lib/services` menghasilkan prompt agent biasa. Prompt tersebut tetap melewati workspace trust, main-branch warning, context policy, provider policy, dan tool approval YOUNZCODE.
 
-```json
-{
-  "name": "flutter-expert",
-  "displayName": "Flutter Expert",
-  "version": "1.0.0",
-  "description": "Panduan khusus Flutter.",
-  "prompt": "Gunakan pola Flutter modern, jaga lifecycle controller, dan verifikasi dengan flutter analyze serta flutter test."
-}
-```
+Nama command harus berupa huruf kecil, angka, atau tanda hubung, panjang 2–32 karakter. Command bawaan seperti `/help`, `/review`, `/agents`, dan `/settings` tidak dapat ditimpa. Jika dua plugin aktif mendeklarasikan nama command yang sama, command tersebut tidak dijalankan (fail-closed).
+
+Manifest tanpa capability yang diperlukan, `apiVersion` selain `1`, kontribusi terlalu besar, atau capability seperti `process.execute` akan ditolak. Manifest dibatasi 256 KiB, kedalaman JSON 16, dan 4.096 node; nama maksimal 256 karakter dan deskripsi maksimal 4.000 karakter. Metadata mentah yang tidak digunakan runtime tidak dipersistenkan.
+
+Plugin legacy yang sebelumnya menyimpan `prompt`/`instructions` tanpa capability dimigrasikan ke metadata typed tetapi dinonaktifkan. Pengguna harus mengaktifkannya kembali secara eksplisit sebagai consent terhadap capability `agent.instructions`.
 
 Nama manifest yang dikenali:
 
@@ -126,14 +143,9 @@ package.json
 3. Pilih folder plugin.
 4. Konfirmasi import.
 5. Aktifkan switch plugin.
+6. Gunakan workspace tepercaya agar kontribusi aktif.
 
-Status plugin:
-
-```text
-MANIFEST/PROMPT ACTIVE - CODE EXECUTION DISABLED
-```
-
-Status tersebut berarti instruksi plugin aktif, tetapi JavaScript, executable, atau entry point plugin tidak dijalankan.
+Status plugin tetap menegaskan bahwa code execution dinonaktifkan. Field `entryPoint` atau `main`, bila terdapat pada metadata paket, hanya disimpan sebagai metadata dan tidak pernah dieksekusi.
 
 ## Memasang MCP
 

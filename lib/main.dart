@@ -36,6 +36,7 @@ import 'services/context_engine.dart';
 import 'services/context_request_guard.dart';
 import 'services/debug_adapter_service.dart';
 import 'services/document_extraction_service.dart';
+import 'services/extension_contribution_service.dart';
 import 'services/settings_store.dart';
 import 'services/mcp_client.dart';
 import 'services/media_download_service.dart';
@@ -368,6 +369,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   final _settingsStore = SettingsStore();
   final _chatSessionStore = ChatSessionStore();
   final _addonService = AddonService();
+  final _extensionContributions = const ExtensionContributionService();
   final _gitService = const GitService();
   final _trustService = WorkspaceTrustService();
   final _toolPermissionStore = ToolPermissionStore();

@@ -2,11 +2,12 @@ part of '../main.dart';
 
 extension _CommandWorkflow on _AgentHomePageState {
   Future<void> _send() async {
-    final prompt = _promptController.text.trim();
+    final rawInput = _promptController.text;
+    final prompt = rawInput.trim();
     if (_busy || prompt.isEmpty) return;
     if (prompt.startsWith('/')) {
       _promptController.clear();
-      await _runSlashCommand(prompt);
+      await _runSlashCommand(rawInput.trimLeft());
       return;
     }
     if (_workspace.isEmpty || !Directory(_workspace).existsSync()) {
@@ -175,11 +176,55 @@ extension _CommandWorkflow on _AgentHomePageState {
       case '/update-status':
         await _openUpdateDiagnostics();
       default:
-        _addLocalResponse(
-          'Command "$command" tidak dikenal. Gunakan "/help" untuk melihat daftar command.',
-          error: true,
+        final rendered = _extensionContributions.resolveCommand(
+          input,
+          addons: _addons,
+          workspaceTrusted: _workspaceTrusted,
         );
+        if (rendered == null) {
+          _addLocalResponse(
+            'Command "$command" tidak dikenal. Gunakan "/help" untuk melihat daftar command.',
+            error: true,
+          );
+          return;
+        }
+        _promptController.text = input;
+        await _runDeclarativeCommand(input, rendered);
     }
+  }
+
+  Future<void> _runDeclarativeCommand(
+    String userInput,
+    String renderedPrompt,
+  ) async {
+    if (_workspace.isEmpty ||
+        !_workspaceTrusted ||
+        !Directory(_workspace).existsSync()) {
+      _showMessage('Pilih dan trust workspace sebelum menjalankan extension.');
+      return;
+    }
+    if (_apiKey.isEmpty) {
+      await _openSettings();
+      if (!mounted || _apiKey.isEmpty) return;
+    }
+    if (!mounted || !await _confirmMainBranchWork()) return;
+    final promptWithContext = await _buildPromptWithContext(renderedPrompt);
+    if (!mounted || promptWithContext == null) return;
+    _promptController.clear();
+    await _runAgentOperation((agent) async {
+      final lease = promptWithContext.lease;
+      if (lease != null &&
+          !await lease.isCurrent(
+            workspace: _workspace,
+            trusted: _workspaceTrusted,
+            engine: _contextEngine,
+          )) {
+        throw StateError(
+          'Workspace berubah saat context disiapkan; context lama dibuang.',
+        );
+      }
+      return agent.send(promptWithContext.prompt);
+    }, userEntry: ChatEntry(role: ChatRole.user, content: userInput));
   }
 
   Future<void> _runMultiAgents(String argument) async {

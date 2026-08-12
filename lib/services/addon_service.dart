@@ -255,24 +255,148 @@ class AddonService {
   }
 
   static NativePluginParseResult parsePluginManifest(String contents) {
+    if (utf8.encode(contents).length > 256 * 1024) {
+      throw const AddonImportException(
+        'Plugin manifest exceeds the 256 KiB limit.',
+      );
+    }
     final manifest = _jsonObject(contents, 'plugin manifest');
-    final name =
-        _nonEmpty(manifest['displayName']?.toString()) ??
-        _nonEmpty(manifest['name']?.toString());
+    _validateJsonBudget(manifest, label: 'Plugin manifest');
+    final rawName = _nonEmpty(manifest['name']?.toString());
+    final displayName = _nonEmpty(manifest['displayName']?.toString());
+    final name = displayName ?? rawName;
     if (name == null) {
       throw const AddonImportException('Plugin manifest must contain a name.');
     }
+    if (name.length > 256 ||
+        (rawName != null && rawName.length > 256) ||
+        (displayName != null && displayName.length > 256)) {
+      throw const AddonImportException('Plugin name exceeds 256 characters.');
+    }
+    final description = manifest['description']?.toString() ?? '';
+    if (description.length > 4000) {
+      throw const AddonImportException(
+        'Plugin description exceeds 4000 characters.',
+      );
+    }
+    final apiVersion = _nonEmpty(manifest['apiVersion']?.toString()) ?? '1';
+    if (apiVersion != '1') {
+      throw AddonImportException('Unsupported plugin apiVersion: $apiVersion.');
+    }
+    final rawCapabilities = manifest['capabilities'];
+    if (rawCapabilities != null && rawCapabilities is! List) {
+      throw const AddonImportException('Plugin capabilities must be a list.');
+    }
+    final capabilityValues = rawCapabilities as List? ?? const [];
+    if (capabilityValues.any(
+      (value) => value is! String || value.trim().isEmpty,
+    )) {
+      throw const AddonImportException(
+        'Plugin capabilities must contain non-empty strings only.',
+      );
+    }
+    final capabilities = capabilityValues
+        .cast<String>()
+        .map((value) => value.trim())
+        .toSet();
+    if (capabilities.length != capabilityValues.length) {
+      throw const AddonImportException('Plugin capabilities must be unique.');
+    }
+    const allowedCapabilities = {'agent.instructions', 'commands.declarative'};
+    final unsupported = capabilities.difference(allowedCapabilities);
+    if (unsupported.isNotEmpty) {
+      throw AddonImportException(
+        'Unsupported plugin capabilities: ${unsupported.join(', ')}.',
+      );
+    }
+    final instructions = _nonEmpty(
+      (manifest['instructions'] ?? manifest['prompt'])?.toString(),
+    );
+    if (instructions != null && !capabilities.contains('agent.instructions')) {
+      throw const AddonImportException(
+        'Plugin instructions require agent.instructions capability.',
+      );
+    }
+    if (instructions != null && instructions.length > 12000) {
+      throw const AddonImportException(
+        'Plugin instructions exceed the 12000 character limit.',
+      );
+    }
+    final commands = _parseDeclarativeCommands(manifest, capabilities);
     return NativePluginParseResult(
       name: name,
-      description: manifest['description']?.toString() ?? '',
+      description: description,
       metadata: NativePluginMetadata(
-        manifest: manifest,
+        manifest: {'name': name},
         version: _nonEmpty(manifest['version']?.toString()),
         entryPoint: _nonEmpty(
           (manifest['entryPoint'] ?? manifest['main'])?.toString(),
         ),
+        apiVersion: apiVersion,
+        capabilities: capabilities,
+        instructions: instructions,
+        commands: commands,
       ),
     );
+  }
+
+  static List<DeclarativeCommand> _parseDeclarativeCommands(
+    Map<String, dynamic> manifest,
+    Set<String> capabilities,
+  ) {
+    final contributes = manifest['contributes'];
+    if (contributes == null) return const [];
+    if (contributes is! Map) {
+      throw const AddonImportException('Plugin contributes must be an object.');
+    }
+    if (!contributes.containsKey('commands')) return const [];
+    final rawCommands = contributes['commands'];
+    if (!capabilities.contains('commands.declarative')) {
+      throw const AddonImportException(
+        'Plugin commands require commands.declarative capability.',
+      );
+    }
+    if (rawCommands is! List || rawCommands.length > 32) {
+      throw const AddonImportException(
+        'Plugin commands must be a list with at most 32 entries.',
+      );
+    }
+    const reserved = pluginReservedCommands;
+    final commands = <DeclarativeCommand>[];
+    final seen = <String>{};
+    for (final raw in rawCommands) {
+      if (raw is! Map) {
+        throw const AddonImportException('Plugin command must be an object.');
+      }
+      final command = Map<String, dynamic>.from(raw);
+      final name = _nonEmpty(command['name']?.toString())?.toLowerCase();
+      final prompt = _nonEmpty(command['prompt']?.toString());
+      final description = command['description']?.toString() ?? '';
+      if (name == null ||
+          !RegExp(r'^[a-z][a-z0-9-]{1,31}$').hasMatch(name) ||
+          reserved.contains(name) ||
+          !seen.add(name)) {
+        throw AddonImportException(
+          'Invalid or reserved plugin command: $name.',
+        );
+      }
+      if (prompt == null || prompt.length > 4000) {
+        throw AddonImportException('Invalid prompt for plugin command: $name.');
+      }
+      if (description.length > 4000) {
+        throw AddonImportException(
+          'Description exceeds limit for plugin command: $name.',
+        );
+      }
+      commands.add(
+        DeclarativeCommand(
+          name: name,
+          description: description,
+          prompt: prompt,
+        ),
+      );
+    }
+    return List.unmodifiable(commands);
   }
 
   static McpParseResult parseMcpConfig(String contents) {
@@ -464,6 +588,9 @@ class AddonService {
         'Supported files are SKILL.md, JSON, and VSIX.',
       );
     }
+    if (await file.length() > 256 * 1024) {
+      throw const AddonImportException('JSON addon exceeds the 256 KiB limit.');
+    }
     final contents = await file.readAsString();
     final object = _jsonObject(contents, 'JSON addon');
     if (object.containsKey('mcpServers') ||
@@ -590,6 +717,35 @@ class AddonService {
       return Map<String, dynamic>.from(decoded);
     } on FormatException catch (error) {
       throw AddonImportException('Invalid $label: ${error.message}');
+    }
+  }
+
+  static void _validateJsonBudget(
+    Object? root, {
+    required String label,
+    int maxDepth = 16,
+    int maxNodes = 4096,
+  }) {
+    final pending = <(Object?, int)>[(root, 0)];
+    var nodes = 0;
+    while (pending.isNotEmpty) {
+      final (value, depth) = pending.removeLast();
+      nodes++;
+      if (nodes > maxNodes || depth > maxDepth) {
+        throw AddonImportException(
+          '$label exceeds the JSON depth or node limit.',
+        );
+      }
+      if (value is Map) {
+        for (final entry in value.entries) {
+          pending.add((entry.key, depth + 1));
+          pending.add((entry.value, depth + 1));
+        }
+      } else if (value is List) {
+        for (final item in value) {
+          pending.add((item, depth + 1));
+        }
+      }
     }
   }
 
