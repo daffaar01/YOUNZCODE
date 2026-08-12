@@ -1,5 +1,6 @@
 import 'chat_entry.dart';
 import 'agent_goal.dart';
+import 'task_graph.dart';
 
 class ChatSession {
   const ChatSession({
@@ -9,6 +10,7 @@ class ChatSession {
     required this.entries,
     this.agentMessages = const [],
     this.goal,
+    this.taskGraph,
   });
 
   factory ChatSession.fromJson(Map<String, dynamic> json) => ChatSession(
@@ -27,6 +29,7 @@ class ChatSession {
         .map((message) => Map<String, dynamic>.from(message))
         .toList(),
     goal: _parseGoal(json['goal']),
+    taskGraph: _parseTaskGraph(json['taskGraph']),
   );
 
   final String id;
@@ -35,6 +38,7 @@ class ChatSession {
   final List<ChatEntry> entries;
   final List<Map<String, dynamic>> agentMessages;
   final AgentGoal? goal;
+  final TaskGraph? taskGraph;
 
   String get title {
     final firstUser = entries.where((entry) => entry.role == ChatRole.user);
@@ -52,7 +56,20 @@ class ChatSession {
     'entries': entries.map((entry) => entry.toJson()).toList(),
     if (agentMessages.isNotEmpty) 'agentMessages': agentMessages,
     if (goal != null) 'goal': goal!.toJson(),
+    if (taskGraph != null) 'taskGraph': taskGraph!.toJson(),
   };
+}
+
+TaskGraph? _parseTaskGraph(Object? value) {
+  if (value is! Map) return null;
+  try {
+    return TaskGraph.fromJson(
+      Map<String, dynamic>.from(value),
+      safeRestore: true,
+    );
+  } catch (_) {
+    return null;
+  }
 }
 
 AgentGoal? _parseGoal(Object? value) {

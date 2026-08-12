@@ -15,6 +15,7 @@ import 'models/chat_entry.dart';
 import 'models/chat_session.dart';
 import 'models/addon.dart';
 import 'models/agent_goal.dart';
+import 'models/task_graph.dart';
 import 'models/workspace_change.dart';
 import 'agent_working_palette.dart';
 import 'editor_support.dart';
@@ -62,6 +63,7 @@ part 'app/workspace_lifecycle.dart';
 part 'ui/chrome.dart';
 part 'ui/editor.dart';
 part 'ui/inspector.dart';
+part 'ui/task_graph_banner.dart';
 part 'ui/image_studio.dart';
 part 'ui/provider_presets.dart';
 part 'ui/dialogs.dart';
@@ -434,6 +436,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   bool _terminalBusy = false;
   bool _planMode = false;
   AgentGoal? _goal;
+  TaskGraph? _taskGraph;
   String? _activeFile;
   String? _browserInitialUrl;
   String _agentStatus = 'Siap menerima tugas';
@@ -895,6 +898,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
             onPause: () => unawaited(_pauseGoal()),
             onClear: () => unawaited(_clearGoal()),
           ),
+        if (_taskGraph != null) TaskGraphBanner(graph: _taskGraph!),
         _ModelBar(
           models: _models,
           selectedModel: _model,

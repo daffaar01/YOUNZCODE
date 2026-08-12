@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kode_agent_desktop/models/task_graph.dart';
 import 'package:kode_agent_desktop/services/multi_agent_service.dart';
 
 void main() {
@@ -43,6 +44,15 @@ void main() {
     );
     expect(tasks.map((task) => task.branch).toSet(), hasLength(3));
     expect(tasks.map((task) => task.worktree).toSet(), hasLength(3));
+    expect(tasks.map((task) => task.nodeId), ['agent-0', 'agent-1', 'agent-2']);
+    for (final nodeId in tasks.map((task) => task.nodeId)) {
+      expect(
+        changes
+            .where((task) => task.nodeId == nodeId)
+            .map((task) => task.nodeId),
+        everyElement(nodeId),
+      );
+    }
     expect(peak, 2);
     expect(
       commands.where((command) => command.take(2).join(' ') == 'worktree add'),
@@ -53,6 +63,46 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'runGraph hanya dispatch runnable dan memblokir descendant gagal',
+    () async {
+      final manager = GitWorktreeManager(
+        storageRoot: r'C:\temp\younz-worktrees',
+        processRunner: (executable, arguments, {workingDirectory}) async {
+          if (arguments.first == 'rev-parse') {
+            return ProcessResult(1, 0, r'C:\repo', '');
+          }
+          return ProcessResult(1, 0, '', '');
+        },
+      );
+      final started = <String>[];
+      final orchestrator = MultiAgentOrchestrator(
+        workspace: r'C:\repo',
+        worktreeManager: manager,
+        runner: (task, _) async {
+          started.add(task.nodeId);
+          if (task.nodeId == 'build') throw StateError('boom');
+          return 'ok';
+        },
+      );
+      final graph = TaskGraph(
+        id: 'dag',
+        objective: 'DAG scheduling',
+        nodes: const [
+          TaskNode(id: 'build', title: 'Build'),
+          TaskNode(id: 'test', title: 'Test', dependencies: ['build']),
+        ],
+      );
+
+      final result = await orchestrator.runGraph(graph);
+
+      expect(started, ['build']);
+      expect(result.tasks.single.status, AgentTaskStatus.failed);
+      expect(result.graph.node('build').status, TaskNodeStatus.failed);
+      expect(result.graph.node('test').status, TaskNodeStatus.blocked);
+    },
+  );
 
   test('kegagalan satu task tidak menghentikan task lain', () async {
     final manager = GitWorktreeManager(

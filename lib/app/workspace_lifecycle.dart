@@ -80,6 +80,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
           ..clear()
           ..addAll(workspaceSessions.first.agentMessages);
         _goal = _goalRestoredFromSession(workspaceSessions.first.goal);
+        _taskGraph = workspaceSessions.first.taskGraph;
       }
       _loading = false;
       _workspaceTrusted = trusted;
@@ -154,6 +155,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _entries.clear();
       _agentCheckpoint.clear();
       _goal = null;
+      _taskGraph = null;
       _toolPermissionPolicies
         ..clear()
         ..addAll(toolPolicies);
@@ -167,6 +169,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
         _entries.addAll(workspaceSessions.first.entries);
         _agentCheckpoint.addAll(workspaceSessions.first.agentMessages);
         _goal = _goalRestoredFromSession(workspaceSessions.first.goal);
+        _taskGraph = workspaceSessions.first.taskGraph;
       } else {
         _activeChatId = DateTime.now().microsecondsSinceEpoch.toString();
       }

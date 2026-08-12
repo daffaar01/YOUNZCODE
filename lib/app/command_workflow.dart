@@ -240,7 +240,17 @@ extension _CommandWorkflow on _AgentHomePageState {
     final instructions = _enabledAddonInstructions();
     final environment = Map<String, String>.of(_environment);
     final headers = Map<String, String>.of(_apiHeaders);
+    final graph = TaskGraph(
+      id: 'agents-${DateTime.now().microsecondsSinceEpoch}',
+      objective: 'Jalankan ${prompts.length} isolated agents',
+      nodes: [
+        for (var index = 0; index < prompts.length; index++)
+          TaskNode(id: 'agent-$index', title: prompts[index]),
+      ],
+    );
+
     _updateState(() {
+      _taskGraph = graph;
       _busy = true;
       _turnState = _AgentTurnState.running;
       _agentStatus = 'Menyiapkan ${prompts.length} worktree';
@@ -252,6 +262,87 @@ extension _CommandWorkflow on _AgentHomePageState {
       maxParallel: 3,
       onTaskChanged: (task) {
         if (!mounted) return;
+        final nodeId = task.nodeId;
+        final currentGraph = _taskGraph;
+        if (currentGraph != null) {
+          final matches = currentGraph.nodes.where(
+            (candidate) => candidate.id == nodeId,
+          );
+          if (matches.length != 1) {
+            _addLocalResponse(
+              'Task Graph kehilangan callback node $nodeId.',
+              error: true,
+            );
+            return;
+          }
+          final node = matches.single;
+          final worktreeSegments = task.worktree
+              .replaceAll('\\', '/')
+              .split('/')
+              .where((segment) => segment.isNotEmpty)
+              .toList();
+          final worktreeAlias = worktreeSegments.isEmpty
+              ? ''
+              : worktreeSegments.last;
+          final artifacts = <TaskArtifact>[
+            if (task.branch.isNotEmpty)
+              TaskArtifact(
+                kind: 'branch',
+                label: 'Git branch',
+                value: task.branch,
+              ),
+            if (task.worktree.isNotEmpty)
+              TaskArtifact(
+                kind: 'worktree',
+                label: 'Worktree',
+                value: worktreeAlias,
+              ),
+            if (task.result.isNotEmpty)
+              TaskArtifact(
+                kind: 'result',
+                label: 'Agent result',
+                value: task.result,
+              ),
+            if (task.error.isNotEmpty)
+              TaskArtifact(
+                kind: 'error',
+                label: 'Agent error',
+                value: task.error,
+              ),
+          ];
+          TaskGraph updated = currentGraph;
+          if (node.status == TaskNodeStatus.pending &&
+              (task.status == AgentTaskStatus.preparing ||
+                  task.status == AgentTaskStatus.running)) {
+            updated = updated.transition(
+              nodeId,
+              TaskNodeStatus.running,
+              agentId: task.id,
+              worktree: worktreeAlias,
+              artifacts: artifacts,
+            );
+          }
+          if (updated.node(nodeId).status == TaskNodeStatus.running) {
+            final terminal = switch (task.status) {
+              AgentTaskStatus.completed => TaskNodeStatus.completed,
+              AgentTaskStatus.failed => TaskNodeStatus.failed,
+              AgentTaskStatus.cancelled => TaskNodeStatus.cancelled,
+              _ => null,
+            };
+            if (terminal != null) {
+              updated = updated.transition(
+                nodeId,
+                terminal,
+                detail: task.error.isEmpty ? task.result : task.error,
+                agentId: task.id,
+                worktree: worktreeAlias,
+                artifacts: artifacts,
+              );
+            }
+          }
+          _taskGraph = updated;
+          unawaited(_persistActiveChat());
+        }
         final state = switch (task.status) {
           AgentTaskStatus.queued ||
           AgentTaskStatus.preparing ||
@@ -360,7 +451,10 @@ extension _CommandWorkflow on _AgentHomePageState {
     );
     List<AgentTask> tasks;
     try {
-      tasks = await orchestrator.run(prompts);
+      final result = await orchestrator.runGraph(graph);
+      tasks = result.tasks;
+      _taskGraph = result.graph;
+      unawaited(_persistActiveChat());
     } finally {
       if (mounted) {
         _updateState(() {

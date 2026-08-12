@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
+import '../models/task_graph.dart';
+
 enum AgentTaskStatus {
   queued,
   preparing,
@@ -16,6 +18,7 @@ enum AgentTaskStatus {
 class AgentTask {
   const AgentTask({
     required this.id,
+    required this.nodeId,
     required this.prompt,
     this.status = AgentTaskStatus.queued,
     this.branch = '',
@@ -27,6 +30,7 @@ class AgentTask {
   });
 
   final String id;
+  final String nodeId;
   final String prompt;
   final AgentTaskStatus status;
   final String branch;
@@ -46,6 +50,7 @@ class AgentTask {
     DateTime? finishedAt,
   }) => AgentTask(
     id: id,
+    nodeId: nodeId,
     prompt: prompt,
     status: status ?? this.status,
     branch: branch ?? this.branch,
@@ -187,9 +192,66 @@ class MultiAgentOrchestrator {
       for (var index = 0; index < prompts.length; index++)
         AgentTask(
           id: '${DateTime.now().microsecondsSinceEpoch}-$index',
+          nodeId: 'agent-$index',
           prompt: prompts[index].trim(),
         ),
     ];
+    return _runTasks(tasks);
+  }
+
+  Future<({TaskGraph graph, List<AgentTask> tasks})> runGraph(
+    TaskGraph initial,
+  ) async {
+    var graph = initial;
+    final completedTasks = <AgentTask>[];
+    while (graph.runnable.isNotEmpty) {
+      final runnable = graph.runnable;
+      final tasks = [
+        for (var index = 0; index < runnable.length; index++)
+          AgentTask(
+            id: '${DateTime.now().microsecondsSinceEpoch}-$index',
+            nodeId: runnable[index].id,
+            prompt: runnable[index].title,
+          ),
+      ];
+      final results = await _runTasks(tasks);
+      for (final task in results) {
+        final worktreeSegments = task.worktree
+            .replaceAll('\\', '/')
+            .split('/')
+            .where((segment) => segment.isNotEmpty)
+            .toList();
+        final worktreeAlias = worktreeSegments.isEmpty
+            ? ''
+            : worktreeSegments.last;
+        graph = graph.transition(
+          task.nodeId,
+          TaskNodeStatus.running,
+          agentId: task.id,
+          worktree: worktreeAlias,
+        );
+        final terminal = switch (task.status) {
+          AgentTaskStatus.completed => TaskNodeStatus.completed,
+          AgentTaskStatus.failed => TaskNodeStatus.failed,
+          AgentTaskStatus.cancelled => TaskNodeStatus.cancelled,
+          _ => throw StateError(
+            'Agent task berhenti pada status non-terminal.',
+          ),
+        };
+        graph = graph.transition(
+          task.nodeId,
+          terminal,
+          detail: task.error.isEmpty ? task.result : task.error,
+          agentId: task.id,
+          worktree: worktreeAlias,
+        );
+      }
+      completedTasks.addAll(results);
+    }
+    return (graph: graph, tasks: List<AgentTask>.unmodifiable(completedTasks));
+  }
+
+  Future<List<AgentTask>> _runTasks(List<AgentTask> tasks) async {
     var cursor = 0;
     Future<void> worker() async {
       while (cursor < tasks.length) {

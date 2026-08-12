@@ -13,6 +13,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
       _activities.clear();
       _agentCheckpoint.clear();
       _goal = null;
+      _taskGraph = null;
       _turnState = _AgentTurnState.idle;
       _agent?.clear();
       _searchMode = false;
@@ -25,7 +26,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
     String? expectedChatId,
     String? expectedWorkspace,
   }) async {
-    if (_entries.isEmpty && _goal == null) return;
+    if (_entries.isEmpty && _goal == null && _taskGraph == null) return;
     final chatId = _activeChatId;
     final workspace = _workspace;
     if ((expectedChatId != null && expectedChatId != chatId) ||
@@ -39,6 +40,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
       entries: List.unmodifiable(_entries),
       agentMessages: List.unmodifiable(_copyCheckpoint(_agentCheckpoint)),
       goal: _goal,
+      taskGraph: _taskGraph,
     );
     final index = _chatSessions.indexWhere((item) => item.id == chatId);
     if (index == -1) {
@@ -92,6 +94,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
               _activities.clear();
               _agentCheckpoint.clear();
               _goal = null;
+              _taskGraph = null;
               _turnState = _AgentTurnState.idle;
               _agent?.clear();
             }
@@ -117,6 +120,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
         ..clear()
         ..addAll(session.agentMessages);
       _goal = _goalRestoredFromSession(session.goal);
+      _taskGraph = session.taskGraph;
       _activities.clear();
       _turnState = _AgentTurnState.idle;
       _searchMode = false;
