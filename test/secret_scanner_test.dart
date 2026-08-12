@@ -2,19 +2,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kode_agent_desktop/services/secret_scanner.dart';
 
 void main() {
-  test('menyensor seluruh alias URI koneksi umum', () {
-    const values = [
-      'postgres://user:synthetic-password@db.example/app',
-      'mongodb+srv://user:synthetic-password@cluster.example/app',
-      'rediss://user:synthetic-password@cache.example/0',
-      'amqps://user:synthetic-password@queue.example/vhost',
+  test('menyensor seluruh alias dan delimiter URI koneksi umum', () {
+    const schemes = [
+      'http',
+      'https',
+      'postgres',
+      'postgresql',
+      'mysql',
+      'mariadb',
+      'mongodb',
+      'mongodb+srv',
+      'redis',
+      'rediss',
+      'amqp',
+      'amqps',
     ];
-    for (final value in values) {
-      expect(SecretScanner.containsSecret(value), isTrue, reason: value);
-      expect(
-        SecretScanner.redact(value),
-        isNot(contains('synthetic-password')),
-      );
+    for (final scheme in schemes) {
+      for (final userInfo in const [
+        'user:synthetic-password@',
+        'user%3Asynthetic-password%40',
+        'user%3Asynthetic-password@',
+        'user:synthetic-password%40',
+      ]) {
+        final value =
+            '$scheme://$userInfo'
+            'host.example/app';
+        expect(SecretScanner.containsSecret(value), isTrue, reason: value);
+        expect(
+          SecretScanner.redact(value),
+          isNot(contains('synthetic-password')),
+          reason: value,
+        );
+      }
     }
   });
 
