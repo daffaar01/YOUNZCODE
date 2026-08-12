@@ -116,6 +116,11 @@ const _slashCommands = <_SlashCommand>[
   _SlashCommand('/agents', 'Run isolated parallel agents', Icons.groups_2),
   _SlashCommand('/mcp', 'Manage MCP servers', Icons.device_hub),
   _SlashCommand('/review', 'Review pending or Git changes', Icons.rate_review),
+  _SlashCommand(
+    '/review-apply',
+    'Review and approve a suggested patch',
+    Icons.build_outlined,
+  ),
   _SlashCommand('/fork', 'Fork the current chat', Icons.call_split),
   _SlashCommand('/model', 'Open model settings', Icons.psychology_outlined),
   _SlashCommand('/usage', 'Open provider usage dashboard', Icons.query_stats),
@@ -449,6 +454,9 @@ class _AgentHomePageState extends State<AgentHomePage> {
   _InspectorSection _inspectorSection = _InspectorSection.activity;
   WorkspaceTurnChanges? _pendingChanges;
   WorkspaceTurnChanges? _lastAppliedTurn;
+  ReviewResult? _lastReviewResult;
+  Set<int> _lastApplicableReviewFindings = const {};
+  String _lastReviewWorkspace = '';
   DateTime? _turnStartedAt;
   Duration _lastTurnDuration = Duration.zero;
   GitStatus _gitStatus = const GitStatus(isRepository: false);

@@ -6,6 +6,33 @@ import 'package:kode_agent_desktop/services/git_service.dart';
 import 'package:kode_agent_desktop/services/review_service.dart';
 
 void main() {
+  test('hasil review diformat sebagai respons chat bernomor', () {
+    final result = ReviewResult(
+      summary: 'Ditemukan satu bug.',
+      findings: const [
+        ReviewFinding(
+          severity: ReviewSeverity.medium,
+          category: 'bug',
+          title: 'Halaman terkunci',
+          path: 'script.js',
+          line: 50,
+          description: 'Listener dipasang terlalu lambat.',
+          suggestedPatch: 'patch',
+        ),
+      ],
+    );
+
+    final message = formatReviewForChat(result, applicableFindings: {0});
+
+    expect(message, contains('Git Diff Review'));
+    expect(message, contains('Ditemukan satu bug.'));
+    expect(message, contains('1. MEDIUM — Halaman terkunci'));
+    expect(message, contains('script.js:50'));
+    expect(message, contains('Listener dipasang terlalu lambat.'));
+    expect(message, contains('/review-apply 1'));
+    expect(message, isNot(contains('patch')));
+  });
+
   test('review max memakai satu attempt dan deadline khusus', () {
     expect(reviewProviderMaxAttempts, 1);
     expect(

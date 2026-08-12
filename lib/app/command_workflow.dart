@@ -98,6 +98,8 @@ extension _CommandWorkflow on _AgentHomePageState {
         _showAddonSummary(AddonKind.mcpServer, argument);
       case '/review':
         await _openReview();
+      case '/review-apply':
+        await _applyReviewFinding(argument);
       case '/fork':
         await _forkChat();
       case '/model' || '/models':
@@ -589,15 +591,66 @@ extension _CommandWorkflow on _AgentHomePageState {
         }
       }
       if (!mounted) return;
-      final selected = await showDialog<int>(
-        context: context,
-        builder: (context) =>
-            _ReviewDialog(result: result, applicableFindings: applicable),
+      _updateState(() {
+        _lastReviewResult = result;
+        _lastApplicableReviewFindings = Set<int>.unmodifiable(applicable);
+        _lastReviewWorkspace = _workspace;
+      });
+      _addLocalResponse(
+        formatReviewForChat(result, applicableFindings: applicable),
       );
-      if (selected == null || !mounted) return;
-      final patch = result.findings[selected].suggestedPatch;
+    } catch (error) {
+      if (mounted) _addLocalResponse('Review gagal: $error', error: true);
+    } finally {
+      completion.dispose();
+      if (mounted) {
+        _updateState(() {
+          _busy = false;
+          _agentStatus = 'Siap menerima tugas';
+        });
+      }
+    }
+  }
+
+  Future<void> _applyReviewFinding(String argument) async {
+    final requested = int.tryParse(argument);
+    final result = _lastReviewResult;
+    if (requested == null || requested < 1) {
+      _addLocalResponse('Gunakan: /review-apply <nomor finding>', error: true);
+      return;
+    }
+    final index = requested - 1;
+    if (result == null ||
+        _lastReviewWorkspace != _workspace ||
+        index >= result.findings.length ||
+        !_lastApplicableReviewFindings.contains(index)) {
+      _addLocalResponse(
+        'Finding tidak tersedia untuk diterapkan. Jalankan /review lagi pada workspace ini.',
+        error: true,
+      );
+      return;
+    }
+    final patch = result.findings[index].suggestedPatch;
+    try {
+      await _gitService.checkPatch(_workspace, patch);
+    } on ProcessException {
+      _addLocalResponse(
+        'Patch finding sudah stale atau tidak valid. Jalankan /review lagi.',
+        error: true,
+      );
+      return;
+    }
+    if (!mounted) return;
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (context) =>
+          _ReviewDialog(result: result, applicableFindings: {index}),
+    );
+    if (selected != index || !mounted) return;
+    try {
       if (!_workspaceTrusted && !await _trustCurrentWorkspace()) return;
       if (!mounted) return;
+      await _gitService.checkPatch(_workspace, patch);
       await _gitService.applyPatch(_workspace, patch);
       if (!mounted) return;
       final changedPaths = ReviewService.patchPaths(patch);
@@ -630,14 +683,8 @@ extension _CommandWorkflow on _AgentHomePageState {
         }
       }
     } catch (error) {
-      if (mounted) _addLocalResponse('Review gagal: $error', error: true);
-    } finally {
-      completion.dispose();
       if (mounted) {
-        _updateState(() {
-          _busy = false;
-          _agentStatus = 'Siap menerima tugas';
-        });
+        _addLocalResponse('Patch review gagal diterapkan: $error', error: true);
       }
     }
   }

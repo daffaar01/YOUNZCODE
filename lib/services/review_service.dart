@@ -47,6 +47,34 @@ int reviewProviderTimeoutMs({
   return configured < 600000 ? 600000 : configured;
 }
 
+String formatReviewForChat(
+  ReviewResult result, {
+  required Set<int> applicableFindings,
+}) {
+  final output = StringBuffer('Git Diff Review\n\n${result.summary.trim()}');
+  if (result.findings.isEmpty) {
+    output.write('\n\nTidak ditemukan masalah yang dapat ditindaklanjuti.');
+    return output.toString();
+  }
+  for (var index = 0; index < result.findings.length; index++) {
+    final finding = result.findings[index];
+    output
+      ..write('\n\n${index + 1}. ${finding.severity.name.toUpperCase()} — ')
+      ..write(finding.title)
+      ..write('\n${finding.path}:${finding.line} · ')
+      ..write(finding.category.toUpperCase())
+      ..write('\n${finding.description}');
+    if (finding.suggestedPatch.isNotEmpty) {
+      output.write(
+        applicableFindings.contains(index)
+            ? '\nPerbaikan tersedia dan belum diterapkan. Gunakan /review-apply ${index + 1} untuk meninjaunya melalui alur persetujuan.'
+            : '\nPerbaikan yang disarankan tidak dapat diterapkan karena invalid atau stale.',
+      );
+    }
+  }
+  return output.toString();
+}
+
 class ReviewService {
   ReviewService({required ReviewAnalyzer analyzer}) : _analyzer = analyzer;
 
