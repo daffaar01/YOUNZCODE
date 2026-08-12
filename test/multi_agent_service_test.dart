@@ -5,6 +5,39 @@ import 'package:kode_agent_desktop/models/task_graph.dart';
 import 'package:kode_agent_desktop/services/multi_agent_service.dart';
 
 void main() {
+  test(
+    'multi-agent max mendapat deadline panjang dan satu attempt di 9Router',
+    () {
+      expect(
+        multiAgentRequestTimeoutMs(
+          model: 'cx/gpt-5.6-sol(max)',
+          configuredTimeoutMs: 120000,
+        ),
+        600000,
+      );
+      expect(
+        multiAgentTurnDuration('cx/gpt-5.6-sol(max)'),
+        const Duration(minutes: 30),
+      );
+      expect(multiAgentRequestAttempts('http://127.0.0.1:20128/v1'), 1);
+    },
+  );
+
+  test('multi-agent non-max mempertahankan konfigurasi umum', () {
+    expect(
+      multiAgentRequestTimeoutMs(
+        model: 'cx/gpt-5.6-sol',
+        configuredTimeoutMs: 180000,
+      ),
+      180000,
+    );
+    expect(
+      multiAgentTurnDuration('cx/gpt-5.6-sol'),
+      const Duration(minutes: 10),
+    );
+    expect(multiAgentRequestAttempts('https://api.example.test/v1'), 4);
+  });
+
   test('menjalankan task paralel pada branch dan worktree berbeda', () async {
     final commands = <List<String>>[];
     final running = <String>{};

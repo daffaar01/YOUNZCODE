@@ -407,7 +407,12 @@ extension _CommandWorkflow on _AgentHomePageState {
           // worktree, even though the callback auto-approves everything else.
           allowExternalPaths: false,
           environment: environment,
-          timeoutMs: _timeoutMs,
+          timeoutMs: multiAgentRequestTimeoutMs(
+            model: _model,
+            configuredTimeoutMs: _timeoutMs,
+          ),
+          maxTurnDuration: multiAgentTurnDuration(_model),
+          maxRequestAttempts: multiAgentRequestAttempts(_baseUrl),
           headers: headers,
           addonInstructions: instructions,
           onChanges: (changes) => pending = changes,

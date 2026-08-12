@@ -6,6 +6,27 @@ import 'package:path/path.dart' as path;
 
 import '../models/task_graph.dart';
 
+int multiAgentRequestTimeoutMs({
+  required String model,
+  required int configuredTimeoutMs,
+}) {
+  if (model.trim().toLowerCase().endsWith('(max)')) {
+    return configuredTimeoutMs < 600000 ? 600000 : configuredTimeoutMs;
+  }
+  return configuredTimeoutMs;
+}
+
+Duration multiAgentTurnDuration(String model) =>
+    model.trim().toLowerCase().endsWith('(max)')
+    ? const Duration(minutes: 30)
+    : const Duration(minutes: 10);
+
+int multiAgentRequestAttempts(String baseUrl) {
+  final uri = Uri.tryParse(baseUrl.trim());
+  final host = uri?.host.toLowerCase();
+  return host == '127.0.0.1' || host == 'localhost' ? 1 : 4;
+}
+
 enum AgentTaskStatus {
   queued,
   preparing,
