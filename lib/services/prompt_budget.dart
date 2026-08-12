@@ -63,33 +63,76 @@ class PromptBudget {
         .map((message) => Map<String, dynamic>.from(message))
         .toList();
     if (messageCharacters(copied) <= maxCharacters) return copied;
+    final newestUserIndex = copied.lastIndexWhere(
+      (message) => message['role'] == 'user',
+    );
+    if (newestUserIndex < 0) {
+      return _constrainWithoutRequiredUser(copied, maxCharacters);
+    }
+
+    final newestUser = copied[newestUserIndex];
     final kept = <Map<String, dynamic>>[];
-    if (copied.first['role'] == 'system') kept.add(copied.first);
-    for (var index = copied.length - 1; index >= 0; index--) {
-      final candidate = copied[index];
-      if (identical(candidate, copied.first) && kept.isNotEmpty) continue;
-      final insertion = kept.isNotEmpty && kept.first['role'] == 'system'
-          ? 1
-          : 0;
-      final trial = [...kept]..insert(insertion, candidate);
+    final hasSystem = copied.first['role'] == 'system' && newestUserIndex != 0;
+    if (hasSystem) kept.add(copied.first);
+    kept.add(newestUser);
+
+    final originalNewestContent = newestUser['content'];
+    if (!_truncateNewestUserToFit(kept, maxCharacters)) {
+      if (!hasSystem) return const [];
+      kept.removeAt(0);
+      newestUser['content'] = originalNewestContent;
+      if (!_truncateNewestUserToFit(kept, maxCharacters)) return const [];
+    }
+
+    for (var index = newestUserIndex - 1; index >= 0; index--) {
+      if (hasSystem && index == 0) continue;
+      final trial = [...kept];
+      final insertion = hasSystem ? 1 : 0;
+      trial.insert(insertion, copied[index]);
       if (messageCharacters(trial) <= maxCharacters) {
         kept
           ..clear()
           ..addAll(trial);
       }
     }
-    while (kept.isNotEmpty && messageCharacters(kept) > maxCharacters) {
-      if (kept.length > 1) {
-        kept.removeAt(kept.first['role'] == 'system' ? 1 : 0);
-        continue;
+    return kept;
+  }
+
+  static bool _truncateNewestUserToFit(
+    List<Map<String, dynamic>> messages,
+    int maxCharacters,
+  ) {
+    if (messageCharacters(messages) <= maxCharacters) return true;
+    final message = messages.last;
+    final content = message['content'];
+    if (content is! String) return false;
+    var low = 0;
+    var high = content.length;
+    while (low < high) {
+      final middle = (low + high + 1) ~/ 2;
+      message['content'] = content.substring(0, middle);
+      if (messageCharacters(messages) <= maxCharacters) {
+        low = middle;
+      } else {
+        high = middle - 1;
       }
-      final content = kept.single['content'];
-      if (content is! String || content.isEmpty) return const [];
-      final overflow = messageCharacters(kept) - maxCharacters;
-      kept.single['content'] = content.substring(
-        0,
-        (content.length - overflow).clamp(0, content.length),
-      );
+    }
+    message['content'] = content.substring(0, low);
+    return messageCharacters(messages) <= maxCharacters;
+  }
+
+  static List<Map<String, dynamic>> _constrainWithoutRequiredUser(
+    List<Map<String, dynamic>> messages,
+    int maxCharacters,
+  ) {
+    final kept = <Map<String, dynamic>>[];
+    for (var index = messages.length - 1; index >= 0; index--) {
+      final trial = [messages[index], ...kept];
+      if (messageCharacters(trial) <= maxCharacters) {
+        kept
+          ..clear()
+          ..addAll(trial);
+      }
     }
     return kept;
   }

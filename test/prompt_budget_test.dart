@@ -24,6 +24,30 @@ void main() {
     expect(budget.toString(), endsWith('[TRUNCATED]'));
   });
 
+  test('newest user request dipertahankan dan dipotong deterministik', () {
+    final newest = 'NEWEST-REQUEST-${'z' * 200}';
+    final messages = <Map<String, dynamic>>[
+      {'role': 'system', 'content': 'system instruction'},
+      {'role': 'user', 'content': 'old request'},
+      {'role': 'assistant', 'content': 'old response'},
+      {'role': 'user', 'content': newest},
+    ];
+
+    final bounded = PromptBudget.constrainMessages(
+      messages,
+      maxCharacters: 100,
+    );
+
+    expect(PromptBudget.messageCharacters(bounded), lessThanOrEqualTo(100));
+    expect(bounded.last['role'], 'user');
+    expect(bounded.last['content'], isNotEmpty);
+    expect(newest, startsWith(bounded.last['content'] as String));
+    expect(
+      bounded.any((message) => message['content'] == 'old request'),
+      isFalse,
+    );
+  });
+
   test('combined request cap menghitung system addon history dan prompt', () {
     final messages = <Map<String, dynamic>>[
       {'role': 'system', 'content': 's' * 12},

@@ -103,28 +103,46 @@ void main() {
     },
   );
 
-  test('ContextEngine menemukan file baru dari perubahan eksternal', () async {
-    final root = await Directory.systemTemp.createTemp('younz-context-');
-    addTearDown(() => root.delete(recursive: true));
-    await File(
-      '${root.path}${Platform.pathSeparator}initial.dart',
-    ).writeAsString('class InitialFile {}\n');
-    final intelligence = CodeIntelligenceService(root.path);
-    final engine = ContextEngine(root.path, intelligence: intelligence);
-    await intelligence.ensureIndexed();
-    await File(
-      '${root.path}${Platform.pathSeparator}external_change.dart',
-    ).writeAsString('class ExternalChangeDetector {}\n');
+  test(
+    'ContextEngine fail-closed tanpa membaca file workspace otomatis',
+    () async {
+      final root = await Directory.systemTemp.createTemp('younz-context-safe-');
+      addTearDown(() => root.delete(recursive: true));
+      await File(
+        '${root.path}${Platform.pathSeparator}ordinary.dart',
+      ).writeAsString('class OrdinaryWorkspaceSource {}\n');
+      final engine = ContextEngine(root.path);
 
-    final selection = await engine.select('ExternalChangeDetector');
+      final selection = await engine.select('OrdinaryWorkspaceSource');
 
-    expect(
-      selection.files.map((file) => file.path),
-      contains('external_change.dart'),
-    );
-  });
+      expect(selection.files, isEmpty);
+      expect(selection.promptContext, isEmpty);
+    },
+  );
 
-  test('ContextEngine memilih file relevan dengan alasan dan budget', () async {
+  test(
+    'ContextEngine tidak membaca file baru dari perubahan eksternal',
+    () async {
+      final root = await Directory.systemTemp.createTemp('younz-context-');
+      addTearDown(() => root.delete(recursive: true));
+      await File(
+        '${root.path}${Platform.pathSeparator}initial.dart',
+      ).writeAsString('class InitialFile {}\n');
+      final intelligence = CodeIntelligenceService(root.path);
+      final engine = ContextEngine(root.path, intelligence: intelligence);
+      await intelligence.ensureIndexed();
+      await File(
+        '${root.path}${Platform.pathSeparator}external_change.dart',
+      ).writeAsString('class ExternalChangeDetector {}\n');
+
+      final selection = await engine.select('ExternalChangeDetector');
+
+      expect(selection.files, isEmpty);
+      expect(selection.promptContext, isEmpty);
+    },
+  );
+
+  test('ContextEngine tidak membaca file relevan otomatis', () async {
     final root = await Directory.systemTemp.createTemp('younz-context-');
     addTearDown(() => root.delete(recursive: true));
     await File(
@@ -147,12 +165,9 @@ void main() {
       maxFiles: 3,
     );
 
-    expect(selection.files, isNotEmpty);
-    expect(selection.files.first.path, 'auth_service.dart');
-    expect(selection.files.first.reason, isNotEmpty);
+    expect(selection.files, isEmpty);
     expect(selection.totalCharacters, lessThanOrEqualTo(220));
-    expect(selection.promptContext, contains('auth_service.dart'));
-    expect(selection.promptContext, isNot(contains('ColorPalette')));
+    expect(selection.promptContext, isEmpty);
   });
 
   test(
@@ -195,7 +210,7 @@ void main() {
   );
 
   test(
-    'ContextEngine menjaga diversity dan mengecualikan attachment',
+    'ContextEngine tidak membaca kandidat meski attachment dikecualikan',
     () async {
       final root = await Directory.systemTemp.createTemp('younz-context-');
       addTearDown(() => root.delete(recursive: true));
@@ -213,14 +228,8 @@ void main() {
         excludedPaths: const {'./folder/../dominant.dart'},
       );
 
-      expect(
-        diverse.files.map((file) => file.path),
-        contains('secondary.dart'),
-      );
-      expect(
-        diverse.files.map((file) => file.path),
-        isNot(contains('dominant.dart')),
-      );
+      expect(diverse.files, isEmpty);
+      expect(diverse.promptContext, isEmpty);
     },
   );
 
