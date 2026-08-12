@@ -797,9 +797,14 @@ class McpClient {
           .toList(growable: false);
     }
     if (value is Map) {
-      return value.map(
-        (key, item) => MapEntry(key, _sanitizeJsonValue(item, exactSecrets)),
-      );
+      final sanitized = <Object?, Object?>{};
+      for (final entry in value.entries) {
+        final key = entry.key is String
+            ? _sanitize(entry.key as String, exactSecrets)
+            : entry.key;
+        sanitized[key] = _sanitizeJsonValue(entry.value, exactSecrets);
+      }
+      return sanitized;
     }
     return value;
   }

@@ -679,6 +679,7 @@ void main() {
                 'metadata': {'nested': secret},
               },
             ],
+            'structuredContent': {secret: 'credential-key'},
           },
         });
         return http.Response(
