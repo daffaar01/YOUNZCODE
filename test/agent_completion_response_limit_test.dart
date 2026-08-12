@@ -5,33 +5,36 @@ import 'package:http/http.dart' as http;
 import 'package:kode_agent_desktop/services/agent_completion_client.dart';
 
 void main() {
-  test('completion tool-free memakai streaming pada 9Router lokal', () async {
-    final transport = _RecordingClient();
-    final client = AgentCompletionClient(
-      baseUrl: 'http://127.0.0.1:20128/v1',
-      apiKey: 'test-key',
-      model: 'cx/gpt-5.6-sol(max)',
-      timeoutMs: 5000,
-      headers: const {},
-      maxRequestAttempts: 1,
-      retryBaseDelay: Duration.zero,
-      onStatus: (_) {},
-      isCancelled: () => false,
-      shouldStop: () => false,
-      httpClient: transport,
-    );
+  test(
+    'completion tool-free memakai respons utuh pada 9Router lokal',
+    () async {
+      final transport = _RecordingClient();
+      final client = AgentCompletionClient(
+        baseUrl: 'http://127.0.0.1:20128/v1',
+        apiKey: 'test-key',
+        model: 'cx/gpt-5.6-sol(max)',
+        timeoutMs: 5000,
+        headers: const {},
+        maxRequestAttempts: 1,
+        retryBaseDelay: Duration.zero,
+        onStatus: (_) {},
+        isCancelled: () => false,
+        shouldStop: () => false,
+        httpClient: transport,
+      );
 
-    final result = await client.request(
-      messages: const [
-        {'role': 'user', 'content': 'review'},
-      ],
-      toolDefinitions: const [],
-      allowTools: false,
-    );
+      final result = await client.request(
+        messages: const [
+          {'role': 'user', 'content': 'review'},
+        ],
+        toolDefinitions: const [],
+        allowTools: false,
+      );
 
-    expect(transport.requestBody['stream'], isTrue);
-    expect(result['content'], 'OK');
-  });
+      expect(transport.requestBody['stream'], isFalse);
+      expect(result['content'], 'OK');
+    },
+  );
 
   test(
     'completion menghentikan stream ketika byte budget terlampaui',

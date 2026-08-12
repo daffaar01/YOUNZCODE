@@ -56,7 +56,7 @@ class AgentCompletionClient {
     String? finalInstruction,
   }) async {
     Object? lastError;
-    var useStreaming = !_isLocal9Router || !allowTools;
+    var useStreaming = !_isLocal9Router;
     String? emptyRetryInstruction;
     for (var attempt = 1; attempt <= maxRequestAttempts; attempt++) {
       _throwIfCancelled();
