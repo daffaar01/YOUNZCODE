@@ -181,6 +181,21 @@ void main() {
     );
   });
 
+  test('MCP connection address is the exact validated public IP', () async {
+    final address = await resolveMcpConnectAddress(
+      Uri.parse('https://public.example/mcp'),
+      lookup: (_) async => [InternetAddress('8.8.8.8')],
+    );
+    expect(address.address, '8.8.8.8');
+    await expectLater(
+      resolveMcpConnectAddress(
+        Uri.parse('https://public.example/mcp'),
+        lookup: (_) async => [InternetAddress('10.0.0.1')],
+      ),
+      throwsStateError,
+    );
+  });
+
   test('MCP HTTP rejects redirects instead of following them', () async {
     final server = MockClient(
       (_) async => http.Response(

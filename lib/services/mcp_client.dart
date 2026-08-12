@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 import '../models/addon.dart';
 import 'process_launch.dart';
@@ -34,6 +35,56 @@ Future<void> validateMcpHttpEndpoint(
   if (addresses.isEmpty || addresses.any(_isNonPublicAddress)) {
     throw StateError('MCP remote endpoint resolved to a non-public address.');
   }
+}
+
+Future<InternetAddress> resolveMcpConnectAddress(
+  Uri uri, {
+  McpEndpointLookup lookup = InternetAddress.lookup,
+}) async {
+  if (uri.userInfo.isNotEmpty || uri.host.isEmpty || uri.fragment.isNotEmpty) {
+    throw StateError('MCP HTTP endpoint tidak valid.');
+  }
+  final loopback = _isLoopback(uri);
+  if (loopback) {
+    if (!uri.isScheme('http') && !uri.isScheme('https')) {
+      throw StateError('MCP loopback endpoint must use HTTP or HTTPS.');
+    }
+  } else if (!uri.isScheme('https')) {
+    throw StateError('MCP remote endpoint must use HTTPS.');
+  }
+  // This single lookup supplies the exact address used by connectionFactory;
+  // there is no second DNS resolution between policy and socket connection.
+  final addresses = await lookup(uri.host);
+  if (addresses.isEmpty) {
+    throw StateError('MCP endpoint tidak memiliki alamat koneksi.');
+  }
+  if (loopback) {
+    if (addresses.any((address) => !address.isLoopback)) {
+      throw StateError('MCP loopback endpoint resolution tidak aman.');
+    }
+  } else if (addresses.any(_isNonPublicAddress)) {
+    throw StateError('MCP remote endpoint resolved to a non-public address.');
+  }
+  return addresses.first;
+}
+
+http.Client createPinnedMcpHttpClient(McpEndpointLookup lookup) {
+  final native = HttpClient()..findProxy = (_) => 'DIRECT';
+  native.connectionFactory = (uri, proxyHost, proxyPort) async {
+    if (proxyHost != null || proxyPort != null) {
+      throw StateError('MCP proxy connection tidak diizinkan.');
+    }
+    final address = await resolveMcpConnectAddress(uri, lookup: lookup);
+    final port = uri.hasPort ? uri.port : (uri.isScheme('https') ? 443 : 80);
+    final connection = await Socket.startConnect(address, port);
+    final Future<Socket> socket = uri.isScheme('https')
+        ? connection.socket.then(
+            (plain) => SecureSocket.secure(plain, host: uri.host),
+          )
+        : connection.socket;
+    return ConnectionTask.fromSocket<Socket>(socket, connection.cancel);
+  };
+  return IOClient(native);
 }
 
 bool _isNonPublicAddress(InternetAddress address) {
@@ -241,7 +292,8 @@ class McpClient {
     if (!await approveLaunch(url, const [])) {
       throw StateError('MCP server launch was denied.');
     }
-    _httpClient = _injectedHttpClient ?? http.Client();
+    _httpClient =
+        _injectedHttpClient ?? createPinnedMcpHttpClient(_endpointLookup);
     final initialized = await _request('initialize', {
       'protocolVersion': '2025-03-26',
       'capabilities': {},
