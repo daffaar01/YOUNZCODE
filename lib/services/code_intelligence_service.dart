@@ -129,9 +129,7 @@ class CodeIntelligenceService {
       root,
     ).list(recursive: true, followLinks: false)) {
       if (entity is! File || !_shouldIndex(entity.path)) continue;
-      final relative = path
-          .relative(entity.path, from: root)
-          .replaceAll('\\', '/');
+      final relative = _relativeKey(entity.path);
       try {
         final contained = await _resolveContainedFile(relative);
         if (contained == null || await contained.length() > 1024 * 1024) {
@@ -156,7 +154,7 @@ class CodeIntelligenceService {
   }
 
   Future<void> refreshPaths(Iterable<String> relativePaths) {
-    final snapshot = relativePaths.toSet();
+    final snapshot = relativePaths.map(_normalizeRelativeKey).toSet();
     final refresh = _refreshQueue.then((_) => _refreshPaths(snapshot));
     _refreshQueue = refresh.catchError((_) {});
     return refresh;
@@ -165,7 +163,7 @@ class CodeIntelligenceService {
   Future<void> _refreshPaths(Set<String> relativePaths) async {
     await ensureIndexed();
     for (final relativePath in relativePaths) {
-      final normalized = relativePath.replaceAll('\\', '/');
+      final normalized = _normalizeRelativeKey(relativePath);
       if (normalized.isEmpty ||
           path.isAbsolute(normalized) ||
           normalized == '..' ||
@@ -184,7 +182,7 @@ class CodeIntelligenceService {
         final revalidated = await _resolveContainedFile(normalized);
         if (revalidated == null || revalidated.path != file.path) continue;
         if (!content.contains('\u0000')) {
-          _indexFile(file.path, content);
+          _indexFile(file.path, content, relativeKey: normalized);
           final stat = await file.stat();
           _fingerprints[normalized] = _fingerprint(stat, content);
         }
@@ -313,11 +311,9 @@ class CodeIntelligenceService {
         if (await file.length() > 1024 * 1024) continue;
         final content = await file.readAsString();
         if (content.contains('\u0000')) continue;
-        _indexFile(file.path, content);
+        final relative = _relativeKey(file.path);
+        _indexFile(file.path, content, relativeKey: relative);
         final stat = await file.stat();
-        final relative = path
-            .relative(file.path, from: root)
-            .replaceAll('\\', '/');
         _fingerprints[relative] = _fingerprint(stat, content);
       } on FileSystemException {
         // Files can disappear while a workspace is being indexed.
@@ -400,8 +396,12 @@ class CodeIntelligenceService {
     return _extensions.contains(path.extension(components.last.toLowerCase()));
   }
 
-  void _indexFile(String filePath, String content) {
-    final relative = path.relative(filePath, from: root).replaceAll('\\', '/');
+  void _indexFile(
+    String filePath,
+    String content, {
+    required String relativeKey,
+  }) {
+    final relative = relativeKey;
     final extension = path.extension(filePath).toLowerCase();
     final lines = content.split('\n');
     for (var index = 0; index < lines.length; index++) {
@@ -427,6 +427,14 @@ class CodeIntelligenceService {
         );
       }
     }
+  }
+
+  String _relativeKey(String filePath) =>
+      _normalizeRelativeKey(path.relative(filePath, from: root));
+
+  static String _normalizeRelativeKey(String value) {
+    final normalized = path.posix.normalize(value.replaceAll('\\', '/'));
+    return Platform.isWindows ? normalized.toLowerCase() : normalized;
   }
 
   Iterable<(String, String)> _definitions(String line, String extension) sync* {
