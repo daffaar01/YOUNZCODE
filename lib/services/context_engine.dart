@@ -40,13 +40,21 @@ class ContextEngine {
     String task, {
     int maxCharacters = 12000,
     int maxFiles = 8,
+    Set<String> excludedPaths = const {},
   }) async {
     if (task.trim().isEmpty || maxCharacters <= 0 || maxFiles <= 0) {
       return const ContextSelection(files: [], promptContext: '');
     }
+    await _intelligence.refreshExternalChanges();
     final results = await _intelligence.search(task, limit: 200);
+    final excludedKeys = excludedPaths
+        .map(_relativeKey)
+        .whereType<String>()
+        .toSet();
     final bestByPath = <String, CodeSearchResult>{};
     for (final result in results) {
+      final resultKey = _relativeKey(result.path);
+      if (resultKey == null || excludedKeys.contains(resultKey)) continue;
       final current = bestByPath[result.path];
       if (current == null || result.score > current.score) {
         bestByPath[result.path] = result;
@@ -58,15 +66,16 @@ class ContextEngine {
     final buffer = StringBuffer();
     for (final candidate in ranked) {
       if (selected.length >= maxFiles) break;
+      if (CodeIntelligenceService.isSensitivePath(candidate.path)) continue;
       final safe = await _resolveContained(candidate.path);
       if (safe == null) continue;
-      final name = path.basename(safe).toLowerCase();
-      if (name == '.env' || name.startsWith('.env.')) continue;
       final file = File(safe);
       if (!await file.exists() || await file.length() > 1024 * 1024) continue;
       String content;
       try {
-        content = SecretScanner.redact(await file.readAsString());
+        final raw = await file.readAsString();
+        if (SecretScanner.containsSecret(raw)) continue;
+        content = SecretScanner.redact(raw);
       } on FileSystemException {
         continue;
       } on FormatException {
@@ -124,5 +133,17 @@ class ContextEngine {
     } on FileSystemException {
       return null;
     }
+  }
+
+  static String? _relativeKey(String value) {
+    final slashed = value.replaceAll('\\', '/');
+    if (slashed.isEmpty || path.posix.isAbsolute(slashed)) return null;
+    final normalized = path.posix.normalize(slashed);
+    if (normalized == '.' ||
+        normalized == '..' ||
+        normalized.startsWith('../')) {
+      return null;
+    }
+    return Platform.isWindows ? normalized.toLowerCase() : normalized;
   }
 }

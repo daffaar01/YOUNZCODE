@@ -43,6 +43,7 @@ class CodeIntelligenceService {
   final String root;
   final List<_IndexedLine> _lines = [];
   final List<CodeSymbol> _symbols = [];
+  final Map<String, String> _fingerprints = {};
   Future<void>? _indexing;
   Future<void> _refreshQueue = Future.value();
   bool _invalidated = true;
@@ -120,6 +121,40 @@ class CodeIntelligenceService {
 
   void invalidate() => _invalidated = true;
 
+  Future<void> refreshExternalChanges() async {
+    await ensureIndexed();
+    final current = <String, String>{};
+    if (!await Directory(root).exists()) return;
+    await for (final entity in Directory(
+      root,
+    ).list(recursive: true, followLinks: false)) {
+      if (entity is! File || !_shouldIndex(entity.path)) continue;
+      final relative = path
+          .relative(entity.path, from: root)
+          .replaceAll('\\', '/');
+      try {
+        final contained = await _resolveContainedFile(relative);
+        if (contained == null || await contained.length() > 1024 * 1024) {
+          continue;
+        }
+        final content = await contained.readAsString();
+        if (content.contains('\u0000')) continue;
+        final stat = await contained.stat();
+        current[relative] = _fingerprint(stat, content);
+      } on FileSystemException {
+        continue;
+      } on FormatException {
+        continue;
+      }
+      if (current.length >= 20000) break;
+    }
+    final changed = <String>{
+      ..._fingerprints.keys,
+      ...current.keys,
+    }.where((item) => _fingerprints[item] != current[item]).toSet();
+    if (changed.isNotEmpty) await refreshPaths(changed);
+  }
+
   Future<void> refreshPaths(Iterable<String> relativePaths) {
     final snapshot = relativePaths.toSet();
     final refresh = _refreshQueue.then((_) => _refreshPaths(snapshot));
@@ -140,12 +175,19 @@ class CodeIntelligenceService {
       }
       _lines.removeWhere((line) => line.path == normalized);
       _symbols.removeWhere((symbol) => symbol.path == normalized);
-      final file = File(path.join(root, normalized));
-      if (!await file.exists() || !_shouldIndex(file.path)) continue;
+      _fingerprints.remove(normalized);
+      final file = await _resolveContainedFile(normalized);
+      if (file == null || !_shouldIndex(file.path)) continue;
       try {
         if (await file.length() > 1024 * 1024) continue;
         final content = await file.readAsString();
-        if (!content.contains('\u0000')) _indexFile(file.path, content);
+        final revalidated = await _resolveContainedFile(normalized);
+        if (revalidated == null || revalidated.path != file.path) continue;
+        if (!content.contains('\u0000')) {
+          _indexFile(file.path, content);
+          final stat = await file.stat();
+          _fingerprints[normalized] = _fingerprint(stat, content);
+        }
       } on FileSystemException {
         // A file may disappear while an editor is saving it.
       } on FormatException {
@@ -202,10 +244,17 @@ class CodeIntelligenceService {
       return byPath != 0 ? byPath : left.line.compareTo(right.line);
     });
     final seen = <String>{};
-    return [
-      for (final result in ranked)
-        if (seen.add('${result.path}:${result.line}')) result,
-    ].take(limit).toList();
+    final perPath = <String, int>{};
+    final selected = <CodeSearchResult>[];
+    for (final result in ranked) {
+      if (!seen.add('${result.path}:${result.line}')) continue;
+      final count = perPath[result.path] ?? 0;
+      if (count >= 8) continue;
+      perPath[result.path] = count + 1;
+      selected.add(result);
+      if (selected.length >= limit) break;
+    }
+    return selected;
   }
 
   Future<List<CodeSearchResult>> references(
@@ -245,6 +294,7 @@ class CodeIntelligenceService {
   Future<void> _rebuild() async {
     _lines.clear();
     _symbols.clear();
+    _fingerprints.clear();
     if (root.isEmpty || !await Directory(root).exists()) {
       _invalidated = false;
       return;
@@ -264,6 +314,11 @@ class CodeIntelligenceService {
         final content = await file.readAsString();
         if (content.contains('\u0000')) continue;
         _indexFile(file.path, content);
+        final stat = await file.stat();
+        final relative = path
+            .relative(file.path, from: root)
+            .replaceAll('\\', '/');
+        _fingerprints[relative] = _fingerprint(stat, content);
       } on FileSystemException {
         // Files can disappear while a workspace is being indexed.
       } on FormatException {
@@ -273,17 +328,76 @@ class CodeIntelligenceService {
     _invalidated = false;
   }
 
+  static String _fingerprint(FileStat stat, String content) {
+    var hash = 0xcbf29ce484222325;
+    for (final unit in content.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x100000001b3) & 0x7fffffffffffffff;
+    }
+    return '${stat.modified.microsecondsSinceEpoch}:${stat.size}:$hash';
+  }
+
+  Future<File?> _resolveContainedFile(String relativePath) async {
+    final lexical = path.normalize(
+      path.absolute(path.join(root, relativePath)),
+    );
+    final lexicalRoot = path.normalize(path.absolute(root));
+    if (!path.isWithin(lexicalRoot, lexical)) return null;
+    try {
+      final canonicalRoot = path.normalize(
+        path.absolute(await Directory(root).resolveSymbolicLinks()),
+      );
+      final canonicalTarget = path.normalize(
+        path.absolute(await File(lexical).resolveSymbolicLinks()),
+      );
+      if (!path.isWithin(canonicalRoot, canonicalTarget)) return null;
+      return File(canonicalTarget);
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  static bool isSensitivePath(String filePath) {
+    final normalized = filePath.replaceAll('\\', '/').toLowerCase();
+    final name = path.basename(normalized);
+    if (name == '.env' || name.startsWith('.env.')) return true;
+    if ({
+      '.npmrc',
+      '.pypirc',
+      'id_rsa',
+      'id_ed25519',
+      'credentials.json',
+      'secrets.yaml',
+      'secrets.yml',
+      'service-account.json',
+      'service_account.json',
+    }.contains(name)) {
+      return true;
+    }
+    if (RegExp(
+      r'(?:credential|secret|private[-_]?key)',
+      caseSensitive: false,
+    ).hasMatch(name)) {
+      return true;
+    }
+    return {
+      '.pem',
+      '.key',
+      '.p12',
+      '.pfx',
+      '.jks',
+      '.keystore',
+    }.contains(path.extension(name));
+  }
+
   bool _shouldIndex(String filePath) {
     final relative = path.relative(filePath, from: root).replaceAll('\\', '/');
     final components = relative.split('/');
-    if (components.any(_ignoredDirectories.contains)) return false;
-    final name = components.last.toLowerCase();
-    if (name == '.env' ||
-        name.startsWith('.env.') ||
-        {'.npmrc', '.pypirc', 'id_rsa', 'id_ed25519'}.contains(name)) {
+    if (components.any(_ignoredDirectories.contains) ||
+        isSensitivePath(relative)) {
       return false;
     }
-    return _extensions.contains(path.extension(name));
+    return _extensions.contains(path.extension(components.last.toLowerCase()));
   }
 
   void _indexFile(String filePath, String content) {

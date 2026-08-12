@@ -17,6 +17,13 @@ class SecretScanner {
     // Fine-grained personal access tokens use the github_pat_ prefix.
     ('GitHub token', RegExp(r'\bgithub_pat_[A-Za-z0-9_]{20,}\b')),
     ('OpenAI key', RegExp(r'\bsk-[A-Za-z0-9_-]{20,}\b')),
+    (
+      'credential URI',
+      RegExp(
+        r'\b(?:https?|postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss|amqp|amqps)://[^\s/@]*(?::|%3a)[^\s/@]+@[^\s/]+',
+        caseSensitive: false,
+      ),
+    ),
     // Long-term (AKIA) and temporary/session (ASIA) AWS access key ids.
     ('AWS key', RegExp(r'\b(?:AKIA|ASIA)[0-9A-Z]{16}\b')),
     // Generic key/value credentials. No leading word boundary so compound
