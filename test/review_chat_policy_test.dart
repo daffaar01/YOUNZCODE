@@ -21,5 +21,7 @@ void main() {
     expect(applyBody, contains('showDialog<int>('));
     expect(applyBody, contains('_gitService.checkPatch'));
     expect(applyBody, contains('_trustCurrentWorkspace()'));
+    expect(applyBody, contains('_reviewApplyWorkspaceIsSafe()'));
+    expect(applyBody, contains('canApplyReviewFinding('));
   });
 }

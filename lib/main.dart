@@ -456,7 +456,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   WorkspaceTurnChanges? _lastAppliedTurn;
   ReviewResult? _lastReviewResult;
   Set<int> _lastApplicableReviewFindings = const {};
-  String _lastReviewWorkspace = '';
+  String _lastReviewWorkspaceIdentity = '';
   DateTime? _turnStartedAt;
   Duration _lastTurnDuration = Duration.zero;
   GitStatus _gitStatus = const GitStatus(isRepository: false);

@@ -33,6 +33,39 @@ void main() {
     expect(message, isNot(contains('patch')));
   });
 
+  test('apply selection terikat identity workspace dan finding applicable', () {
+    expect(
+      canApplyReviewFinding(
+        requestedNumber: 1,
+        findingCount: 2,
+        applicableFindings: {0},
+        reviewedWorkspaceIdentity: 'C:/trusted/workspace',
+        currentWorkspaceIdentity: 'C:/trusted/workspace',
+      ),
+      isTrue,
+    );
+    expect(
+      canApplyReviewFinding(
+        requestedNumber: 1,
+        findingCount: 2,
+        applicableFindings: {0},
+        reviewedWorkspaceIdentity: 'C:/trusted/workspace',
+        currentWorkspaceIdentity: 'C:/other-target',
+      ),
+      isFalse,
+    );
+    expect(
+      canApplyReviewFinding(
+        requestedNumber: 2,
+        findingCount: 2,
+        applicableFindings: {0},
+        reviewedWorkspaceIdentity: 'C:/trusted/workspace',
+        currentWorkspaceIdentity: 'C:/trusted/workspace',
+      ),
+      isFalse,
+    );
+  });
+
   test('review max memakai satu attempt dan deadline khusus', () {
     expect(reviewProviderMaxAttempts, 1);
     expect(
@@ -115,6 +148,24 @@ ${jsonEncode({
     );
 
     await expectLater(service.review('diff'), throwsA(isA<FormatException>()));
+  });
+
+  test('patch menolak unified diff sebelum marker Git pertama', () {
+    const patch = '''--- a/evil.txt
++++ b/evil.txt
+@@ -1 +1 @@
+-safe
++PWNED
+
+diff --git a/good.txt b/good.txt
+--- a/good.txt
++++ b/good.txt
+@@ -1 +1 @@
+-old
++fixed
+''';
+
+    expect(() => ReviewService.patchPaths(patch), throwsFormatException);
   });
 
   test('review menolak section patch tambahan tanpa header Git', () async {

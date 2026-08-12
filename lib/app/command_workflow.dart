@@ -534,6 +534,15 @@ extension _CommandWorkflow on _AgentHomePageState {
       if (!mounted || _apiKey.isEmpty) return;
     }
     if (!mounted) return;
+    final reviewedWorkspaceIdentity = await _trustService
+        .canonicalWorkspaceIdentity(_workspace);
+    if (reviewedWorkspaceIdentity == null) {
+      _addLocalResponse(
+        'Workspace tidak dapat diresolusi dengan aman untuk review.',
+        error: true,
+      );
+      return;
+    }
     _updateState(() {
       _busy = true;
       _agentStatus = 'Mereview Git diff';
@@ -591,10 +600,18 @@ extension _CommandWorkflow on _AgentHomePageState {
         }
       }
       if (!mounted) return;
+      final currentIdentity = await _trustService.canonicalWorkspaceIdentity(
+        _workspace,
+      );
+      if (currentIdentity != reviewedWorkspaceIdentity) {
+        throw const FileSystemException(
+          'Target workspace berubah selama review.',
+        );
+      }
       _updateState(() {
         _lastReviewResult = result;
         _lastApplicableReviewFindings = Set<int>.unmodifiable(applicable);
-        _lastReviewWorkspace = _workspace;
+        _lastReviewWorkspaceIdentity = reviewedWorkspaceIdentity;
       });
       _addLocalResponse(
         formatReviewForChat(result, applicableFindings: applicable),
@@ -620,10 +637,18 @@ extension _CommandWorkflow on _AgentHomePageState {
       return;
     }
     final index = requested - 1;
+    final currentIdentity = await _trustService.canonicalWorkspaceIdentity(
+      _workspace,
+    );
     if (result == null ||
-        _lastReviewWorkspace != _workspace ||
-        index >= result.findings.length ||
-        !_lastApplicableReviewFindings.contains(index)) {
+        currentIdentity == null ||
+        !canApplyReviewFinding(
+          requestedNumber: requested,
+          findingCount: result.findings.length,
+          applicableFindings: _lastApplicableReviewFindings,
+          reviewedWorkspaceIdentity: _lastReviewWorkspaceIdentity,
+          currentWorkspaceIdentity: currentIdentity,
+        )) {
       _addLocalResponse(
         'Finding tidak tersedia untuk diterapkan. Jalankan /review lagi pada workspace ini.',
         error: true,
@@ -650,7 +675,21 @@ extension _CommandWorkflow on _AgentHomePageState {
     try {
       if (!_workspaceTrusted && !await _trustCurrentWorkspace()) return;
       if (!mounted) return;
+      if (!await _reviewApplyWorkspaceIsSafe()) {
+        _addLocalResponse(
+          'Workspace berubah atau tidak lagi dipercaya. Jalankan /review lagi.',
+          error: true,
+        );
+        return;
+      }
       await _gitService.checkPatch(_workspace, patch);
+      if (!await _reviewApplyWorkspaceIsSafe()) {
+        _addLocalResponse(
+          'Workspace berubah atau tidak lagi dipercaya. Patch dibatalkan.',
+          error: true,
+        );
+        return;
+      }
       await _gitService.applyPatch(_workspace, patch);
       if (!mounted) return;
       final changedPaths = ReviewService.patchPaths(patch);
@@ -687,6 +726,14 @@ extension _CommandWorkflow on _AgentHomePageState {
         _addLocalResponse('Patch review gagal diterapkan: $error', error: true);
       }
     }
+  }
+
+  Future<bool> _reviewApplyWorkspaceIsSafe() async {
+    final identity = await _trustService.canonicalWorkspaceIdentity(_workspace);
+    if (identity == null || identity != _lastReviewWorkspaceIdentity) {
+      return false;
+    }
+    return _trustService.isTrusted(_workspace);
   }
 
   String _reviewMessageText(Object? content) {

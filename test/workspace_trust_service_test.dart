@@ -5,6 +5,29 @@ import 'package:kode_agent_desktop/services/workspace_trust_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test(
+    'canonical workspace identity resolves current filesystem target',
+    () async {
+      final workspace = await Directory.systemTemp.createTemp(
+        'trust-identity-',
+      );
+      addTearDown(() => workspace.delete(recursive: true));
+
+      final identity = await WorkspaceTrustService().canonicalWorkspaceIdentity(
+        workspace.path,
+      );
+
+      expect(identity, isNotNull);
+      expect(identity, isNotEmpty);
+      expect(
+        await WorkspaceTrustService().canonicalWorkspaceIdentity(
+          '${workspace.path}-missing',
+        ),
+        isNull,
+      );
+    },
+  );
+
   test('contained file resolution rejects prefix siblings', () async {
     SharedPreferences.setMockInitialValues({});
     final parent = await Directory.systemTemp.createTemp('trust-boundary-');

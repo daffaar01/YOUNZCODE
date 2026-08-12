@@ -47,6 +47,21 @@ int reviewProviderTimeoutMs({
   return configured < 600000 ? 600000 : configured;
 }
 
+bool canApplyReviewFinding({
+  required int requestedNumber,
+  required int findingCount,
+  required Set<int> applicableFindings,
+  required String reviewedWorkspaceIdentity,
+  required String currentWorkspaceIdentity,
+}) {
+  final index = requestedNumber - 1;
+  return requestedNumber > 0 &&
+      index < findingCount &&
+      applicableFindings.contains(index) &&
+      reviewedWorkspaceIdentity.isNotEmpty &&
+      reviewedWorkspaceIdentity == currentWorkspaceIdentity;
+}
+
 String formatReviewForChat(
   ReviewResult result, {
   required Set<int> applicableFindings,
@@ -205,6 +220,11 @@ $redacted''',
     if (starts.isEmpty) {
       throw const FormatException(
         'Suggested patch harus berupa Git unified diff.',
+      );
+    }
+    if (patchText.substring(0, starts.first).trim().isNotEmpty) {
+      throw const FormatException(
+        'Konten sebelum marker Git diff pertama tidak didukung.',
       );
     }
     final targets = <String>[];
