@@ -79,5 +79,49 @@ class ChatSessionStore {
         if (session.goal!.lastDetail.isNotEmpty)
           'lastDetail': SecretScanner.redact(session.goal!.lastDetail),
       },
+    if (session.taskGraph != null)
+      'taskGraph': _safeTaskGraph(session.taskGraph!.toJson()),
+  };
+
+  String _redactBounded(String value) {
+    final redacted = SecretScanner.redact(value);
+    return redacted.length <= 12000 ? redacted : redacted.substring(0, 12000);
+  }
+
+  Map<String, dynamic> _safeTaskGraph(Map<String, dynamic> graph) => {
+    'id': graph['id'],
+    'objective': _redactBounded(graph['objective'] as String? ?? ''),
+    'nodes': (graph['nodes'] as List? ?? const [])
+        .take(64)
+        .map((raw) {
+          final node = Map<String, dynamic>.from(raw as Map);
+          return {
+            'id': node['id'],
+            'title': _redactBounded(node['title'] as String? ?? ''),
+            'dependencies': node['dependencies'],
+            'status': node['status'],
+            if (node['detail'] is String)
+              'detail': _redactBounded(node['detail'] as String),
+            if (node['agentId'] is String)
+              'agentId': _redactBounded(node['agentId'] as String),
+            if (node['worktree'] is String)
+              'worktree': _redactBounded(node['worktree'] as String),
+            'attempt': node['attempt'],
+            'artifacts': (node['artifacts'] as List? ?? const [])
+                .take(32)
+                .map((rawArtifact) {
+                  final artifact = Map<String, dynamic>.from(
+                    rawArtifact as Map,
+                  );
+                  return {
+                    'kind': _redactBounded(artifact['kind'] as String? ?? ''),
+                    'label': _redactBounded(artifact['label'] as String? ?? ''),
+                    'value': _redactBounded(artifact['value'] as String? ?? ''),
+                  };
+                })
+                .toList(growable: false),
+          };
+        })
+        .toList(growable: false),
   };
 }

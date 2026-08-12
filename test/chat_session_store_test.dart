@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kode_agent_desktop/models/chat_entry.dart';
 import 'package:kode_agent_desktop/models/chat_session.dart';
 import 'package:kode_agent_desktop/models/agent_goal.dart';
+import 'package:kode_agent_desktop/models/task_graph.dart';
 import 'package:kode_agent_desktop/services/chat_session_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -104,6 +105,50 @@ void main() {
     final persisted = preferences.getString('chat_sessions_v1')!;
     expect(persisted, isNot(contains(secret)));
     expect((await store.load()).single.goal, isNotNull);
+  });
+
+  test('task graph persisten dipulihkan aman dan secret direduksi', () async {
+    SharedPreferences.setMockInitialValues({});
+    const secret = 'sk-1234567890abcdefghijklmnop';
+    final graph =
+        TaskGraph(
+          id: 'release',
+          objective: 'Release dengan $secret',
+          nodes: const [TaskNode(id: 'build', title: 'Build memakai $secret')],
+        ).transition(
+          'build',
+          TaskNodeStatus.running,
+          detail: 'agent memakai $secret',
+          agentId: 'agent-$secret',
+          worktree: 'C:/work/$secret',
+          artifacts: [
+            TaskArtifact(
+              kind: 'log-$secret',
+              label: 'Log $secret',
+              value: '$secret${'x' * 13000}',
+            ),
+          ],
+        );
+    final store = ChatSessionStore();
+    await store.save([
+      ChatSession(
+        id: 'graph-chat',
+        workspace: 'C:/project',
+        updatedAt: DateTime(2026, 8, 12),
+        entries: const [ChatEntry(role: ChatRole.user, content: 'release')],
+        taskGraph: graph,
+      ),
+    ]);
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('chat_sessions_v1'), isNot(contains(secret)));
+    final restored = (await store.load()).single.taskGraph!;
+    expect(restored.node('build').status, TaskNodeStatus.paused);
+    expect(restored.node('build').detail, contains('dipulihkan'));
+    expect(
+      restored.node('build').artifacts.single.value.length,
+      lessThanOrEqualTo(12000),
+    );
   });
 
   test('checkpoint pesan internal agent tersimpan dan dipulihkan', () async {
