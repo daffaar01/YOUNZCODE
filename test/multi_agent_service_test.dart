@@ -5,6 +5,35 @@ import 'package:kode_agent_desktop/models/task_graph.dart';
 import 'package:kode_agent_desktop/services/multi_agent_service.dart';
 
 void main() {
+  test('hasil multi-agent diformat sebagai respons chat', () {
+    final tasks = [
+      const AgentTask(
+        id: 'a',
+        nodeId: 'agent-0',
+        prompt: 'Periksa bug',
+        status: AgentTaskStatus.completed,
+        branch: 'codex/agent-bug',
+        result: 'Tidak menemukan bug kritis.',
+      ),
+      const AgentTask(
+        id: 'b',
+        nodeId: 'agent-1',
+        prompt: 'Periksa kualitas',
+        status: AgentTaskStatus.failed,
+        error: 'Timeout setelah 30 menit.',
+      ),
+    ];
+
+    final message = formatMultiAgentResultsForChat(tasks);
+
+    expect(message, contains('MULTI-AGENT RESULTS — 1/2 selesai'));
+    expect(message, contains('1. ✅ Periksa bug'));
+    expect(message, contains('Tidak menemukan bug kritis.'));
+    expect(message, contains('2. ❌ Periksa kualitas'));
+    expect(message, contains('Timeout setelah 30 menit.'));
+    expect(message, isNot(contains(r'C:\Users')));
+  });
+
   test(
     'multi-agent max mendapat deadline panjang dan satu attempt di 9Router',
     () {

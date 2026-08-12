@@ -27,6 +27,44 @@ int multiAgentRequestAttempts(String baseUrl) {
   return host == '127.0.0.1' || host == 'localhost' ? 1 : 4;
 }
 
+String formatMultiAgentResultsForChat(
+  List<AgentTask> tasks, {
+  int maxDetailCharacters = 4000,
+}) {
+  final completed = tasks
+      .where((task) => task.status == AgentTaskStatus.completed)
+      .length;
+  final buffer = StringBuffer(
+    'MULTI-AGENT RESULTS — $completed/${tasks.length} selesai',
+  );
+  for (var index = 0; index < tasks.length; index++) {
+    final task = tasks[index];
+    final icon = switch (task.status) {
+      AgentTaskStatus.completed => '✅',
+      AgentTaskStatus.failed => '❌',
+      AgentTaskStatus.cancelled => '⏹️',
+      _ => '⏳',
+    };
+    final rawDetail = task.error.isNotEmpty ? task.error : task.result;
+    final detail = rawDetail.length <= maxDetailCharacters
+        ? rawDetail
+        : '${rawDetail.substring(0, maxDetailCharacters)}…';
+    buffer
+      ..writeln()
+      ..writeln()
+      ..writeln('${index + 1}. $icon ${task.prompt}');
+    if (task.branch.isNotEmpty) {
+      buffer.writeln('Branch: ${task.branch}');
+    }
+    if (detail.trim().isNotEmpty) {
+      buffer.write(detail.trim());
+    } else {
+      buffer.write('Tidak ada detail hasil.');
+    }
+  }
+  return buffer.toString();
+}
+
 enum AgentTaskStatus {
   queued,
   preparing,

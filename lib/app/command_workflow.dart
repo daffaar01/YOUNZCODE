@@ -481,10 +481,7 @@ extension _CommandWorkflow on _AgentHomePageState {
           : '${failed.length} agent gagal';
       _executionSummaryVisible = true;
     });
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _MultiAgentResultsDialog(tasks: tasks),
-    );
+    _addLocalResponse(formatMultiAgentResultsForChat(tasks));
   }
 
   Future<void> _openUsageDashboard() async {
