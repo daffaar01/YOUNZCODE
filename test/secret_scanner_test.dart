@@ -2,6 +2,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kode_agent_desktop/services/secret_scanner.dart';
 
 void main() {
+  test('menyensor seluruh alias URI koneksi umum', () {
+    const values = [
+      'postgres://user:synthetic-password@db.example/app',
+      'mongodb+srv://user:synthetic-password@cluster.example/app',
+      'rediss://user:synthetic-password@cache.example/0',
+      'amqps://user:synthetic-password@queue.example/vhost',
+    ];
+    for (final value in values) {
+      expect(SecretScanner.containsSecret(value), isTrue, reason: value);
+      expect(
+        SecretScanner.redact(value),
+        isNot(contains('synthetic-password')),
+      );
+    }
+  });
+
   test('menyensor kredensial dalam JSON yang dikutip', () {
     const content = '{"password": "Pr0dPassw0rd!"}';
     final redacted = SecretScanner.redact(content);

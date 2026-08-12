@@ -29,14 +29,14 @@ class SecretScanner {
     (
       'credential URI',
       RegExp(
-        r'(?:https?|postgresql|mysql|mariadb|mongodb|redis|amqp)://[^\s/?#]*%3a[^\s/?#]*%40',
+        r'(?:https?|postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/?#]*%3a[^\s/?#]*%40',
         caseSensitive: false,
       ),
     ),
     (
       'credential URI',
       RegExp(
-        r'(?:https?|postgresql|mysql|mariadb|mongodb|redis|amqp)://[^\s/?#@]+:[^\s/?#@]*@',
+        r'(?:https?|postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/?#@]+:[^\s/?#@]*@',
         caseSensitive: false,
       ),
     ),
