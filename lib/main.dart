@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
+import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:silky_scroll/silky_scroll.dart';
 
@@ -15,19 +16,24 @@ import 'models/chat_entry.dart';
 import 'models/chat_session.dart';
 import 'models/addon.dart';
 import 'models/agent_goal.dart';
+import 'models/task_graph.dart';
 import 'models/workspace_change.dart';
 import 'agent_working_palette.dart';
 import 'editor_support.dart';
 import 'lottie_support.dart';
 import 'services/agent_service.dart';
+import 'services/agent_completion_client.dart';
 import 'services/addon_service.dart';
 import 'services/approval_mode.dart';
 import 'services/browser_agent_service.dart';
 import 'services/provider_catalog.dart';
 import 'services/provider_routing_service.dart';
 import 'services/provider_usage_store.dart';
+import 'services/prompt_budget.dart';
 import 'services/chat_session_store.dart';
 import 'services/code_intelligence_service.dart';
+import 'services/context_engine.dart';
+import 'services/context_request_guard.dart';
 import 'services/debug_adapter_service.dart';
 import 'services/document_extraction_service.dart';
 import 'services/extension_contribution_service.dart';
@@ -42,8 +48,10 @@ import 'services/image_generation_service.dart';
 import 'services/interaction_flow_policy.dart';
 import 'services/multi_agent_service.dart';
 import 'services/workspace_trust_service.dart';
+import 'services/workspace_search_guard.dart';
 import 'services/persistent_terminal_service.dart';
 import 'services/quality_gate_service.dart';
+import 'services/review_service.dart';
 import 'services/update_ping_service.dart';
 import 'services/update_service.dart';
 import 'services/workspace_checkpoint_store.dart';
@@ -63,6 +71,7 @@ part 'app/workspace_lifecycle.dart';
 part 'ui/chrome.dart';
 part 'ui/editor.dart';
 part 'ui/inspector.dart';
+part 'ui/task_graph_banner.dart';
 part 'ui/image_studio.dart';
 part 'ui/provider_presets.dart';
 part 'ui/dialogs.dart';
@@ -114,6 +123,7 @@ const _slashCommands = <_SlashCommand>[
   _SlashCommand('/agents', 'Run isolated parallel agents', Icons.groups_2),
   _SlashCommand('/mcp', 'Manage MCP servers', Icons.device_hub),
   _SlashCommand('/review', 'Review pending or Git changes', Icons.rate_review),
+
   _SlashCommand('/fork', 'Fork the current chat', Icons.call_split),
   _SlashCommand('/model', 'Open model settings', Icons.psychology_outlined),
   _SlashCommand('/usage', 'Open provider usage dashboard', Icons.query_stats),
@@ -436,6 +446,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   bool _terminalBusy = false;
   bool _planMode = false;
   AgentGoal? _goal;
+  TaskGraph? _taskGraph;
   String? _activeFile;
   String? _browserInitialUrl;
   String _agentStatus = 'Siap menerima tugas';
@@ -444,10 +455,12 @@ class _AgentHomePageState extends State<AgentHomePage> {
   List<String> _searchResults = [];
   AgentService? _agent;
   CodeIntelligenceService? _codeIntelligence;
+  ContextEngine? _contextEngine;
   _AgentTurnState _turnState = _AgentTurnState.idle;
   _InspectorSection _inspectorSection = _InspectorSection.activity;
   WorkspaceTurnChanges? _pendingChanges;
   WorkspaceTurnChanges? _lastAppliedTurn;
+
   DateTime? _turnStartedAt;
   Duration _lastTurnDuration = Duration.zero;
   GitStatus _gitStatus = const GitStatus(isRepository: false);
@@ -897,6 +910,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
             onPause: () => unawaited(_pauseGoal()),
             onClear: () => unawaited(_clearGoal()),
           ),
+        if (_taskGraph != null) TaskGraphBanner(graph: _taskGraph!),
         _ModelBar(
           models: _models,
           selectedModel: _model,

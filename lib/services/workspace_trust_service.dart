@@ -6,6 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 class WorkspaceTrustService {
   static const _key = 'trusted_workspaces';
 
+  Future<String?> canonicalWorkspaceIdentity(String workspace) async {
+    if (workspace.isEmpty) return null;
+    try {
+      return _comparisonPath(await Directory(workspace).resolveSymbolicLinks());
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   Future<bool> isTrusted(String workspace) async {
     if (workspace.isEmpty) return false;
     try {

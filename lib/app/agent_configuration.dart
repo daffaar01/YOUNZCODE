@@ -229,6 +229,14 @@ extension _AgentConfiguration on _AgentHomePageState {
     return instructions;
   }
 
+  Future<String?> _resolveMcpCredential(String reference) async {
+    const prefix = 'env:';
+    if (!reference.startsWith(prefix)) return null;
+    final name = reference.substring(prefix.length);
+    if (!RegExp(r'^[A-Z_][A-Z0-9_]{0,127}$').hasMatch(name)) return null;
+    return Platform.environment[name];
+  }
+
   List<McpClient> _enabledMcpClients() => _planMode || !_workspaceTrusted
       ? []
       : [
@@ -237,7 +245,11 @@ extension _AgentConfiguration on _AgentHomePageState {
           ))
             for (final server in (addon.metadata as McpMetadata).servers)
               // Both stdio and Streamable HTTP transports are executable now.
-              McpClient(server, workspace: _workspace),
+              McpClient(
+                server,
+                workspace: _workspace,
+                resolveCredential: _resolveMcpCredential,
+              ),
         ];
 
   void _setPlanMode(bool value) {
@@ -279,7 +291,11 @@ extension _AgentConfiguration on _AgentHomePageState {
     if (addon.kind != AddonKind.mcpServer) return const [];
     final health = <McpHealth>[];
     for (final server in (addon.metadata as McpMetadata).servers) {
-      final client = McpClient(server, workspace: _workspace);
+      final client = McpClient(
+        server,
+        workspace: _workspace,
+        resolveCredential: _resolveMcpCredential,
+      );
       try {
         health.add(
           await client.healthCheck(

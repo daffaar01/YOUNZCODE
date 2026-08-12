@@ -256,17 +256,29 @@ Konfigurasi HTTP dapat diimpor:
   "mcpServers": {
     "remote-docs": {
       "url": "https://mcp.example.com/api",
-      "headers": {
-        "Authorization": "Bearer token"
+      "headerReferences": {
+        "Authorization": "env:YOUNZCODE_MCP_REMOTE_TOKEN"
       }
     }
   }
 }
 ```
 
-MCP HTTP saat ini berstatus configuration-only dan belum dijalankan. Dukungan lengkap memerlukan Streamable HTTP/SSE, session ID, reconnect, cancellation, dan perlindungan credential tambahan.
+MCP HTTP aktif sebagai dynamic tools pada workspace tepercaya dalam mode `BUILD`. Implementasi mendukung JSON-RPC melalui HTTPS/loopback, respons JSON atau SSE, `Mcp-Session-Id`, discovery `tools/list`, dan `tools/call`.
 
-Jangan menyimpan token sensitif dalam file JSON yang akan dimasukkan ke Git atau dibagikan.
+Batas keamanan transport:
+
+- respons HTTP maksimum 2 MiB sebelum buffering penuh;
+- setiap request memiliki absolute deadline 30 detik, termasuk konsumsi body slow-drip;
+- discovery maksimum 256 tools;
+- output satu tool maksimum 1 MiB berdasarkan ukuran UTF-8;
+- input schema maksimum 256 KiB, kedalaman 16, dan 4.096 node;
+- event SSE multiline direkonstruksi sesuai framing `data:` dan initialization notification diselesaikan sebelum `tools/list`;
+- session kedaluwarsa hanya dipulihkan otomatis untuk operasi idempotent `tools/list`;
+- `tools/call` tidak pernah diulang otomatis;
+- error HTTP, JSON-RPC, dan log meredaksi header credential serta pola secret umum.
+
+Header credential plaintext—termasuk nama generik seperti `Authorization`, `Cookie`, `X-Api-Key`, `X-Auth-Token`, atau header token/secret sejenis—ditolak saat import, restore metadata lama, dan sebelum request. Gunakan `headerReferences` dengan referensi `env:NAMA_VARIABLE`; nilai hanya dibaca dari process environment saat request dibuat dan tidak disimpan dalam metadata add-on. Jika variable tidak tersedia, koneksi gagal tertutup. OAuth 2.1/PKCE dan secure OS credential store belum tersedia pada versi ini.
 
 ## Memasang Extension VSIX
 

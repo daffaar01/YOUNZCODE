@@ -17,6 +17,48 @@ class SecretScanner {
     // Fine-grained personal access tokens use the github_pat_ prefix.
     ('GitHub token', RegExp(r'\bgithub_pat_[A-Za-z0-9_]{20,}\b')),
     ('OpenAI key', RegExp(r'\bsk-[A-Za-z0-9_-]{20,}\b')),
+    ('npm token', RegExp(r'\bnpm_[A-Za-z0-9]{20,}\b')),
+    ('Google API key', RegExp(r'\bAIza[A-Za-z0-9_-]{30,}\b')),
+    (
+      'authorization',
+      RegExp(
+        r'authorization\s*:\s*(?:bearer|basic)\s+[A-Za-z0-9+/_=.-]{12,}',
+        caseSensitive: false,
+      ),
+    ),
+    (
+      'credential URI',
+      RegExp(
+        r'(?:https?|postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/?#]*%3a[^\s/?#]*%40',
+        caseSensitive: false,
+      ),
+    ),
+    (
+      'credential URI',
+      RegExp(
+        r'(?:https?|postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/?#@]*%3a[^\s/?#@]*@',
+        caseSensitive: false,
+      ),
+    ),
+    (
+      'credential URI',
+      RegExp(
+        r'(?:https?|postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/?#%]+:[^\s/?#%]*%40',
+        caseSensitive: false,
+      ),
+    ),
+    (
+      'credential URI',
+      RegExp(
+        r'(?:https?|postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|rediss?|amqps?)://[^\s/?#@]*(?::|%3a)[^\s/?#@]+@',
+        caseSensitive: false,
+      ),
+    ),
+    (
+      'cookie',
+      RegExp(r'(?:set-)?cookie\s*:\s*[^\r\n]{12,}', caseSensitive: false),
+    ),
+    ('Slack token', RegExp(r'\bxox[baprs]-[A-Za-z0-9-]{20,}\b')),
     // Long-term (AKIA) and temporary/session (ASIA) AWS access key ids.
     ('AWS key', RegExp(r'\b(?:AKIA|ASIA)[0-9A-Z]{16}\b')),
     // Generic key/value credentials. No leading word boundary so compound
@@ -25,7 +67,7 @@ class SecretScanner {
     (
       'credential',
       RegExp(
-        r'''(?:api[_-]?key|secret|token|password|passwd)["']?\s*[:=]\s*["']?([^\s"',;]{8,})''',
+        r'''(?:api[_-]?key|secret|token|password|passwd|database[_-]?url|private[_-]?[a-z0-9_-]*token[a-z0-9_-]*|session[_-]?(?:value|token|secret))["]?'?\s*[:=]\s*["]?'?([^\s"',;]{8,})''',
         caseSensitive: false,
       ),
     ),

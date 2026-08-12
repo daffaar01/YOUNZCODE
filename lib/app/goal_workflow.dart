@@ -59,8 +59,22 @@ extension _GoalWorkflow on _AgentHomePageState {
     final prompt = await _buildPromptWithContext(
       _goalCoordinator.initialPrompt(goal.objective),
     );
+    if (prompt == null) return;
     await _runAgentOperation(
-      (agent) => agent.send(prompt),
+      (agent) async {
+        final lease = prompt.lease;
+        if (lease != null &&
+            !await lease.isCurrent(
+              workspace: _workspace,
+              trusted: _workspaceTrusted,
+              engine: _contextEngine,
+            )) {
+          throw StateError(
+            'Workspace berubah saat context disiapkan; context lama dibuang.',
+          );
+        }
+        return agent.send(prompt.prompt);
+      },
       userEntry: ChatEntry(
         role: ChatRole.user,
         content: '/goal ${goal.objective}',

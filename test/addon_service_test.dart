@@ -29,6 +29,18 @@ void main() {
     }
   });
 
+  test('persisted MCP menolak plaintext header sensitif generik', () {
+    expect(
+      () => McpServerConfig.fromJson({
+        'name': 'legacy',
+        'transport': 'http',
+        'url': 'https://mcp.example/rpc',
+        'headers': {'X-Auth-Token': 'legacy-secret-value'},
+      }),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
   test('load melewati record rusak tanpa menghapus addon lain', () async {
     String importedAt(int day) => DateTime.utc(2026, 7, day).toIso8601String();
     final good = {
@@ -382,6 +394,23 @@ description: Knowledge graph skill
     expect(vsix.metadata.publisher, 'acme');
     expect(vsix.metadata.extensionName, 'code-helper');
     expect(vsix.metadata.version, '2.4.1-beta.2');
+  });
+
+  test('MCP HTTP credentials wajib memakai headerReferences', () {
+    expect(
+      () => AddonService.parseMcpConfig('''
+{"mcpServers":{"remote":{"url":"https://mcp.example/rpc","headers":{"Authorization":"Bearer plaintext"}}}}
+'''),
+      throwsA(isA<AddonImportException>()),
+    );
+    final parsed = AddonService.parseMcpConfig('''
+{"mcpServers":{"remote":{"url":"https://mcp.example/rpc","headerReferences":{"Authorization":"mcp.remote.authorization"}}}}
+''');
+    expect(
+      parsed.metadata.servers.single.headerReferences['Authorization'],
+      'mcp.remote.authorization',
+    );
+    expect(parsed.metadata.toJson().toString(), isNot(contains('plaintext')));
   });
 
   test('rejects invalid HTTP MCP URLs and managed-root imports', () async {

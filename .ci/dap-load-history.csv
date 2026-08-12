@@ -1,0 +1,8 @@
+timestamp,os,workers,adapter,totalMs,ratio
+timestamp,os,workers,adapter,totalMs,ratio
+2026-08-12T04:10:25Z,ubuntu-latest,3,dart,37,0.00
+2026-08-12T04:10:25Z,ubuntu-latest,3,python,805,0.03
+2026-08-12T04:10:25Z,ubuntu-latest,3,pwa-node,177,0.01
+2026-08-12T04:12:14Z,windows-latest,3,dart,150,0.01
+2026-08-12T04:12:14Z,windows-latest,3,python,1195,0.04
+2026-08-12T04:12:14Z,windows-latest,3,pwa-node,470,0.02

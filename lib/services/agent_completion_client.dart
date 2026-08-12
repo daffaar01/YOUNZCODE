@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import 'agent_errors.dart';
+import 'prompt_budget.dart';
 import 'provider_adapter.dart';
 import 'settings_store.dart';
 
@@ -30,6 +31,7 @@ class AgentCompletionClient {
     required this.isCancelled,
     required this.shouldStop,
     this.onInsight,
+    this.maxResponseBytes = 8 * 1024 * 1024,
     http.Client? httpClient,
   }) : _injectedHttpClient = httpClient;
 
@@ -44,6 +46,7 @@ class AgentCompletionClient {
   final bool Function() isCancelled;
   final bool Function() shouldStop;
   final CompletionInsight? onInsight;
+  final int maxResponseBytes;
   final http.Client? _injectedHttpClient;
   http.Client? _activeHttpClient;
 
@@ -162,11 +165,13 @@ class AgentCompletionClient {
     final native = protocol != ProviderProtocol.openai;
     final client = _injectedHttpClient ?? http.Client();
     _activeHttpClient = client;
-    final requestMessages = <Map<String, dynamic>>[
-      ...messages,
-      if (finalInstruction != null)
-        {'role': 'system', 'content': finalInstruction},
-    ];
+    final requestMessages = PromptBudget.constrainMessages(
+      <Map<String, dynamic>>[
+        ...messages,
+        if (finalInstruction != null)
+          {'role': 'system', 'content': finalInstruction},
+      ],
+    );
     final toolDefs = allowTools
         ? toolDefinitions
         : const <Map<String, Object>>[];
@@ -232,7 +237,7 @@ class AgentCompletionClient {
               );
             },
           );
-      final byteStream = response.stream.timeout(
+      final byteStream = _limitResponseBytes(response.stream).timeout(
         requestTimeout,
         onTimeout: (sink) {
           sink.addError(
@@ -268,6 +273,19 @@ class AgentCompletionClient {
     } finally {
       if (identical(_activeHttpClient, client)) _activeHttpClient = null;
       if (_injectedHttpClient == null) client.close();
+    }
+  }
+
+  Stream<List<int>> _limitResponseBytes(Stream<List<int>> source) async* {
+    var total = 0;
+    await for (final chunk in source) {
+      total += chunk.length;
+      if (total > maxResponseBytes) {
+        throw FormatException(
+          'Provider response byte limit exceeded ($maxResponseBytes bytes).',
+        );
+      }
+      yield chunk;
     }
   }
 
