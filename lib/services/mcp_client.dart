@@ -776,9 +776,32 @@ class McpClient {
           '${_sanitize('${message['error']}', exactSecrets)}',
         );
       }
-      return Map<String, dynamic>.from(message['result'] as Map? ?? const {});
+      final result = Map<String, dynamic>.from(
+        message['result'] as Map? ?? const {},
+      );
+      return Map<String, dynamic>.from(
+        _sanitizeJsonValue(result, exactSecrets) as Map,
+      );
     }
     throw StateError('MCP ${config.name}: tidak ada respons untuk $method.');
+  }
+
+  static Object? _sanitizeJsonValue(
+    Object? value,
+    Iterable<String> exactSecrets,
+  ) {
+    if (value is String) return _sanitize(value, exactSecrets);
+    if (value is List) {
+      return value
+          .map((item) => _sanitizeJsonValue(item, exactSecrets))
+          .toList(growable: false);
+    }
+    if (value is Map) {
+      return value.map(
+        (key, item) => MapEntry(key, _sanitizeJsonValue(item, exactSecrets)),
+      );
+    }
+    return value;
   }
 
   static Object? _tryDecode(String value) {

@@ -662,6 +662,53 @@ void main() {
     expect(await client.callTool('echo', {}), 'multiline');
   });
 
+  test('MCP JSON-RPC success tidak merefleksikan credential runtime', () async {
+    const secret = 'opaque-success-secret-without-token-shape';
+    for (final sse in [false, true]) {
+      final server = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        if (body['method'] != 'tools/call') return _baseProtocolResponse(body);
+        final payload = jsonEncode({
+          'jsonrpc': '2.0',
+          'id': body['id'],
+          'result': {
+            'content': [
+              {
+                'type': 'text',
+                'text': 'server reflected $secret',
+                'metadata': {'nested': secret},
+              },
+            ],
+          },
+        });
+        return http.Response(
+          sse ? 'event: message\ndata: $payload\n\n' : payload,
+          200,
+          headers: {
+            'content-type': sse ? 'text/event-stream' : 'application/json',
+          },
+        );
+      });
+      final client = McpClient(
+        const McpServerConfig(
+          name: 'remote',
+          transport: McpTransport.http,
+          url: 'https://mcp.test/rpc',
+          headerReferences: {'X-Credential': 'env:SYNTHETIC'},
+        ),
+        workspace: '.',
+        httpClient: server,
+        resolveCredential: (_) async => secret,
+      );
+      addTearDown(client.dispose);
+      await client.initialize(approveLaunch: (_, _) async => true);
+
+      final result = await client.callTool('echo', {});
+      expect(result, contains('[REDACTED]'));
+      expect(result, isNot(contains(secret)), reason: 'sse=$sse');
+    }
+  });
+
   test('MCP JSON-RPC error tidak merefleksikan credential runtime', () async {
     const secret = 'Bearer reflected-secret-value-1234567890';
     final server = MockClient((request) async {
