@@ -972,7 +972,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('classic-environment-header')),
+      find.byKey(const ValueKey('classic-environment-panel')),
       findsOneWidget,
     );
     await tester.tap(find.byKey(const ValueKey('workspace-layout-picker')));
@@ -1032,6 +1032,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('environment menampilkan git, processes, dan sources', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1500, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    expect(find.text('ENVIRONMENT'), findsOneWidget);
+    expect(find.text('Changes'), findsOneWidget);
+    expect(find.text('Local'), findsOneWidget);
+    expect(find.text('Commit or push'), findsOneWidget);
+    expect(find.text('Compare branch'), findsOneWidget);
+    expect(find.text('BACKGROUND PROCESSES'), findsOneWidget);
+    expect(find.text('SOURCES'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('environment-add-source')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('about menjelaskan fitur utama YOUNZCODE 2.0', (tester) async {
     _setMockPreferences({});
     await tester.binding.setSurfaceSize(const Size(1400, 900));
@@ -1053,25 +1076,6 @@ void main() {
     expect(find.text('Plugins dan Subagent'), findsOneWidget);
     expect(find.text('Environment dan perubahan'), findsOneWidget);
     expect(find.text('Build v2.0.0'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('classic dapat hide dan show progress tool', (tester) async {
-    _setMockPreferences({});
-    await tester.binding.setSurfaceSize(const Size(1400, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(const KodeAgentApp());
-    await _pumpLoaded(tester);
-
-    final toggle = find.byKey(const ValueKey('toggle-tool-progress'));
-    expect(toggle, findsOneWidget);
-    expect(find.text('SHOW TOOLS'), findsOneWidget);
-    await tester.tap(toggle);
-    await tester.pump();
-    expect(find.text('HIDE TOOLS'), findsOneWidget);
-    await tester.tap(toggle);
-    await tester.pump();
-    expect(find.text('SHOW TOOLS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

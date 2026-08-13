@@ -443,7 +443,6 @@ class _AgentHomePageState extends State<AgentHomePage> {
   bool _providerVerified = false;
   bool _activityPanelVisible = true;
   bool _executionSummaryVisible = false;
-  bool _toolProgressVisible = false;
   bool _explorerPanelVisible = true;
   bool _terminalVisible = false;
   bool _terminalBusy = false;
@@ -461,6 +460,8 @@ class _AgentHomePageState extends State<AgentHomePage> {
   CodeIntelligenceService? _codeIntelligence;
   ContextEngine? _contextEngine;
   _AgentTurnState _turnState = _AgentTurnState.idle;
+  // Retained for restoring sessions created with the detailed inspector.
+  // ignore: unused_field
   _InspectorSection _inspectorSection = _InspectorSection.activity;
   WorkspaceTurnChanges? _pendingChanges;
   WorkspaceTurnChanges? _lastAppliedTurn;
@@ -813,69 +814,15 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                       ),
                                       SizedBox(
                                         width: inspectorWidth,
-                                        child: Column(
-                                          children: [
-                                            Container(
-                                              key: const ValueKey(
-                                                'classic-environment-header',
-                                              ),
-                                              height: 42,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 14,
-                                                  ),
-                                              alignment: Alignment.centerLeft,
-                                              decoration: BoxDecoration(
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.surface,
-                                                border: Border(
-                                                  bottom: BorderSide(
-                                                    color: Theme.of(
-                                                      context,
-                                                    ).dividerColor,
-                                                  ),
-                                                ),
-                                              ),
-                                              child: const Text(
-                                                'ENVIRONMENT',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w800,
-                                                  letterSpacing: 1,
-                                                ),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: _ActivityPanel(
-                                                key: const ValueKey(
-                                                  'activity-panel',
-                                                ),
-                                                activities: _activities,
-                                                busy: _busy,
-                                                status: _agentStatus,
-                                                onHide: () => setState(
-                                                  () => _activityPanelVisible =
-                                                      false,
-                                                ),
-                                                section: _inspectorSection,
-                                                onSectionChanged: (section) =>
-                                                    setState(
-                                                      () => _inspectorSection =
-                                                          section,
-                                                    ),
-                                                pendingChanges: _pendingChanges,
-                                                changeHistory: _changeHistory,
-                                                onReviewChanges: _reviewChanges,
-                                                onRestoreCheckpoint:
-                                                    _restoreCheckpoint,
-                                                onRevert:
-                                                    _lastAppliedTurn == null
-                                                    ? null
-                                                    : _revertTurn,
-                                              ),
-                                            ),
-                                          ],
+                                        child: _ClassicEnvironmentPanel(
+                                          gitStatus: _gitStatus,
+                                          changes: _pendingChanges,
+                                          activities: _activities,
+                                          terminalBusy: _terminalBusy,
+                                          sources: _contextFiles,
+                                          onAddSource: _attachContext,
+                                          onChanges: _reviewChanges,
+                                          onGit: _showGitDetails,
                                         ),
                                       ),
                                     ],
@@ -1073,9 +1020,6 @@ class _AgentHomePageState extends State<AgentHomePage> {
   }
 
   Widget _buildConversation(bool compact) {
-    final visibleEntries = _toolProgressVisible
-        ? _entries
-        : _entries.where((entry) => entry.role != ChatRole.tool).toList();
     return Column(
       children: [
         if (compact)
@@ -1118,7 +1062,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
             ),
           ),
         Expanded(
-          child: visibleEntries.isEmpty && !_busy
+          child: _entries.isEmpty && !_busy
               ? _EmptyState(onSuggestion: _useSuggestion)
               : SilkyScroll.fromConfig(
                   config: _silkyScrollConfig,
@@ -1131,7 +1075,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                         reverse: true,
                         padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
                         itemCount:
-                            visibleEntries.length +
+                            _entries.length +
                             (_busy ||
                                     _activities.isNotEmpty ||
                                     _turnState != _AgentTurnState.idle
@@ -1179,14 +1123,14 @@ class _AgentHomePageState extends State<AgentHomePage> {
                             );
                           }
                           final entryIndex =
-                              visibleEntries.length -
+                              _entries.length -
                               1 -
                               index +
                               (showExecution ? 1 : 0);
                           return _ConversationLane(
                             child: _MessageCard(
-                              key: ValueKey(visibleEntries[entryIndex]),
-                              entry: visibleEntries[entryIndex],
+                              key: ValueKey(_entries[entryIndex]),
+                              entry: _entries[entryIndex],
                             ),
                           );
                         },
@@ -1234,22 +1178,6 @@ class _AgentHomePageState extends State<AgentHomePage> {
                         },
                   icon: const Icon(Icons.account_tree_outlined, size: 16),
                   label: const Text('SUBAGENT'),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  key: const ValueKey('toggle-tool-progress'),
-                  onPressed: () => setState(
-                    () => _toolProgressVisible = !_toolProgressVisible,
-                  ),
-                  icon: Icon(
-                    _toolProgressVisible
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 16,
-                  ),
-                  label: Text(
-                    _toolProgressVisible ? 'HIDE TOOLS' : 'SHOW TOOLS',
-                  ),
                 ),
               ],
             ),

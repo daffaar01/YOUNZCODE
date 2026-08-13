@@ -378,6 +378,8 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
     _showMessage('Perubahan turn dipulihkan.');
   }
 
+  // Retained for checkpoints created by the detailed inspector UI.
+  // ignore: unused_element
   Future<void> _restoreCheckpoint(WorkspaceTurnChanges turn) async {
     if (_busy) return;
     final confirmed = await showDialog<bool>(

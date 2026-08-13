@@ -35,9 +35,10 @@ class _AgentActivity {
   bool get warning => state == 'ditolak' || state == 'dibatalkan';
 }
 
+// Retained for the detailed inspector flow and compatibility with saved UI state.
+// ignore: unused_element
 class _ActivityPanel extends StatelessWidget {
   const _ActivityPanel({
-    super.key,
     required this.activities,
     required this.busy,
     required this.status,
@@ -48,6 +49,7 @@ class _ActivityPanel extends StatelessWidget {
     required this.changeHistory,
     required this.onReviewChanges,
     required this.onRestoreCheckpoint,
+    // ignore: unused_element_parameter
     this.onRevert,
   });
 
@@ -242,6 +244,246 @@ class _ActivityPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ClassicEnvironmentPanel extends StatelessWidget {
+  const _ClassicEnvironmentPanel({
+    required this.gitStatus,
+    required this.changes,
+    required this.activities,
+    required this.terminalBusy,
+    required this.sources,
+    required this.onAddSource,
+    required this.onChanges,
+    required this.onGit,
+  });
+
+  final GitStatus gitStatus;
+  final WorkspaceTurnChanges? changes;
+  final List<_AgentActivity> activities;
+  final bool terminalBusy;
+  final List<String> sources;
+  final VoidCallback onAddSource;
+  final VoidCallback onChanges;
+  final VoidCallback onGit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final files = changes?.files ?? const <WorkspaceFileChange>[];
+    var additions = 0;
+    var deletions = 0;
+    for (final file in files) {
+      for (final hunk in file.hunks) {
+        additions += hunk.lines.where((line) => line.startsWith('+')).length;
+        deletions += hunk.lines.where((line) => line.startsWith('-')).length;
+      }
+    }
+    final running = activities.where((item) => item.running).toList();
+    final processCount = running.length + (terminalBusy ? 1 : 0);
+    return ColoredBox(
+      key: const ValueKey('classic-environment-panel'),
+      color: colors.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 48,
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 16),
+                    child: Text(
+                      'ENVIRONMENT',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('environment-add-source'),
+                  tooltip: 'Tambah source',
+                  onPressed: onAddSource,
+                  icon: const Icon(Icons.add, size: 20),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: theme.dividerColor),
+          _EnvironmentRow(
+            key: const ValueKey('environment-changes'),
+            icon: Icons.difference_outlined,
+            label: 'Changes',
+            trailing: files.isEmpty
+                ? '0'
+                : '${files.length}  +$additions  -$deletions',
+            onTap: files.isEmpty ? onGit : onChanges,
+          ),
+          _EnvironmentRow(
+            icon: Icons.computer_outlined,
+            label: 'Local',
+            trailing: gitStatus.dirty ? 'Modified' : 'Clean',
+          ),
+          _EnvironmentRow(
+            key: const ValueKey('environment-branch'),
+            icon: Icons.account_tree_outlined,
+            label: gitStatus.branch.isEmpty ? 'No branch' : gitStatus.branch,
+            trailing: gitStatus.mainBranch ? 'main' : null,
+            onTap: onGit,
+          ),
+          _EnvironmentRow(
+            key: const ValueKey('environment-commit-push'),
+            icon: Icons.commit_outlined,
+            label: 'Commit or push',
+            muted: !gitStatus.isRepository,
+            onTap: onGit,
+          ),
+          _EnvironmentRow(
+            key: const ValueKey('environment-compare-branch'),
+            icon: Icons.compare_arrows_outlined,
+            label: 'Compare branch',
+            onTap: onGit,
+          ),
+          Divider(height: 24, color: theme.dividerColor),
+          _EnvironmentSectionHeader(
+            label: 'BACKGROUND PROCESSES',
+            count: processCount,
+          ),
+          if (processCount == 0)
+            const _EnvironmentEmpty('Tidak ada proses aktif')
+          else ...[
+            for (final activity in running.take(4))
+              _EnvironmentRow(
+                icon: Icons.terminal_outlined,
+                label: activity.label,
+                trailing: 'Running',
+              ),
+            if (terminalBusy)
+              const _EnvironmentRow(
+                icon: Icons.terminal,
+                label: 'Terminal command',
+                trailing: 'Running',
+              ),
+          ],
+          Divider(height: 24, color: theme.dividerColor),
+          _EnvironmentSectionHeader(label: 'SOURCES', count: sources.length),
+          Expanded(
+            child: sources.isEmpty
+                ? const _EnvironmentEmpty('Belum ada source terlampir')
+                : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    itemCount: sources.length,
+                    itemBuilder: (context, index) {
+                      final source = sources[index];
+                      return _EnvironmentRow(
+                        icon: Icons.insert_drive_file_outlined,
+                        label: source.replaceAll('\\', '/').split('/').last,
+                        trailing: 'Attached',
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EnvironmentSectionHeader extends StatelessWidget {
+  const _EnvironmentSectionHeader({required this.label, required this.count});
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: .8,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Text('$count', style: const TextStyle(fontSize: 10)),
+      ],
+    ),
+  );
+}
+
+class _EnvironmentEmpty extends StatelessWidget {
+  const _EnvironmentEmpty(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 11,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
+}
+
+class _EnvironmentRow extends StatelessWidget {
+  const _EnvironmentRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.trailing,
+    this.muted = false,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? trailing;
+  final bool muted;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return ListTile(
+      dense: true,
+      minTileHeight: 38,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      leading: Icon(icon, size: 17),
+      title: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12,
+          color: muted ? colors.onSurfaceVariant : null,
+        ),
+      ),
+      trailing: trailing == null
+          ? null
+          : Text(
+              trailing!,
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 10,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+      onTap: onTap,
     );
   }
 }
