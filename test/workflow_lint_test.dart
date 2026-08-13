@@ -1,3 +1,6 @@
+@Tags(['slow'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -84,10 +87,11 @@ void main() {
     );
     expect(workflow, contains('python -m pip install debugpy'));
     expect(workflow, contains('YOUNZCODE_JS_DEBUG:'));
-    expect(
-      workflow,
-      contains('flutter test --exclude-tags integration --concurrency=1'),
-    );
+    expect(workflow, contains('flutter test --no-pub'));
+    expect(workflow, contains('--exclude-tags slow --concurrency=4'));
+    expect(workflow, contains('--tags slow --concurrency=1'));
+    expect(workflow, contains('test-results/fast-duration.txt'));
+    expect(workflow, contains('test-results/slow-duration.txt'));
   });
 
   test('DAP stress push hanya berjalan pada main', () {

@@ -1,4 +1,4 @@
-@Tags(['integration'])
+@Tags(['slow'])
 library;
 
 import 'dart:async';

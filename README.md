@@ -215,10 +215,21 @@ lib/
 
 ## 🧪 Pengujian
 
+Jalankan dependency resolution satu kali, lalu gunakan `--no-pub` agar setiap
+suite tidak mengulang pekerjaan yang sama. Test ringan berjalan paralel,
+sedangkan test yang memakai DAP, shell, Git, signing, MCP, atau process control
+diberi tag `slow` dan dijalankan serial:
+
 ```bash
-flutter test
+flutter pub get
+flutter test --no-pub --exclude-tags integration --exclude-tags slow --concurrency=4
+flutter test --no-pub --tags slow --concurrency=1
 flutter test integration_test/browser_windows_smoke_test.dart -d windows
 ```
+
+Quality gate CI memakai pembagian yang sama. Durasi fast dan slow suite ditulis
+ke GitHub Job Summary serta diunggah sebagai artifact `test-durations`, sehingga
+regresi waktu eksekusi dapat dibandingkan antar-run.
 
 **Precompile tool CLI** (sekali saja, atau setelah mengubah `tool/*.dart`):
 `dart run` membayar ~5–7 detik build hooks + kompilasi JIT tiap pemanggilan;

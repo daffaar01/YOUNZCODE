@@ -52,13 +52,49 @@ jobs:
         run: flutter analyze
 
       - name: Test repository-tool source fallback
-        run: flutter test test/check_tag_sync_test.dart
+        run: flutter test --no-pub test/check_tag_sync_test.dart
 
       - name: Precompile repository tools
         shell: bash
         run: bash tool/build_tools.sh
 
-      - name: Test
+      - name: Test fast suite
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force test-results | Out-Null
+          $timer = [Diagnostics.Stopwatch]::StartNew()
+          flutter test --no-pub --exclude-tags integration --exclude-tags slow --concurrency=4
+          $testExit = $LASTEXITCODE
+          $timer.Stop()
+          "fast_seconds=$([math]::Round($timer.Elapsed.TotalSeconds, 1))" |
+            Tee-Object -FilePath test-results/fast-duration.txt
+          if ($testExit -ne 0) { exit $testExit }
+
+      - name: Test slow suite
+        shell: pwsh
         env:
           YOUNZCODE_JS_DEBUG: ${{ github.workspace }}/debug-adapters/js-debug/src/dapDebugServer.js
-        run: flutter test --exclude-tags integration --concurrency=1
+        run: |
+          $timer = [Diagnostics.Stopwatch]::StartNew()
+          flutter test --no-pub --tags slow --concurrency=1
+          $testExit = $LASTEXITCODE
+          $timer.Stop()
+          "slow_seconds=$([math]::Round($timer.Elapsed.TotalSeconds, 1))" |
+            Tee-Object -FilePath test-results/slow-duration.txt
+          if ($testExit -ne 0) { exit $testExit }
+
+      - name: Publish test timing summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## Test durations" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content test-results/*-duration.txt -ErrorAction SilentlyContinue |
+            ForEach-Object { "- ``$_``" >> $env:GITHUB_STEP_SUMMARY }
+
+      - name: Upload test timing artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-durations
+          path: test-results/*-duration.txt
+          if-no-files-found: warn
