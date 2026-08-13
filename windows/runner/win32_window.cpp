@@ -18,7 +18,7 @@ namespace {
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 constexpr UINT kPasteClipboardHistoryMessage = WM_APP + 1;
-constexpr UINT_PTR kPasteClipboardHistoryTimer = 1;
+constexpr UINT_PTR kClipboardHistoryPollTimer = 1;
 
 /// Registry key for app theme preference.
 ///
@@ -220,20 +220,27 @@ Win32Window::MessageHandler(HWND hwnd,
         SetFocus(child_content_);
         const DWORD inactive_duration =
             GetTickCount() - clipboard_deactivated_at_;
-        const bool clipboard_changed =
-            GetClipboardSequenceNumber() != clipboard_sequence_on_deactivate_;
-        if (clipboard_change_watch_active_ && clipboard_changed &&
-            inactive_duration <= 30000) {
-          SetTimer(hwnd, kPasteClipboardHistoryTimer, 120, nullptr);
+        if (clipboard_change_watch_active_ && inactive_duration <= 30000) {
+          clipboard_poll_attempts_ = 0;
+          SetTimer(hwnd, kClipboardHistoryPollTimer, 50, nullptr);
+        } else {
+          clipboard_change_watch_active_ = false;
         }
-        clipboard_change_watch_active_ = false;
       }
       return 0;
 
     case WM_TIMER:
-      if (wparam == kPasteClipboardHistoryTimer) {
-        KillTimer(hwnd, kPasteClipboardHistoryTimer);
-        PostMessage(hwnd, kPasteClipboardHistoryMessage, 0, 0);
+      if (wparam == kClipboardHistoryPollTimer) {
+        ++clipboard_poll_attempts_;
+        if (GetClipboardSequenceNumber() !=
+            clipboard_sequence_on_deactivate_) {
+          KillTimer(hwnd, kClipboardHistoryPollTimer);
+          clipboard_change_watch_active_ = false;
+          PostMessage(hwnd, kPasteClipboardHistoryMessage, 0, 0);
+        } else if (clipboard_poll_attempts_ >= 20) {
+          KillTimer(hwnd, kClipboardHistoryPollTimer);
+          clipboard_change_watch_active_ = false;
+        }
         return 0;
       }
       break;

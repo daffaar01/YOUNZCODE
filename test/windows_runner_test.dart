@@ -20,9 +20,11 @@ void main() {
 
     expect(header, contains('clipboard_sequence_on_deactivate_'));
     expect(header, contains('clipboard_change_watch_active_'));
+    expect(header, contains('clipboard_poll_attempts_'));
     expect(source, contains('GetClipboardSequenceNumber()'));
     expect(source, contains('inactive_duration <= 30000'));
-    expect(source, contains('SetTimer(hwnd, kPasteClipboardHistoryTimer, 120'));
+    expect(source, contains('SetTimer(hwnd, kClipboardHistoryPollTimer, 50'));
+    expect(source, contains('clipboard_poll_attempts_ >= 20'));
     expect(source, contains('case WM_TIMER:'));
     expect(source, contains('SendInput(4, inputs, sizeof(INPUT))'));
   });
