@@ -244,6 +244,8 @@ class _TopWorkspaceBar extends StatelessWidget {
     required this.onToggleTheme,
     required this.onNotifications,
     required this.notificationCount,
+    required this.workspaceLayout,
+    required this.onLayoutChanged,
   });
 
   final String? activeFile;
@@ -262,6 +264,8 @@ class _TopWorkspaceBar extends StatelessWidget {
   final VoidCallback onToggleTheme;
   final VoidCallback onNotifications;
   final int notificationCount;
+  final _WorkspaceLayout workspaceLayout;
+  final ValueChanged<_WorkspaceLayout> onLayoutChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -353,6 +357,40 @@ class _TopWorkspaceBar extends StatelessWidget {
               lightMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
               size: 20,
             ),
+          ),
+          PopupMenuButton<_WorkspaceLayout>(
+            key: const ValueKey('workspace-layout-picker'),
+            tooltip: 'Pilih tampilan workspace',
+            initialValue: workspaceLayout,
+            onSelected: onLayoutChanged,
+            icon: Icon(
+              workspaceLayout == _WorkspaceLayout.classic
+                  ? Icons.view_quilt_outlined
+                  : Icons.vertical_split_outlined,
+              size: 20,
+            ),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _WorkspaceLayout.classic,
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.view_quilt_outlined, size: 19),
+                  title: Text('Classic'),
+                  subtitle: Text('Tampilan YOUNZCODE saat ini'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _WorkspaceLayout.focus,
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.vertical_split_outlined, size: 19),
+                  title: Text('Focus'),
+                  subtitle: Text('Explorer, workspace, dan Agent'),
+                ),
+              ),
+            ],
           ),
           if (MediaQuery.sizeOf(context).width >= 1000)
             IconButton(

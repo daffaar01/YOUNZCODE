@@ -103,6 +103,8 @@ enum _AgentTurnState {
   paused,
 }
 
+enum _WorkspaceLayout { classic, focus }
+
 enum _InspectorSection { activity, plan, files }
 
 class _SlashCommand {
@@ -445,6 +447,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   bool _terminalVisible = false;
   bool _terminalBusy = false;
   bool _planMode = false;
+  _WorkspaceLayout _workspaceLayout = _WorkspaceLayout.classic;
   AgentGoal? _goal;
   TaskGraph? _taskGraph;
   String? _activeFile;
@@ -479,6 +482,15 @@ class _AgentHomePageState extends State<AgentHomePage> {
   }
 
   void _updateState(VoidCallback update) => setState(update);
+
+  Future<void> _setWorkspaceLayout(_WorkspaceLayout layout) async {
+    setState(() {
+      _workspaceLayout = layout;
+      if (layout == _WorkspaceLayout.focus) _explorerPanelVisible = true;
+    });
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('workspace_layout', layout.name);
+  }
 
   @override
   void dispose() {
@@ -596,169 +608,199 @@ class _AgentHomePageState extends State<AgentHomePage> {
                           onToggleTheme: widget.onToggleTheme,
                           onNotifications: _showNotifications,
                           notificationCount: _notifications.length,
+                          workspaceLayout: _workspaceLayout,
+                          onLayoutChanged: (layout) =>
+                              unawaited(_setWorkspaceLayout(layout)),
                         ),
                         Expanded(
-                          child: Row(
-                            children: [
-                              if (showExplorer)
-                                SizedBox(
-                                  width: explorerWidth,
-                                  child: _ProjectPanel(
-                                    workspace: _workspace,
-                                    onOpenFile: _openFile,
-                                    onChoose: _chooseWorkspace,
-                                    onNewChat: _clearChat,
-                                    onChat: _showChat,
-                                    onTerminal: _toggleTerminal,
-                                    onSettings: _openProjectSettings,
-                                    onSearch: _openSearch,
-                                    onHistory: _openChatHistory,
-                                    onAddons: _openAddonManager,
-                                    onHide: () => setState(
-                                      () => _explorerPanelVisible = false,
-                                    ),
-                                  ),
-                                ),
-                              if (showExplorer)
-                                _PanelResizeHandle(
-                                  key: const ValueKey('explorer-resize-handle'),
-                                  onDrag: (delta) => setState(
-                                    () => _explorerWidth =
-                                        (_explorerWidth + delta).clamp(
-                                          220.0,
-                                          480.0,
-                                        ),
-                                  ),
-                                ),
-                              Expanded(
-                                child: Column(
+                          child:
+                              _workspaceLayout == _WorkspaceLayout.focus &&
+                                  constraints.maxWidth >= 900
+                              ? _buildFocusWorkspace(
+                                  explorerWidth: explorerWidth,
+                                  showInspector: showInspector,
+                                  inspectorWidth: inspectorWidth,
+                                )
+                              : Row(
                                   children: [
-                                    Expanded(
-                                      child: AnimatedSwitcher(
-                                        duration: _mediumMotion,
-                                        child: _browserMode
-                                            ? AgentBrowserPanel(
-                                                key: const ValueKey(
-                                                  'agent-browser',
-                                                ),
-                                                service: _browserService,
-                                                workspace: _workspace,
-                                                initialUrl: _browserInitialUrl,
-                                                onClose: _showChat,
-                                                onMessage: _showMessage,
-                                              )
-                                            : _imageGenerationMode
-                                            ? _ImageGenerationView(
-                                                key: const ValueKey(
-                                                  'image-generation',
-                                                ),
-                                                baseUrl: _baseUrl,
-                                                apiKey: _apiKey,
-                                                models: _models,
-                                                selectedModel: _model,
-                                                headers: _apiHeaders,
-                                                timeoutMs: _timeoutMs,
-                                                onManageModels: _openSettings,
-                                              )
-                                            : _searchMode
-                                            ? _SearchView(
-                                                key: const ValueKey('search'),
-                                                controller: _searchController,
-                                                results: _searchResults,
-                                                busy: _searchBusy,
-                                                onSearch: _searchWorkspace,
-                                                onClose: () => setState(
-                                                  () => _searchMode = false,
-                                                ),
-                                                onOpenResult: (path, _) =>
-                                                    _openFile(
-                                                      '$_workspace${Platform.pathSeparator}$path',
-                                                    ),
-                                              )
-                                            : _activeFile != null
-                                            ? _WorkspaceEditor(
-                                                key: const ValueKey('editor'),
-                                                documents: _documents,
-                                                activePath: _activeFile!,
-                                                onSelect: (path) => setState(
-                                                  () => _activeFile = path,
-                                                ),
-                                                onClose: _closeDocument,
-                                                onSave: _saveDocument,
-                                                onShowChat: _showChat,
-                                                workspace: _workspace,
-                                                trusted: _workspaceTrusted,
-                                                dapTimeoutMs: _dapTimeoutMs,
-                                              )
-                                            : KeyedSubtree(
-                                                key: const ValueKey(
-                                                  'conversation',
-                                                ),
-                                                child: _buildConversation(
-                                                  !showExplorer,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                    if (_terminalVisible)
+                                    if (showExplorer)
                                       SizedBox(
-                                        height: 230,
-                                        child: _IntegratedTerminal(
-                                          controller: _terminalController,
-                                          scrollController:
-                                              _terminalScrollController,
-                                          output: _terminalOutput,
-                                          busy: _terminalBusy,
+                                        width: explorerWidth,
+                                        child: _ProjectPanel(
                                           workspace: _workspace,
-                                          onRun: _runTerminalCommand,
-                                          onClose: _toggleTerminal,
-                                          onClear: () => setState(
-                                            () => _terminalOutput.clear(),
+                                          onOpenFile: _openFile,
+                                          onChoose: _chooseWorkspace,
+                                          onNewChat: _clearChat,
+                                          onChat: _showChat,
+                                          onTerminal: _toggleTerminal,
+                                          onSettings: _openProjectSettings,
+                                          onSearch: _openSearch,
+                                          onHistory: _openChatHistory,
+                                          onAddons: _openAddonManager,
+                                          onHide: () => setState(
+                                            () => _explorerPanelVisible = false,
                                           ),
                                         ),
                                       ),
+                                    if (showExplorer)
+                                      _PanelResizeHandle(
+                                        key: const ValueKey(
+                                          'explorer-resize-handle',
+                                        ),
+                                        onDrag: (delta) => setState(
+                                          () => _explorerWidth =
+                                              (_explorerWidth + delta).clamp(
+                                                220.0,
+                                                480.0,
+                                              ),
+                                        ),
+                                      ),
+                                    Expanded(
+                                      child: Column(
+                                        children: [
+                                          Expanded(
+                                            child: AnimatedSwitcher(
+                                              duration: _mediumMotion,
+                                              child: _browserMode
+                                                  ? AgentBrowserPanel(
+                                                      key: const ValueKey(
+                                                        'agent-browser',
+                                                      ),
+                                                      service: _browserService,
+                                                      workspace: _workspace,
+                                                      initialUrl:
+                                                          _browserInitialUrl,
+                                                      onClose: _showChat,
+                                                      onMessage: _showMessage,
+                                                    )
+                                                  : _imageGenerationMode
+                                                  ? _ImageGenerationView(
+                                                      key: const ValueKey(
+                                                        'image-generation',
+                                                      ),
+                                                      baseUrl: _baseUrl,
+                                                      apiKey: _apiKey,
+                                                      models: _models,
+                                                      selectedModel: _model,
+                                                      headers: _apiHeaders,
+                                                      timeoutMs: _timeoutMs,
+                                                      onManageModels:
+                                                          _openSettings,
+                                                    )
+                                                  : _searchMode
+                                                  ? _SearchView(
+                                                      key: const ValueKey(
+                                                        'search',
+                                                      ),
+                                                      controller:
+                                                          _searchController,
+                                                      results: _searchResults,
+                                                      busy: _searchBusy,
+                                                      onSearch:
+                                                          _searchWorkspace,
+                                                      onClose: () => setState(
+                                                        () =>
+                                                            _searchMode = false,
+                                                      ),
+                                                      onOpenResult: (path, _) =>
+                                                          _openFile(
+                                                            '$_workspace${Platform.pathSeparator}$path',
+                                                          ),
+                                                    )
+                                                  : _activeFile != null
+                                                  ? _WorkspaceEditor(
+                                                      key: const ValueKey(
+                                                        'editor',
+                                                      ),
+                                                      documents: _documents,
+                                                      activePath: _activeFile!,
+                                                      onSelect: (path) =>
+                                                          setState(
+                                                            () => _activeFile =
+                                                                path,
+                                                          ),
+                                                      onClose: _closeDocument,
+                                                      onSave: _saveDocument,
+                                                      onShowChat: _showChat,
+                                                      workspace: _workspace,
+                                                      trusted:
+                                                          _workspaceTrusted,
+                                                      dapTimeoutMs:
+                                                          _dapTimeoutMs,
+                                                    )
+                                                  : KeyedSubtree(
+                                                      key: const ValueKey(
+                                                        'conversation',
+                                                      ),
+                                                      child: _buildConversation(
+                                                        !showExplorer,
+                                                      ),
+                                                    ),
+                                            ),
+                                          ),
+                                          if (_terminalVisible)
+                                            SizedBox(
+                                              height: 230,
+                                              child: _IntegratedTerminal(
+                                                controller: _terminalController,
+                                                scrollController:
+                                                    _terminalScrollController,
+                                                output: _terminalOutput,
+                                                busy: _terminalBusy,
+                                                workspace: _workspace,
+                                                onRun: _runTerminalCommand,
+                                                onClose: _toggleTerminal,
+                                                onClear: () => setState(
+                                                  () => _terminalOutput.clear(),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (showInspector &&
+                                        _activityPanelVisible) ...[
+                                      _PanelResizeHandle(
+                                        key: const ValueKey(
+                                          'inspector-resize-handle',
+                                        ),
+                                        onDrag: (delta) => setState(
+                                          () => _inspectorWidth =
+                                              (_inspectorWidth - delta).clamp(
+                                                220.0,
+                                                480.0,
+                                              ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: inspectorWidth,
+                                        child: _ActivityPanel(
+                                          key: const ValueKey('activity-panel'),
+                                          activities: _activities,
+                                          busy: _busy,
+                                          status: _agentStatus,
+                                          onHide: () => setState(
+                                            () => _activityPanelVisible = false,
+                                          ),
+                                          section: _inspectorSection,
+                                          onSectionChanged: (section) =>
+                                              setState(
+                                                () =>
+                                                    _inspectorSection = section,
+                                              ),
+                                          pendingChanges: _pendingChanges,
+                                          changeHistory: _changeHistory,
+                                          onReviewChanges: _reviewChanges,
+                                          onRestoreCheckpoint:
+                                              _restoreCheckpoint,
+                                          onRevert: _lastAppliedTurn == null
+                                              ? null
+                                              : _revertTurn,
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
-                              ),
-                              if (showInspector && _activityPanelVisible) ...[
-                                _PanelResizeHandle(
-                                  key: const ValueKey(
-                                    'inspector-resize-handle',
-                                  ),
-                                  onDrag: (delta) => setState(
-                                    () => _inspectorWidth =
-                                        (_inspectorWidth - delta).clamp(
-                                          220.0,
-                                          480.0,
-                                        ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: inspectorWidth,
-                                  child: _ActivityPanel(
-                                    key: const ValueKey('activity-panel'),
-                                    activities: _activities,
-                                    busy: _busy,
-                                    status: _agentStatus,
-                                    onHide: () => setState(
-                                      () => _activityPanelVisible = false,
-                                    ),
-                                    section: _inspectorSection,
-                                    onSectionChanged: (section) => setState(
-                                      () => _inspectorSection = section,
-                                    ),
-                                    pendingChanges: _pendingChanges,
-                                    changeHistory: _changeHistory,
-                                    onReviewChanges: _reviewChanges,
-                                    onRestoreCheckpoint: _restoreCheckpoint,
-                                    onRevert: _lastAppliedTurn == null
-                                        ? null
-                                        : _revertTurn,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
                         ),
                         _StatusBar(
                           connected: _providerVerified,
@@ -781,6 +823,172 @@ class _AgentHomePageState extends State<AgentHomePage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFocusWorkspace({
+    required double explorerWidth,
+    required bool showInspector,
+    required double inspectorWidth,
+  }) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Row(
+      key: const ValueKey('focus-workspace-layout'),
+      children: [
+        SizedBox(
+          width: explorerWidth,
+          child: _ProjectPanel(
+            workspace: _workspace,
+            onOpenFile: _openFile,
+            onChoose: _chooseWorkspace,
+            onNewChat: _clearChat,
+            onChat: _showChat,
+            onTerminal: _toggleTerminal,
+            onSettings: _openProjectSettings,
+            onSearch: _openSearch,
+            onHistory: _openChatHistory,
+            onAddons: _openAddonManager,
+            onHide: () =>
+                unawaited(_setWorkspaceLayout(_WorkspaceLayout.classic)),
+          ),
+        ),
+        _PanelResizeHandle(
+          key: const ValueKey('focus-explorer-resize-handle'),
+          onDrag: (delta) => setState(
+            () => _explorerWidth = (_explorerWidth + delta).clamp(220.0, 480.0),
+          ),
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              Expanded(
+                child: _browserMode
+                    ? AgentBrowserPanel(
+                        key: const ValueKey('agent-browser'),
+                        service: _browserService,
+                        workspace: _workspace,
+                        initialUrl: _browserInitialUrl,
+                        onClose: _showChat,
+                        onMessage: _showMessage,
+                      )
+                    : _imageGenerationMode
+                    ? _ImageGenerationView(
+                        key: const ValueKey('image-generation'),
+                        baseUrl: _baseUrl,
+                        apiKey: _apiKey,
+                        models: _models,
+                        selectedModel: _model,
+                        headers: _apiHeaders,
+                        timeoutMs: _timeoutMs,
+                        onManageModels: _openSettings,
+                      )
+                    : _searchMode
+                    ? _SearchView(
+                        key: const ValueKey('search'),
+                        controller: _searchController,
+                        results: _searchResults,
+                        busy: _searchBusy,
+                        onSearch: _searchWorkspace,
+                        onClose: () => setState(() => _searchMode = false),
+                        onOpenResult: (path, _) => _openFile(
+                          '$_workspace${Platform.pathSeparator}$path',
+                        ),
+                      )
+                    : _activeFile != null
+                    ? _WorkspaceEditor(
+                        key: const ValueKey('editor'),
+                        documents: _documents,
+                        activePath: _activeFile!,
+                        onSelect: (path) => setState(() => _activeFile = path),
+                        onClose: _closeDocument,
+                        onSave: _saveDocument,
+                        onShowChat: _showChat,
+                        workspace: _workspace,
+                        trusted: _workspaceTrusted,
+                        dapTimeoutMs: _dapTimeoutMs,
+                      )
+                    : Container(
+                        key: const ValueKey('focus-workspace-empty'),
+                        color: colors.surfaceContainerLowest,
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              'assets/younzcode_logo_new.png',
+                              width: 64,
+                              height: 64,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'YOUNZCODE',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Pilih file di Explorer atau mulai tugas di Agent',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+              if (_terminalVisible)
+                SizedBox(
+                  height: 230,
+                  child: _IntegratedTerminal(
+                    controller: _terminalController,
+                    scrollController: _terminalScrollController,
+                    output: _terminalOutput,
+                    busy: _terminalBusy,
+                    workspace: _workspace,
+                    onRun: _runTerminalCommand,
+                    onClose: _toggleTerminal,
+                    onClear: () => setState(() => _terminalOutput.clear()),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Container(width: 1, color: theme.dividerColor),
+        SizedBox(
+          width: math.max(500, showInspector ? inspectorWidth + 140 : 500),
+          child: Column(
+            children: [
+              Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(bottom: BorderSide(color: theme.dividerColor)),
+                ),
+                child: const Text(
+                  'AGENT',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: KeyedSubtree(
+                  key: const ValueKey('focus-agent-panel'),
+                  child: _buildConversation(false),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

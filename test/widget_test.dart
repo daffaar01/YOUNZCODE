@@ -957,6 +957,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('workspace menyediakan mode Classic dan Focus', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1500, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    expect(find.byKey(const ValueKey('focus-workspace-layout')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('workspace-layout-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Focus'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('focus-workspace-layout')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('focus-agent-panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('workspace-explorer')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('workspace-layout-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Classic'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('focus-workspace-layout')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tool activity dapat disembunyikan dan ditampilkan kembali', (
     tester,
   ) async {

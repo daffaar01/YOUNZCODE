@@ -40,6 +40,13 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
     final toolPolicies = await _toolPermissionStore
         .load(workspace)
         .catchError((_) => <String, ToolPermissionPolicy>{});
+    var workspaceLayout = _WorkspaceLayout.classic;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      workspaceLayout = preferences.getString('workspace_layout') == 'focus'
+          ? _WorkspaceLayout.focus
+          : _WorkspaceLayout.classic;
+    } catch (_) {}
     if (!mounted) return;
     final workspaceSessions = sessions
         .where((session) => session.workspace == workspace)
@@ -62,6 +69,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _approvalMode = settings.approvalMode;
       _timeoutMs = settings.timeoutMs;
       _dapTimeoutMs = settings.dapTimeoutMs;
+      _workspaceLayout = workspaceLayout;
       _chatSessions
         ..clear()
         ..addAll(sessions);
