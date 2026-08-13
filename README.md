@@ -8,7 +8,7 @@
 
 ![Flutter](https://img.shields.io/badge/Flutter-3-0F766E?logo=flutter&logoColor=white&style=flat)
 ![Dart](https://img.shields.io/badge/Dart-^3.11-0175C2?logo=dart&logoColor=white&style=flat)
-![Version](https://img.shields.io/badge/versi-1.3.7-16A34A?style=flat)
+![Version](https://img.shields.io/badge/versi-2.0.0-16A34A?style=flat)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0EA5E9?style=flat)
 [![Quality gate](https://github.com/daffaar01/YOUNZCODE/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/daffaar01/YOUNZCODE/actions/workflows/quality.yml)
 [![Workflow lint](https://github.com/daffaar01/YOUNZCODE/actions/workflows/workflow-lint.yml/badge.svg?branch=main)](https://github.com/daffaar01/YOUNZCODE/actions/workflows/workflow-lint.yml)
@@ -174,7 +174,7 @@ Hasilnya di `build\windows\x64\runner\Release\YOUNZCODE.exe` — distribusikan *
 
 ### Installer
 
-Installer Inno Setup yang sudah dikompilasi tersedia di `installer\output\YOUNZCODE-Setup-1.3.7.exe`. Membangun ulang:
+Installer Inno Setup yang sudah dikompilasi tersedia di `installer\output\YOUNZCODE-Setup-2.0.0.exe`. Membangun ulang:
 
 ```powershell
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\YOUNZCODE.iss"
@@ -184,7 +184,7 @@ Bundle installer menyertakan `tools\yt-dlp.exe` dan `tools\ffmpeg.exe`. Untuk de
 
 ### Release otomatis (pipeline)
 
-Push tag `vX.Y.Z` (mis. `v1.3.7`) memicu `.github/workflows/release.yml`: membangun installer Windows, menghitung SHA-256, menambahkan entri ke `updates.json`, menandatanganinya dengan kunci penandatanganan yang di-restore dari **secrets** (`UPDATE_SIGNING_KEY` dan opsional `UPDATE_SIGNING_KEY_2`), memverifikasi manifest terhadap key ring bawaan, memublikasikan `updates.json` ke cabang manifest, dan membuat GitHub release dengan installer terlampir.
+Push tag `vX.Y.Z` (mis. `v2.0.0`) memicu `.github/workflows/release.yml`: membangun installer Windows, menghitung SHA-256, menambahkan entri ke `updates.json`, menandatanganinya dengan kunci penandatanganan yang di-restore dari **secrets** (`UPDATE_SIGNING_KEY` dan opsional `UPDATE_SIGNING_KEY_2`), memverifikasi manifest terhadap key ring bawaan, memublikasikan `updates.json` ke cabang manifest, dan membuat GitHub release dengan installer terlampir.
 
 Sebelum men-tag, pastikan versi sudah di-bump di `pubspec.yaml`, `lib/main.dart`, dan `installer/YOUNZCODE.iss`, serta receipt backup kunci segar sudah di-commit (`.ci/signing-backup-receipt.json`). Pipeline memvalidasi semuanya dan gagal cepat bila ada yang belum disiapkan. Lihat `docs/update-signing.md` untuk detail secret dan alur.
 

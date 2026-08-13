@@ -35,7 +35,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Versi rilis (mis. 1.3.7). Tag v$VER harus sudah ada.'
+        description: 'Versi rilis (mis. 2.0.0). Tag v$VER harus sudah ada.'
         required: true
       release_notes:
         description: 'Catatan rilis (kosongkan untuk catatan default)'

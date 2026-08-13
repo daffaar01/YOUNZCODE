@@ -80,7 +80,7 @@ part 'ui/overlays.dart';
 const _fastMotion = Duration(milliseconds: 140);
 const _mediumMotion = Duration(milliseconds: 240);
 const _motionCurve = Curves.easeOutCubic;
-const _appVersion = '1.3.7';
+const _appVersion = '2.0.0';
 const _silkyScrollConfig = SilkyScrollConfig(
   silkyScrollDuration: Duration(milliseconds: 700),
   animationCurve: Curves.easeOutCubic,
