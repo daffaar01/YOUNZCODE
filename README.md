@@ -27,6 +27,7 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 ### YOUNZCODE 2.0
 - **Classic workspace** — sidebar polos dengan New Chat, Projects, Recents, Browser, Images, Terminal, History, Plugins, dan Add-ons; chat AI berada di tengah dan Environment di kanan
 - **Focus workspace** — Explorer, editor, terminal, dan Agent tampil berdampingan untuk pekerjaan coding yang lebih intensif
+- **UI responsif** — sidebar Classic dapat di-scroll pada jendela pendek; model bar, toolbar editor, indikator file sensitif, dan terminal menyesuaikan panel sempit tanpa overflow
 - **Respons agent bertahap** — sebelum menjalankan tool agent menjelaskan langkahnya, menampilkan hasil sebagai Progress, lalu melanjutkan sampai rangkuman akhir
 - **Composer terintegrasi** — tambahkan context, buka Plugins, atau siapkan Subagent langsung dari area chat
 - Dialog **About YOUNZCODE** di header sidebar menjelaskan mode workspace, provider AI, progress agent, plugin/subagent, dan panel Environment
@@ -80,6 +81,7 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 - **Git Center** — status detail, stage/unstage, discard, commit, branch, merge/abort, push, dan pengelolaan worktree
 - **Terminal persisten** untuk menjalankan perintah shell
 - **Percakapan otomatis tersimpan** per workspace — `NEW CHAT` membuat sesi baru, menu `HISTORY` membuka/melanjutkan/menghapus (maks. 50 sesi terbaru)
+- Narasi aktivitas tool tetap terlihat selama sesi aktif, tetapi tidak ikut dipersistenkan ke riwayat chat lokal untuk mengurangi penyimpanan path, cuplikan source, atau output shell yang tidak diperlukan
 
 ### ⚙️ Quality Gate & Update
 - **Quality gate otomatis** — menjalankan analyzer atau test relevan setelah perubahan diterima, menawarkan rollback bila gagal
@@ -176,6 +178,8 @@ flutter build windows --release
 ```
 
 Hasilnya di `build\windows\x64\runner\Release\YOUNZCODE.exe` — distribusikan **seluruh isi folder Release** (bukan hanya `.exe`), karena aplikasi memerlukan DLL dan data Flutter.
+
+Status verifikasi terbaru untuk v2.0: analyzer bersih, **292 fast tests** lulus secara paralel, dan **145 slow/integration tests** lulus secara serial. Pipeline CI menyimpan durasi kedua kelompok sebagai artifact agar regresi performa mudah terlihat.
 
 > Catatan: Flutter Windows menolak karakter `!` pada path proyek. Jika perlu build ulang, salin proyek ke path tanpa karakter tersebut, mis. `C:\kode_agent_build`.
 

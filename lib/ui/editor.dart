@@ -508,92 +508,111 @@ class _WorkspaceEditorState extends State<_WorkspaceEditor> {
                 color: editorChrome,
                 border: Border(bottom: BorderSide(color: theme.dividerColor)),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      document.path,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Consolas',
-                        fontSize: 10,
-                        color: colors.onSurfaceVariant,
+              child: LayoutBuilder(
+                builder: (context, constraints) => Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        document.path,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 10,
+                          color: colors.onSurfaceVariant,
+                        ),
                       ),
                     ),
-                  ),
-                  if (document.sensitive)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Tooltip(
-                        message: 'File sensitif lokal; agent AI tetap diblokir',
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.shield_outlined,
-                              size: 14,
-                              color: light
-                                  ? const Color(0xFFB7862A)
-                                  : const Color(0xFFD7A544),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'LOCAL ONLY',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
+                    if (document.sensitive)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Tooltip(
+                          message:
+                              'File sensitif lokal; agent AI tetap diblokir',
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.shield_outlined,
+                                size: 14,
                                 color: light
                                     ? const Color(0xFFB7862A)
                                     : const Color(0xFFD7A544),
                               ),
-                            ),
-                          ],
+                              if (constraints.maxWidth >= 500) ...[
+                                const SizedBox(width: 5),
+                                Text(
+                                  'LOCAL ONLY',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: light
+                                        ? const Color(0xFFB7862A)
+                                        : const Color(0xFFD7A544),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
+                    if (constraints.maxWidth >= 520)
+                      TextButton.icon(
+                        key: const ValueKey('save-editor-file'),
+                        onPressed: document.dirty
+                            ? () => widget.onSave(document)
+                            : null,
+                        icon: const Icon(Icons.save_outlined, size: 15),
+                        label: const Text('SAVE  CTRL+S'),
+                      )
+                    else
+                      IconButton(
+                        key: const ValueKey('save-editor-file'),
+                        onPressed: document.dirty
+                            ? () => widget.onSave(document)
+                            : null,
+                        tooltip: 'Save (Ctrl+S)',
+                        icon: const Icon(Icons.save_outlined, size: 16),
+                      ),
+                    IconButton(
+                      key: const ValueKey('analyze-editor-file'),
+                      onPressed: _analyzing || !widget.trusted
+                          ? null
+                          : _analyze,
+                      tooltip: 'Analyze with language tooling',
+                      icon: _analyzing
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                              ),
+                            )
+                          : const Icon(Icons.rule_folder_outlined, size: 17),
                     ),
-                  TextButton.icon(
-                    key: const ValueKey('save-editor-file'),
-                    onPressed: document.dirty
-                        ? () => widget.onSave(document)
-                        : null,
-                    icon: const Icon(Icons.save_outlined, size: 15),
-                    label: const Text('SAVE  CTRL+S'),
-                  ),
-                  IconButton(
-                    key: const ValueKey('analyze-editor-file'),
-                    onPressed: _analyzing || !widget.trusted ? null : _analyze,
-                    tooltip: 'Analyze with language tooling',
-                    icon: _analyzing
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 1.5),
-                          )
-                        : const Icon(Icons.rule_folder_outlined, size: 17),
-                  ),
-                  IconButton(
-                    key: const ValueKey('start-debugger'),
-                    onPressed: _debugStarting
-                        ? null
-                        : !widget.trusted
-                        ? null
-                        : (!_debugAdapter.running && _debugProcess == null)
-                        ? _startDebug
-                        : _stopDebug,
-                    tooltip: (!_debugAdapter.running && _debugProcess == null)
-                        ? 'Run and debug (F5)'
-                        : 'Stop debugging',
-                    icon: Icon(
-                      (!_debugAdapter.running && _debugProcess == null)
-                          ? Icons.play_arrow
-                          : Icons.stop,
-                      size: 18,
-                      color: (!_debugAdapter.running && _debugProcess == null)
-                          ? colors.primary
-                          : colors.error,
+                    IconButton(
+                      key: const ValueKey('start-debugger'),
+                      onPressed: _debugStarting
+                          ? null
+                          : !widget.trusted
+                          ? null
+                          : (!_debugAdapter.running && _debugProcess == null)
+                          ? _startDebug
+                          : _stopDebug,
+                      tooltip: (!_debugAdapter.running && _debugProcess == null)
+                          ? 'Run and debug (F5)'
+                          : 'Stop debugging',
+                      icon: Icon(
+                        (!_debugAdapter.running && _debugProcess == null)
+                            ? Icons.play_arrow
+                            : Icons.stop,
+                        size: 18,
+                        color: (!_debugAdapter.running && _debugProcess == null)
+                            ? colors.primary
+                            : colors.error,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             Expanded(
@@ -974,49 +993,57 @@ class _IntegratedTerminal extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: theme.dividerColor)),
             ),
-            child: Row(
-              children: [
-                Text(
-                  'PS ${workspace.replaceAll('\\', '/').split('/').last}>',
-                  style: TextStyle(
-                    fontFamily: 'Consolas',
-                    fontSize: 11,
-                    color: colors.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    key: const ValueKey('terminal-input'),
-                    controller: controller,
-                    enabled: !busy,
-                    onSubmitted: (_) => onRun(),
-                    style: const TextStyle(
-                      fontFamily: 'Consolas',
-                      fontSize: 11,
+            child: LayoutBuilder(
+              builder: (context, constraints) => Row(
+                children: [
+                  if (constraints.maxWidth >= 440) ...[
+                    Flexible(
+                      child: Text(
+                        'PS ${workspace.replaceAll('\\', '/').split('/').last}>',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 11,
+                          color: colors.primary,
+                        ),
+                      ),
                     ),
-                    decoration: const InputDecoration(
-                      hintText: 'Enter PowerShell command...',
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: TextField(
+                      key: const ValueKey('terminal-input'),
+                      controller: controller,
+                      enabled: !busy,
+                      onSubmitted: (_) => onRun(),
+                      style: const TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 11,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Enter PowerShell command...',
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: busy ? null : onRun,
-                  tooltip: 'Run command',
-                  icon: busy
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 1.5),
-                        )
-                      : const Icon(Icons.play_arrow, size: 18),
-                ),
-              ],
+                  IconButton(
+                    onPressed: busy ? null : onRun,
+                    tooltip: 'Run command',
+                    icon: busy
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 1.5),
+                          )
+                        : const Icon(Icons.play_arrow, size: 18),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

@@ -226,8 +226,8 @@ class _ClassicSidebar extends StatelessWidget {
       key: const ValueKey('classic-sidebar'),
       width: 266,
       color: colors.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: ListView(
+        padding: EdgeInsets.zero,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 18, 14, 12),
@@ -327,32 +327,26 @@ class _ClassicSidebar extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _ClassicSectionLabel('RECENTS'),
-          Expanded(
-            child: recent.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Text(
-                      'Belum ada chat sebelumnya',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    itemCount: recent.length.clamp(0, 12),
-                    itemBuilder: (context, index) {
-                      final session = recent[index];
-                      return _ClassicNavItem(
-                        icon: Icons.chat_bubble_outline,
-                        label: session.title,
-                        selected: session.id == activeChatId,
-                        onTap: () => onOpenSession(session),
-                      );
-                    },
+          if (recent.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Text(
+                'Belum ada chat sebelumnya',
+                style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+              ),
+            )
+          else
+            ...recent
+                .take(12)
+                .map(
+                  (session) => _ClassicNavItem(
+                    icon: Icons.chat_bubble_outline,
+                    label: session.title,
+                    selected: session.id == activeChatId,
+                    onTap: () => onOpenSession(session),
                   ),
-          ),
+                ),
+          const SizedBox(height: 12),
         ],
       ),
     );

@@ -53,6 +53,7 @@ class ChatSessionStore {
     'workspace': session.workspace,
     'updatedAt': session.updatedAt.toIso8601String(),
     'entries': session.entries
+        .where((entry) => entry.role.name != 'tool')
         .map(
           (entry) => {
             'role': entry.role.name,

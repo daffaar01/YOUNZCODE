@@ -132,13 +132,17 @@ void main() {
     expect(find.text('PROJECT'), findsOneWidget);
     expect(find.text('What are we building?'), findsOneWidget);
     expect(find.text('Explain Codebase'), findsOneWidget);
-    expect(find.text('ACTIVITY'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('classic-environment-panel')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('membuka playground Image Generation dari command rail', (
     tester,
   ) async {
     _setMockPreferences({
+      'workspace_layout': 'focus',
       'base_url': 'http://localhost:20128',
       'model': 'cx/gpt-5.5-image',
       'models': ['cx/gpt-5.5-image'],
@@ -190,7 +194,7 @@ void main() {
   });
 
   testWidgets('membuka project settings lengkap', (tester) async {
-    _setMockPreferences({});
+    _setMockPreferences({'workspace_layout': 'focus'});
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -210,7 +214,7 @@ void main() {
   testWidgets('toggle UPDATE TELEMETRY di Project Settings tersimpan', (
     tester,
   ) async {
-    _setMockPreferences({});
+    _setMockPreferences({'workspace_layout': 'focus'});
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -268,7 +272,7 @@ void main() {
   testWidgets('Enter mengirim dan Shift+Enter membuat baris baru', (
     tester,
   ) async {
-    _setMockPreferences({});
+    _setMockPreferences({'workspace_layout': 'focus'});
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -640,7 +644,7 @@ void main() {
     await _pumpLoaded(tester);
     tester.takeException();
 
-    await tester.tap(find.text('MANAGE MODELS'));
+    await tester.tap(find.byKey(const ValueKey('manage-models-compact')));
     await tester.pumpAndSettle();
 
     expect(find.text('MODEL CONNECTION'), findsOneWidget);
@@ -1079,62 +1083,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('tool activity dapat disembunyikan dan ditampilkan kembali', (
+  testWidgets('focus menampilkan agent tanpa activity panel lama', (
     tester,
   ) async {
-    _setMockPreferences({});
+    _setMockPreferences({'workspace_layout': 'focus'});
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
     await _pumpLoaded(tester);
 
-    expect(find.text('NO ACTIVITY DETECTED'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('hide-activity-panel')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('NO ACTIVITY DETECTED'), findsNothing);
-    expect(find.byKey(const ValueKey('show-activity-panel')), findsOneWidget);
-
-    await tester.tap(find.byKey(const ValueKey('show-activity-panel')));
-    await tester.pumpAndSettle();
-    expect(find.text('NO ACTIVITY DETECTED'), findsOneWidget);
+    expect(find.byKey(const ValueKey('focus-agent-panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('activity-panel')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('panel explorer dan inspector dapat diubah ukurannya', (
-    tester,
-  ) async {
-    _setMockPreferences({});
+  testWidgets('explorer focus dapat diubah ukurannya', (tester) async {
+    _setMockPreferences({'workspace_layout': 'focus'});
     await tester.binding.setSurfaceSize(const Size(1400, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
     await _pumpLoaded(tester);
 
     final explorer = find.byKey(const ValueKey('workspace-explorer'));
-    final inspector = find.byKey(const ValueKey('activity-panel'));
     final explorerBefore = tester.getSize(explorer).width;
-    final inspectorBefore = tester.getSize(inspector).width;
 
     await tester.drag(
-      find.byKey(const ValueKey('explorer-resize-handle')),
+      find.byKey(const ValueKey('focus-explorer-resize-handle')),
       const Offset(60, 0),
-    );
-    await tester.pump();
-    await tester.drag(
-      find.byKey(const ValueKey('inspector-resize-handle')),
-      const Offset(-40, 0),
     );
     await tester.pump();
 
     expect(tester.getSize(explorer).width, greaterThan(explorerBefore));
-    expect(tester.getSize(inspector).width, greaterThan(inspectorBefore));
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('explorer dapat disembunyikan dan ditampilkan kembali', (
     tester,
   ) async {
-    _setMockPreferences({});
+    _setMockPreferences({'workspace_layout': 'focus'});
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -1143,12 +1129,9 @@ void main() {
     final explorer = find.byKey(const ValueKey('workspace-explorer'));
     expect(explorer, findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('hide-explorer-panel')));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(explorer, findsNothing);
-
-    await tester.tap(find.text('Explorer'));
-    await tester.pump();
-    expect(explorer, findsOneWidget);
+    expect(find.byKey(const ValueKey('classic-sidebar')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1157,7 +1140,10 @@ void main() {
       () => Directory.systemTemp.createTemp('younzcode-notification-'),
     ))!;
     addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
-    _setMockPreferences({'workspace': workspace.path});
+    _setMockPreferences({
+      'workspace': workspace.path,
+      'workspace_layout': 'focus',
+    });
     await tester.binding.setSurfaceSize(const Size(1400, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -1195,7 +1181,10 @@ void main() {
       return directory;
     }))!;
     addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
-    _setMockPreferences({'workspace': workspace.path});
+    _setMockPreferences({
+      'workspace': workspace.path,
+      'workspace_layout': 'focus',
+    });
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -1212,7 +1201,10 @@ void main() {
     final editor = find.byKey(const ValueKey('workspace-editor'));
     await _pumpUntilFound(tester, editor);
     expect(editor, findsOneWidget);
-    expect(find.text('LOCAL ONLY'), findsOneWidget);
+    expect(
+      find.byTooltip('File sensitif lokal; agent AI tetap diblokir'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -1221,7 +1213,10 @@ void main() {
       () => Directory.systemTemp.createTemp('younzcode-chat-'),
     ))!;
     addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
-    _setMockPreferences({'workspace': workspace.path});
+    _setMockPreferences({
+      'workspace': workspace.path,
+      'workspace_layout': 'focus',
+    });
     await ChatSessionStore().save([
       ChatSession(
         id: 'saved-chat',
@@ -1398,7 +1393,7 @@ void main() {
   });
 
   testWidgets('light mode dapat diaktifkan dan disimpan', (tester) async {
-    _setMockPreferences({});
+    _setMockPreferences({'workspace_layout': 'focus'});
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -1434,6 +1429,7 @@ void main() {
       'light_mode': true,
       'workspace': workspace.path,
       'trusted_workspaces': [canonicalWorkspace],
+      'workspace_layout': 'focus',
     });
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1459,7 +1455,7 @@ void main() {
     final terminalDecoration = terminal.decoration! as BoxDecoration;
     expect(terminalDecoration.color, theme.colorScheme.surface);
 
-    await tester.tap(find.text('MANAGE MODELS'));
+    await tester.tap(find.byKey(const ValueKey('manage-models-compact')));
     await tester.pump(const Duration(milliseconds: 300));
     final dialog = tester.widget<Dialog>(find.byType(Dialog));
     expect(dialog.backgroundColor, theme.colorScheme.surface);
@@ -1484,6 +1480,7 @@ void main() {
       'workspace': workspace.path,
       'light_mode': true,
       'onboarding_complete': true,
+      'workspace_layout': 'focus',
     });
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1516,6 +1513,7 @@ void main() {
       'workspace': workspace.path,
       'light_mode': true,
       'onboarding_complete': true,
+      'workspace_layout': 'focus',
     });
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1563,7 +1561,10 @@ void main() {
       return directory;
     }))!;
     addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
-    _setMockPreferences({'workspace': workspace.path});
+    _setMockPreferences({
+      'workspace': workspace.path,
+      'workspace_layout': 'focus',
+    });
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());
@@ -1601,7 +1602,10 @@ void main() {
       return directory;
     }))!;
     addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
-    _setMockPreferences({'workspace': workspace.path});
+    _setMockPreferences({
+      'workspace': workspace.path,
+      'workspace_layout': 'focus',
+    });
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const KodeAgentApp());

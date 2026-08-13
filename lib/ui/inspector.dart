@@ -1240,62 +1240,79 @@ class _ModelBar extends StatelessWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 620;
         final modelControls = Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              height: 34,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: colors.onSurface.withValues(alpha: 0.06),
-                border: Border.all(color: Theme.of(context).dividerColor),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.psychology_outlined,
-                    size: 15,
-                    color: colors.onSurface,
-                  ),
-                  const SizedBox(width: 7),
-                  DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      key: const ValueKey('model-selector'),
-                      value: selectedModel,
-                      borderRadius: BorderRadius.circular(8),
-                      dropdownColor: colors.surface,
-                      style: TextStyle(
-                        fontFamily: 'Consolas',
-                        fontSize: 11,
-                        color: colors.onSurface,
-                      ),
-                      onChanged: busy
-                          ? null
-                          : (value) {
-                              if (value != null) onSelected(value);
-                            },
-                      items: [
-                        for (final model in models)
-                          DropdownMenuItem(value: model, child: Text(model)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton.icon(
-              onPressed: busy ? null : onManage,
-              icon: const Icon(Icons.description_outlined, size: 15),
-              label: const Text('MANAGE MODELS'),
-              style: TextButton.styleFrom(
-                foregroundColor: colors.primary,
-                side: BorderSide(color: colors.primary.withValues(alpha: 0.45)),
-                shape: RoundedRectangleBorder(
+            Expanded(
+              child: Container(
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: colors.onSurface.withValues(alpha: 0.06),
+                  border: Border.all(color: Theme.of(context).dividerColor),
                   borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.psychology_outlined,
+                      size: 15,
+                      color: colors.onSurface,
+                    ),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          key: const ValueKey('model-selector'),
+                          value: selectedModel,
+                          isExpanded: true,
+                          borderRadius: BorderRadius.circular(8),
+                          dropdownColor: colors.surface,
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 11,
+                            color: colors.onSurface,
+                          ),
+                          onChanged: busy
+                              ? null
+                              : (value) {
+                                  if (value != null) onSelected(value);
+                                },
+                          items: [
+                            for (final model in models)
+                              DropdownMenuItem(
+                                value: model,
+                                child: Text(model),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
+            const SizedBox(width: 8),
+            if (compact)
+              IconButton(
+                key: const ValueKey('manage-models-compact'),
+                tooltip: 'Manage models',
+                onPressed: busy ? null : onManage,
+                icon: const Icon(Icons.description_outlined, size: 18),
+              )
+            else
+              TextButton.icon(
+                onPressed: busy ? null : onManage,
+                icon: const Icon(Icons.description_outlined, size: 15),
+                label: const Text('MANAGE MODELS'),
+                style: TextButton.styleFrom(
+                  foregroundColor: colors.primary,
+                  side: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.45),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
           ],
         );
         final planControl = Row(
@@ -1329,15 +1346,18 @@ class _ModelBar extends StatelessWidget {
           child: compact
               ? Column(
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: modelControls,
-                    ),
+                    SizedBox(width: double.infinity, child: modelControls),
                     const Spacer(),
                     Align(alignment: Alignment.centerRight, child: planControl),
                   ],
                 )
-              : Row(children: [modelControls, const Spacer(), planControl]),
+              : Row(
+                  children: [
+                    Expanded(child: modelControls),
+                    const SizedBox(width: 12),
+                    planControl,
+                  ],
+                ),
         );
       },
     );

@@ -8,6 +8,32 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 void main() {
+  test('tool narration tidak dipersistenkan ke riwayat chat', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = ChatSessionStore();
+    await store.save([
+      ChatSession(
+        id: 'privacy',
+        workspace: r'C:\private\workspace',
+        updatedAt: DateTime(2026),
+        entries: const [
+          ChatEntry(role: ChatRole.user, content: 'Periksa proyek'),
+          ChatEntry(
+            role: ChatRole.tool,
+            content: r'C:\private\workspace\secret.txt',
+          ),
+          ChatEntry(role: ChatRole.assistant, content: 'Selesai'),
+        ],
+      ),
+    ]);
+
+    final loaded = await store.load();
+    expect(loaded.single.entries.map((entry) => entry.role), [
+      ChatRole.user,
+      ChatRole.assistant,
+    ]);
+  });
+
   test('sesi chat disimpan dan dimuat dari yang terbaru', () async {
     SharedPreferences.setMockInitialValues({});
     final store = ChatSessionStore();
