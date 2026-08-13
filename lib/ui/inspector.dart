@@ -749,6 +749,7 @@ class _MessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = entry.role == ChatRole.user;
     final error = entry.role == ChatRole.error;
+    final progress = entry.role == ChatRole.tool;
     final theme = Theme.of(context);
     final light = theme.brightness == Brightness.light;
     final displayedContent = user
@@ -771,16 +772,20 @@ class _MessageCard extends StatelessWidget {
           key: ValueKey(user ? 'user-message-card' : 'agent-message-card'),
           constraints: const BoxConstraints(maxWidth: 760),
           margin: const EdgeInsets.only(bottom: 18),
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(progress ? 12 : 16),
           decoration: BoxDecoration(
             color: user
                 ? theme.colorScheme.primary.withValues(
                     alpha: light ? 0.07 : 0.13,
                   )
+                : progress
+                ? theme.colorScheme.primary.withValues(alpha: 0.045)
                 : theme.colorScheme.surface,
             border: Border.all(
               color: error
                   ? Theme.of(context).colorScheme.error
+                  : progress
+                  ? theme.colorScheme.primary.withValues(alpha: 0.24)
                   : theme.dividerColor,
             ),
             borderRadius: BorderRadius.only(
@@ -800,6 +805,8 @@ class _MessageCard extends StatelessWidget {
                         ? 'YOU'
                         : error
                         ? 'ERROR'
+                        : progress
+                        ? 'PROGRESS'
                         : 'AGENT',
                     style: TextStyle(
                       fontSize: 10,
@@ -809,10 +816,12 @@ class _MessageCard extends StatelessWidget {
                           ? Theme.of(context).colorScheme.error
                           : user
                           ? theme.colorScheme.onSurfaceVariant
+                          : progress
+                          ? theme.colorScheme.onSurfaceVariant
                           : theme.colorScheme.primary,
                     ),
                   ),
-                  if (!user) ...[
+                  if (!user && !progress) ...[
                     const Spacer(),
                     IconButton(
                       key: const ValueKey('copy-agent-response'),
@@ -833,7 +842,7 @@ class _MessageCard extends StatelessWidget {
                   fontSize: user ? 13.5 : 14,
                 ),
               ),
-              if (!user) ...[
+              if (!user && !progress) ...[
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerRight,

@@ -423,6 +423,56 @@ void main() {
     );
   });
 
+  test('narasi menjelaskan tool sebelum dan sesudah dijalankan', () async {
+    var requestCount = 0;
+    final narrations = <String>[];
+    final client = MockClient((request) async {
+      requestCount++;
+      final message = requestCount == 1
+          ? {
+              'role': 'assistant',
+              'content': null,
+              'tool_calls': [
+                {
+                  'id': 'call-1',
+                  'type': 'function',
+                  'function': {'name': 'unknown_tool', 'arguments': '{}'},
+                },
+              ],
+            }
+          : {'role': 'assistant', 'content': 'selesai'};
+      return http.Response(
+        jsonEncode({
+          'choices': [
+            {'message': message},
+          ],
+        }),
+        200,
+      );
+    });
+    final agent = AgentService(
+      baseUrl: 'https://example.test/v1',
+      apiKey: 'key',
+      model: 'model',
+      workspace: '.',
+      requestPermission: (_, _) async => PermissionDecision.allowOnce,
+      onToolActivity: (_, _, _, _) {},
+      onStatus: (_) {},
+      onNarration: narrations.add,
+      allowWrite: false,
+      allowTerminal: false,
+      environment: const {},
+      timeoutMs: 1000,
+      headers: const {},
+      httpClient: client,
+    );
+
+    expect(await agent.send('uji narasi'), 'selesai');
+    expect(narrations, hasLength(2));
+    expect(narrations.first, contains('Saya akan'));
+    expect(narrations.last, contains('gagal'));
+  });
+
   test('tool activity membawa detail command dan transisi status', () async {
     var requestCount = 0;
     final activities = <List<String>>[];

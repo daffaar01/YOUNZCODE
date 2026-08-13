@@ -25,6 +25,7 @@ export 'agent_errors.dart'
 typedef ToolActivity =
     void Function(String id, String name, String detail, String state);
 typedef AgentStatus = void Function(String status);
+typedef AgentNarration = void Function(String message);
 typedef AgentCheckpoint = void Function(List<Map<String, dynamic>> messages);
 typedef AgentChanges = void Function(WorkspaceTurnChanges? changes);
 
@@ -54,6 +55,7 @@ class AgentService {
     required PermissionRequest requestPermission,
     required this.onToolActivity,
     required this.onStatus,
+    this.onNarration,
     required this.allowWrite,
     required this.allowTerminal,
     this.approvalMode = ApprovalMode.askForApproval,
@@ -114,6 +116,7 @@ class AgentService {
   final String workspace;
   final ToolActivity onToolActivity;
   final AgentStatus onStatus;
+  final AgentNarration? onNarration;
   final bool allowWrite;
   final bool allowTerminal;
   final ApprovalMode approvalMode;
@@ -312,6 +315,7 @@ class AgentService {
               argumentError = 'argumen tool tidak valid ($error)';
             }
             final detail = _toolDetail(name, typedArguments);
+            onNarration?.call(_toolStartNarration(name, detail));
             onStatus(_toolStatus(name));
             onToolActivity(activityId, name, detail, 'berjalan');
             String result;
@@ -373,6 +377,9 @@ class AgentService {
               _completedToolDetail(name, detail, result, activityState),
               activityState,
             );
+            onNarration?.call(
+              _toolResultNarration(name, result, activityState),
+            );
             _messages.add({
               'role': 'tool',
               'tool_call_id': call['id'],
@@ -401,6 +408,33 @@ class AgentService {
       }
       rethrow;
     }
+  }
+
+  String _toolStartNarration(String name, String detail) {
+    final action = switch (name) {
+      'read_file' => 'Saya akan membaca file yang relevan',
+      'list_files' => 'Saya akan memeriksa struktur file',
+      'search_text' => 'Saya akan mencari bagian kode terkait',
+      'write_file' || 'replace_text' => 'Saya akan menerapkan perubahan kode',
+      'run_command' => 'Saya akan menjalankan perintah untuk memverifikasi',
+      _ => 'Saya akan menjalankan ${_toolStatus(name).toLowerCase()}',
+    };
+    final concise = detail.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return concise.isEmpty ? '$action.' : '$action: $concise.';
+  }
+
+  String _toolResultNarration(String name, String result, String state) {
+    final normalized = result.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final excerpt = normalized.length > 220
+        ? '${normalized.substring(0, 220)}...'
+        : normalized;
+    if (state != 'selesai') {
+      return 'Langkah ${_toolStatus(name).toLowerCase()} $state. '
+          '${excerpt.isEmpty ? 'Saya akan menyesuaikan langkah berikutnya.' : excerpt}';
+    }
+    return excerpt.isEmpty
+        ? 'Langkah ${_toolStatus(name).toLowerCase()} selesai. Saya lanjut ke langkah berikutnya.'
+        : 'Selesai. Hasilnya: $excerpt';
   }
 
   Future<T> _withinExplorationDeadline<T>(

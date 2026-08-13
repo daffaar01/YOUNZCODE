@@ -73,6 +73,13 @@ extension _AgentConfiguration on _AgentHomePageState {
         _updateState(() => _agentStatus = status);
         _scrollToBottom();
       },
+      onNarration: (message) {
+        if (!mounted || ownerChatId != _activeChatId) return;
+        _updateState(() {
+          _entries.add(ChatEntry(role: ChatRole.tool, content: message));
+        });
+        _scrollToBottom();
+      },
       onCheckpoint: (messages) {
         if (ownerChatId != _activeChatId || ownerWorkspace != _workspace) {
           return;

@@ -119,15 +119,17 @@ void main() {
     await _pumpLoaded(tester);
 
     expect(find.text('YOUNZCODE'), findsOneWidget);
-    expect(find.byKey(const ValueKey('command-rail')), findsOneWidget);
-    expect(find.byKey(const ValueKey('top-workspace-bar')), findsOneWidget);
-    expect(find.byKey(const ValueKey('workspace-explorer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('classic-sidebar')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('classic-codex-workspace-layout')),
+      findsOneWidget,
+    );
     expect(find.textContaining('Build: v2.0.0'), findsOneWidget);
     expect(find.text('AGENT SESSION'), findsNothing);
     expect(find.text('YOUNZCODE DESKTOP'), findsNothing);
     expect(find.byKey(const ValueKey('model-selector')), findsOneWidget);
     expect(find.text('MANAGE MODELS'), findsOneWidget);
-    expect(find.text('WORKSPACE'), findsWidgets);
+    expect(find.text('PROJECT'), findsOneWidget);
     expect(find.text('What are we building?'), findsOneWidget);
     expect(find.text('Explain Codebase'), findsOneWidget);
     expect(find.text('ACTIVITY'), findsOneWidget);
