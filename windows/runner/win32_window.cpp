@@ -18,6 +18,7 @@ namespace {
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 constexpr UINT kPasteClipboardHistoryMessage = WM_APP + 1;
+constexpr UINT_PTR kPasteClipboardHistoryTimer = 1;
 
 /// Registry key for app theme preference.
 ///
@@ -220,14 +221,30 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_ACTIVATE:
       // Do not steal focus while Windows UI such as Clipboard History is
       // active. Refocus the Flutter view only when this window is activated.
-      if (LOWORD(wparam) != WA_INACTIVE && child_content_ != nullptr) {
+      if (LOWORD(wparam) == WA_INACTIVE) {
+        // Win+V is handled by the shell and may never arrive as WM_KEYDOWN.
+        // At deactivation time its keys are still observable asynchronously.
+        if (((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 ||
+             (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0) &&
+            (GetAsyncKeyState('V') & 0x8000) != 0) {
+          clipboard_history_pending_ = true;
+        }
+      } else if (child_content_ != nullptr) {
         SetFocus(child_content_);
         if (clipboard_history_pending_) {
           clipboard_history_pending_ = false;
-          PostMessage(hwnd, kPasteClipboardHistoryMessage, 0, 0);
+          SetTimer(hwnd, kPasteClipboardHistoryTimer, 120, nullptr);
         }
       }
       return 0;
+
+    case WM_TIMER:
+      if (wparam == kPasteClipboardHistoryTimer) {
+        KillTimer(hwnd, kPasteClipboardHistoryTimer);
+        PostMessage(hwnd, kPasteClipboardHistoryMessage, 0, 0);
+        return 0;
+      }
+      break;
 
     case kPasteClipboardHistoryMessage:
       if (child_content_ != nullptr) {
