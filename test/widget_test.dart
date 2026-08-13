@@ -630,6 +630,23 @@ void main() {
     expect(find.text('gpt-4.1'), findsOneWidget);
   });
 
+  testWidgets('model manager tetap rapi pada viewport sempit', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(565, 980));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+    tester.takeException();
+
+    await tester.tap(find.text('MANAGE MODELS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MODEL CONNECTION'), findsOneWidget);
+    expect(find.text('CHECK FOR UPDATES'), findsOneWidget);
+    expect(find.text('SAVE MODELS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('preset provider mengisi Base URL dan model contoh', (
     tester,
   ) async {

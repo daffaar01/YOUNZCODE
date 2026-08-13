@@ -184,34 +184,62 @@ class _ModelDialogState extends State<_ModelDialog> {
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         side: BorderSide(color: theme.dividerColor),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: ConstrainedBox(
         key: const ValueKey('model-dialog-panel'),
         constraints: BoxConstraints(
-          maxWidth: 560,
+          maxWidth: 640,
           maxHeight: MediaQuery.sizeOf(context).height - 64,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: const EdgeInsets.fromLTRB(24, 18, 16, 18),
               decoration: BoxDecoration(
-                color: colors.surface,
+                color: Color.alphaBlend(
+                  colors.primary.withValues(alpha: 0.035),
+                  colors.surface,
+                ),
                 border: Border(bottom: BorderSide(color: theme.dividerColor)),
               ),
               child: Row(
                 children: [
-                  const Text(
-                    'MODEL CONNECTION',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.1,
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.hub_outlined,
+                      size: 20,
+                      color: colors.primary,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MODEL CONNECTION',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Configure provider access, models, and usage limits.',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     tooltip: 'Tutup',
@@ -224,17 +252,18 @@ class _ModelDialogState extends State<_ModelDialog> {
               child: SilkySingleChildScrollView(
                 key: const ValueKey('model-dialog-scroll'),
                 silkyConfig: _silkyScrollConfig,
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _FieldLabel('PROVIDER'),
+                    const _FieldLabel('PROVIDER', icon: Icons.cloud_outlined),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: colors.surface,
                         border: Border.all(color: theme.dividerColor),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
@@ -275,8 +304,9 @@ class _ModelDialogState extends State<_ModelDialog> {
                         color: colors.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    const _FieldLabel('BASE URL'),
+                    const SizedBox(height: 22),
+                    const _FieldLabel('CONNECTION', icon: Icons.link_outlined),
+                    const _InlineFieldLabel('BASE URL'),
                     TextField(
                       controller: _baseController,
                       style: const TextStyle(
@@ -284,8 +314,8 @@ class _ModelDialogState extends State<_ModelDialog> {
                         fontSize: 13,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    const _FieldLabel('FALLBACK BASE URLS'),
+                    const SizedBox(height: 14),
+                    const _InlineFieldLabel('FALLBACK BASE URLS'),
                     TextField(
                       controller: _fallbackController,
                       minLines: 2,
@@ -300,8 +330,8 @@ class _ModelDialogState extends State<_ModelDialog> {
                         fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    const _FieldLabel('API KEY'),
+                    const SizedBox(height: 14),
+                    const _InlineFieldLabel('API KEY'),
                     TextField(
                       key: const ValueKey('model-api-key-field'),
                       controller: _keyController,
@@ -321,31 +351,55 @@ class _ModelDialogState extends State<_ModelDialog> {
                         color: colors.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        const _FieldLabel('AVAILABLE MODELS'),
-                        const Spacer(),
-                        if (_fetchingModels)
-                          const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 1.5),
-                          )
-                        else
-                          TextButton.icon(
-                            key: const ValueKey('fetch-models-button'),
-                            onPressed: _fetchModels,
-                            icon: const Icon(
-                              Icons.cloud_download_outlined,
-                              size: 15,
+                    const SizedBox(height: 24),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final fetchAction = _fetchingModels
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                ),
+                              )
+                            : TextButton.icon(
+                                key: const ValueKey('fetch-models-button'),
+                                onPressed: _fetchModels,
+                                icon: const Icon(
+                                  Icons.cloud_download_outlined,
+                                  size: 15,
+                                ),
+                                label: const Text(
+                                  'FETCH FROM PROVIDER',
+                                  style: TextStyle(fontSize: 10),
+                                ),
+                              );
+                        if (constraints.maxWidth < 490) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const _FieldLabel(
+                                'AVAILABLE MODELS',
+                                icon: Icons.memory_outlined,
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: fetchAction,
+                              ),
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            const _FieldLabel(
+                              'AVAILABLE MODELS',
+                              icon: Icons.memory_outlined,
                             ),
-                            label: const Text(
-                              'FETCH FROM PROVIDER',
-                              style: TextStyle(fontSize: 10),
-                            ),
-                          ),
-                      ],
+                            const Spacer(),
+                            fetchAction,
+                          ],
+                        );
+                      },
                     ),
                     if (_fetchError != null) ...[
                       Text(
@@ -357,9 +411,14 @@ class _ModelDialogState extends State<_ModelDialog> {
                     Container(
                       constraints: const BoxConstraints(maxHeight: 160),
                       decoration: BoxDecoration(
-                        color: colors.surface,
+                        color: Color.alphaBlend(
+                          colors.primary.withValues(alpha: 0.018),
+                          colors.surface,
+                        ),
                         border: Border.all(color: theme.dividerColor),
+                        borderRadius: BorderRadius.circular(10),
                       ),
+                      clipBehavior: Clip.antiAlias,
                       child: Material(
                         type: MaterialType.transparency,
                         child: SilkyListView.separated(
@@ -372,6 +431,9 @@ class _ModelDialogState extends State<_ModelDialog> {
                             final selected = model == _selectedModel;
                             return ListTile(
                               dense: true,
+                              tileColor: selected
+                                  ? colors.primary.withValues(alpha: 0.07)
+                                  : null,
                               onTap: () =>
                                   setState(() => _selectedModel = model),
                               leading: Icon(
@@ -403,58 +465,90 @@ class _ModelDialogState extends State<_ModelDialog> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _newModelController,
-                            onSubmitted: (_) => _addModel(),
-                            decoration: const InputDecoration(
-                              hintText: 'Model ID, contoh gpt-4.1',
-                            ),
-                            style: const TextStyle(
-                              fontFamily: 'Consolas',
-                              fontSize: 12,
-                            ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final modelField = TextField(
+                          controller: _newModelController,
+                          onSubmitted: (_) => _addModel(),
+                          decoration: const InputDecoration(
+                            hintText: 'Model ID, contoh gpt-4.1',
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        ValueListenableBuilder<TextEditingValue>(
-                          valueListenable: _newModelController,
-                          builder: (context, value, _) => FilledButton.icon(
-                            onPressed: value.text.trim().isEmpty
-                                ? null
-                                : _addModel,
-                            icon: const Icon(Icons.add, size: 16),
-                            label: const Text('ADD MODEL'),
+                          style: const TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 12,
                           ),
-                        ),
-                      ],
+                        );
+                        final addButton =
+                            ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: _newModelController,
+                              builder: (context, value, _) => FilledButton.icon(
+                                onPressed: value.text.trim().isEmpty
+                                    ? null
+                                    : _addModel,
+                                icon: const Icon(Icons.add, size: 16),
+                                label: const Text('ADD MODEL'),
+                              ),
+                            );
+                        if (constraints.maxWidth < 470) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              modelField,
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: addButton,
+                              ),
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: modelField),
+                            const SizedBox(width: 10),
+                            addButton,
+                          ],
+                        );
+                      },
                     ),
-                    const SizedBox(height: 18),
-                    const _FieldLabel('USAGE & COST ESTIMATION'),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _inputCostController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Input USD / 1M',
-                            ),
+                    const SizedBox(height: 24),
+                    const _FieldLabel(
+                      'USAGE & COST ESTIMATION',
+                      icon: Icons.data_usage_outlined,
+                    ),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final inputCost = TextField(
+                          controller: _inputCostController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Input USD / 1M',
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _outputCostController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Output USD / 1M',
-                            ),
+                        );
+                        final outputCost = TextField(
+                          controller: _outputCostController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Output USD / 1M',
                           ),
-                        ),
-                      ],
+                        );
+                        if (constraints.maxWidth < 470) {
+                          return Column(
+                            children: [
+                              inputCost,
+                              const SizedBox(height: 8),
+                              outputCost,
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: inputCost),
+                            const SizedBox(width: 8),
+                            Expanded(child: outputCost),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -469,53 +563,75 @@ class _ModelDialogState extends State<_ModelDialog> {
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
               decoration: BoxDecoration(
-                color: colors.surface,
+                color: Color.alphaBlend(
+                  colors.primary.withValues(alpha: 0.025),
+                  colors.surface,
+                ),
                 border: Border(top: BorderSide(color: theme.dividerColor)),
               ),
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: widget.onCheckForUpdates,
-                    icon: const Icon(Icons.system_update_alt, size: 16),
-                    label: const Text('CHECK FOR UPDATES'),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maintenance = Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: widget.onCheckForUpdates,
+                        icon: const Icon(Icons.system_update_alt, size: 16),
+                        label: const Text('CHECK FOR UPDATES'),
                       ),
-                      side: BorderSide(color: theme.dividerColor),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: widget.onShowUpdateDiagnostics,
-                    icon: const Icon(Icons.verified_outlined, size: 16),
-                    label: const Text('UPDATE DIAGNOSTICS'),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      OutlinedButton.icon(
+                        onPressed: widget.onShowUpdateDiagnostics,
+                        icon: const Icon(Icons.verified_outlined, size: 16),
+                        label: const Text('UPDATE DIAGNOSTICS'),
                       ),
-                      side: BorderSide(color: theme.dividerColor),
-                    ),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                    ],
+                  );
+                  final primaryActions = Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('CANCEL'),
                       ),
-                      side: BorderSide(color: theme.dividerColor),
-                    ),
-                    child: const Text('CANCEL'),
-                  ),
-                  FilledButton(
-                    onPressed: _save,
-                    child: const Text('SAVE MODELS'),
-                  ),
-                ],
+                      FilledButton.icon(
+                        onPressed: _save,
+                        icon: const Icon(Icons.check, size: 17),
+                        label: const Text('SAVE MODELS'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                  if (constraints.maxWidth < 570) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        maintenance,
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: primaryActions,
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: maintenance),
+                      const SizedBox(width: 12),
+                      primaryActions,
+                    ],
+                  );
+                },
               ),
             ),
             SizedBox(height: 2, child: ColoredBox(color: colors.primary)),
@@ -549,26 +665,55 @@ class _ModelSettingsResult {
 }
 
 class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.text);
+  const _FieldLabel(this.text, {this.icon});
 
   final String text;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-          color: colors.onSurfaceVariant,
-        ),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: colors.primary),
+            const SizedBox(width: 7),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _InlineFieldLabel extends StatelessWidget {
+  const _InlineFieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 7),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 9,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.7,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
 }
 
 class _StaticField extends StatelessWidget {
