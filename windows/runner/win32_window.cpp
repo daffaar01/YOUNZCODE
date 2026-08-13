@@ -208,7 +208,9 @@ Win32Window::MessageHandler(HWND hwnd,
     }
 
     case WM_ACTIVATE:
-      if (child_content_ != nullptr) {
+      // Do not steal focus while Windows UI such as Clipboard History is
+      // active. Refocus the Flutter view only when this window is activated.
+      if (LOWORD(wparam) != WA_INACTIVE && child_content_ != nullptr) {
         SetFocus(child_content_);
       }
       return 0;
