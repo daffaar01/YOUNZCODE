@@ -181,15 +181,6 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
-    case WM_KEYDOWN:
-    case WM_SYSKEYDOWN:
-      if (wparam == 'V' &&
-          ((GetKeyState(VK_LWIN) & 0x8000) != 0 ||
-           (GetKeyState(VK_RWIN) & 0x8000) != 0)) {
-        clipboard_history_pending_ = true;
-      }
-      break;
-
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();
@@ -222,19 +213,20 @@ Win32Window::MessageHandler(HWND hwnd,
       // Do not steal focus while Windows UI such as Clipboard History is
       // active. Refocus the Flutter view only when this window is activated.
       if (LOWORD(wparam) == WA_INACTIVE) {
-        // Win+V is handled by the shell and may never arrive as WM_KEYDOWN.
-        // At deactivation time its keys are still observable asynchronously.
-        if (((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 ||
-             (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0) &&
-            (GetAsyncKeyState('V') & 0x8000) != 0) {
-          clipboard_history_pending_ = true;
-        }
+        clipboard_sequence_on_deactivate_ = GetClipboardSequenceNumber();
+        clipboard_deactivated_at_ = GetTickCount();
+        clipboard_change_watch_active_ = true;
       } else if (child_content_ != nullptr) {
         SetFocus(child_content_);
-        if (clipboard_history_pending_) {
-          clipboard_history_pending_ = false;
+        const DWORD inactive_duration =
+            GetTickCount() - clipboard_deactivated_at_;
+        const bool clipboard_changed =
+            GetClipboardSequenceNumber() != clipboard_sequence_on_deactivate_;
+        if (clipboard_change_watch_active_ && clipboard_changed &&
+            inactive_duration <= 30000) {
           SetTimer(hwnd, kPasteClipboardHistoryTimer, 120, nullptr);
         }
+        clipboard_change_watch_active_ = false;
       }
       return 0;
 

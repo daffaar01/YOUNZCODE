@@ -18,9 +18,10 @@ void main() {
     final source = File('windows/runner/win32_window.cpp').readAsStringSync();
     final header = File('windows/runner/win32_window.h').readAsStringSync();
 
-    expect(header, contains('clipboard_history_pending_'));
-    expect(source, contains("wparam == 'V'"));
-    expect(source, contains("GetAsyncKeyState('V')"));
+    expect(header, contains('clipboard_sequence_on_deactivate_'));
+    expect(header, contains('clipboard_change_watch_active_'));
+    expect(source, contains('GetClipboardSequenceNumber()'));
+    expect(source, contains('inactive_duration <= 30000'));
     expect(source, contains('SetTimer(hwnd, kPasteClipboardHistoryTimer, 120'));
     expect(source, contains('case WM_TIMER:'));
     expect(source, contains('SendInput(4, inputs, sizeof(INPUT))'));
