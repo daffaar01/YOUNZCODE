@@ -443,6 +443,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   bool _providerVerified = false;
   bool _activityPanelVisible = true;
   bool _executionSummaryVisible = false;
+  bool _toolProgressVisible = false;
   bool _explorerPanelVisible = true;
   bool _terminalVisible = false;
   bool _terminalBusy = false;
@@ -490,6 +491,13 @@ class _AgentHomePageState extends State<AgentHomePage> {
     });
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('workspace_layout', layout.name);
+  }
+
+  void _showAbout() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => const _YounzcodeAboutDialog(),
+    );
   }
 
   @override
@@ -603,6 +611,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                       onChooseWorkspace: _chooseWorkspace,
                       onLayoutChanged: (layout) =>
                           unawaited(_setWorkspaceLayout(layout)),
+                      onAbout: _showAbout,
                     ),
                   Expanded(
                     child: Column(
@@ -1064,6 +1073,9 @@ class _AgentHomePageState extends State<AgentHomePage> {
   }
 
   Widget _buildConversation(bool compact) {
+    final visibleEntries = _toolProgressVisible
+        ? _entries
+        : _entries.where((entry) => entry.role != ChatRole.tool).toList();
     return Column(
       children: [
         if (compact)
@@ -1106,7 +1118,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
             ),
           ),
         Expanded(
-          child: _entries.isEmpty && !_busy
+          child: visibleEntries.isEmpty && !_busy
               ? _EmptyState(onSuggestion: _useSuggestion)
               : SilkyScroll.fromConfig(
                   config: _silkyScrollConfig,
@@ -1119,7 +1131,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                         reverse: true,
                         padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
                         itemCount:
-                            _entries.length +
+                            visibleEntries.length +
                             (_busy ||
                                     _activities.isNotEmpty ||
                                     _turnState != _AgentTurnState.idle
@@ -1167,14 +1179,14 @@ class _AgentHomePageState extends State<AgentHomePage> {
                             );
                           }
                           final entryIndex =
-                              _entries.length -
+                              visibleEntries.length -
                               1 -
                               index +
                               (showExecution ? 1 : 0);
                           return _ConversationLane(
                             child: _MessageCard(
-                              key: ValueKey(_entries[entryIndex]),
-                              entry: _entries[entryIndex],
+                              key: ValueKey(visibleEntries[entryIndex]),
+                              entry: visibleEntries[entryIndex],
                             ),
                           );
                         },
@@ -1222,6 +1234,22 @@ class _AgentHomePageState extends State<AgentHomePage> {
                         },
                   icon: const Icon(Icons.account_tree_outlined, size: 16),
                   label: const Text('SUBAGENT'),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  key: const ValueKey('toggle-tool-progress'),
+                  onPressed: () => setState(
+                    () => _toolProgressVisible = !_toolProgressVisible,
+                  ),
+                  icon: Icon(
+                    _toolProgressVisible
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 16,
+                  ),
+                  label: Text(
+                    _toolProgressVisible ? 'HIDE TOOLS' : 'SHOW TOOLS',
+                  ),
                 ),
               ],
             ),

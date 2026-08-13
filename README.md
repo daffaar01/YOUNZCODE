@@ -24,6 +24,13 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 
 ## ✨ Fitur
 
+### YOUNZCODE 2.0
+- **Classic workspace** — sidebar polos dengan New Chat, Projects, Recents, Browser, Images, Terminal, History, Plugins, dan Add-ons; chat AI berada di tengah dan Environment di kanan
+- **Focus workspace** — Explorer, editor, terminal, dan Agent tampil berdampingan untuk pekerjaan coding yang lebih intensif
+- **Respons agent bertahap** — sebelum menjalankan tool agent menjelaskan langkahnya, menampilkan hasil sebagai Progress, lalu melanjutkan sampai rangkuman akhir
+- **Composer terintegrasi** — tambahkan context, buka Plugins, atau siapkan Subagent langsung dari area chat
+- Dialog **About YOUNZCODE** di header sidebar menjelaskan mode workspace, provider AI, progress agent, plugin/subagent, dan panel Environment
+
 ### 🖥️ Editor & Debugging
 - **Syntax highlighting**, autocomplete lokal (`Ctrl+Space`), minimap, diagnostics dari toolchain bahasa, dan breakpoint gutter
 - **Run/Debug console** dengan breakpoint & stepping nyata:

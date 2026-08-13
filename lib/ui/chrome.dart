@@ -193,6 +193,7 @@ class _ClassicSidebar extends StatelessWidget {
     required this.onAddons,
     required this.onChooseWorkspace,
     required this.onLayoutChanged,
+    required this.onAbout,
   });
 
   final String workspace;
@@ -210,6 +211,7 @@ class _ClassicSidebar extends StatelessWidget {
   final VoidCallback onAddons;
   final VoidCallback onChooseWorkspace;
   final ValueChanged<_WorkspaceLayout> onLayoutChanged;
+  final VoidCallback onAbout;
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +244,13 @@ class _ClassicSidebar extends StatelessWidget {
                     'YOUNZCODE',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
+                ),
+                IconButton(
+                  key: const ValueKey('classic-about-button'),
+                  tooltip: 'About YOUNZCODE',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onAbout,
+                  icon: const Icon(Icons.info_outline, size: 18),
                 ),
                 PopupMenuButton<_WorkspaceLayout>(
                   key: const ValueKey('workspace-layout-picker'),

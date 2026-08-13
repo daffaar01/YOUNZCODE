@@ -519,6 +519,7 @@ class _AgentWorkingCard extends StatefulWidget {
 
 class _AgentWorkingCardState extends State<_AgentWorkingCard>
     with SingleTickerProviderStateMixin {
+  bool _showActivities = false;
   final _elapsed = Stopwatch()..start();
   late final Timer _elapsedTimer;
   late final AnimationController _controller = AnimationController(
@@ -583,76 +584,104 @@ class _AgentWorkingCardState extends State<_AgentWorkingCard>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final activity in widget.activities)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 18,
-                        child: activity.succeeded
-                            ? Icon(Icons.check, size: 14, color: palette.accent)
-                            : activity.failed
-                            ? Icon(Icons.close, size: 14, color: palette.error)
-                            : activity.warning
-                            ? Icon(
-                                Icons.remove,
-                                size: 14,
-                                color: palette.mutedText,
-                              )
-                            : SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: AnimatedBuilder(
-                                  animation: _controller,
-                                  builder: (context, _) => CustomPaint(
-                                    painter: _AgentOrbitPainter(
-                                      _controller.value,
-                                      orbitColor: palette.orbit,
-                                      dotColor: palette.accent,
+              if (widget.activities.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    key: const ValueKey('toggle-live-tool-activity'),
+                    onPressed: () =>
+                        setState(() => _showActivities = !_showActivities),
+                    icon: Icon(
+                      _showActivities ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                    ),
+                    label: Text(
+                      _showActivities
+                          ? 'HIDE TOOL ACTIVITY'
+                          : 'SHOW TOOL ACTIVITY (${widget.activities.length})',
+                    ),
+                  ),
+                ),
+              if (_showActivities)
+                for (final activity in widget.activities)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          child: activity.succeeded
+                              ? Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: palette.accent,
+                                )
+                              : activity.failed
+                              ? Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: palette.error,
+                                )
+                              : activity.warning
+                              ? Icon(
+                                  Icons.remove,
+                                  size: 14,
+                                  color: palette.mutedText,
+                                )
+                              : SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: AnimatedBuilder(
+                                    animation: _controller,
+                                    builder: (context, _) => CustomPaint(
+                                      painter: _AgentOrbitPainter(
+                                        _controller.value,
+                                        orbitColor: palette.orbit,
+                                        dotColor: palette.accent,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 54,
-                        child: Text(
-                          activity.label,
-                          style: TextStyle(
-                            fontFamily: 'Consolas',
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: palette.activity,
-                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: Tooltip(
-                          message: activity.detail,
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 54,
                           child: Text(
-                            activity.detail,
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
+                            activity.label,
                             style: TextStyle(
                               fontFamily: 'Consolas',
                               fontSize: 11,
-                              height: 1.35,
-                              color: activity.failed
-                                  ? palette.error
-                                  : activity.warning
-                                  ? palette.mutedText
-                                  : palette.primaryText,
+                              fontWeight: FontWeight.w800,
+                              color: palette.activity,
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                        Expanded(
+                          child: Tooltip(
+                            message: activity.detail,
+                            child: Text(
+                              activity.detail,
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Consolas',
+                                fontSize: 11,
+                                height: 1.35,
+                                color: activity.failed
+                                    ? palette.error
+                                    : activity.warning
+                                    ? palette.mutedText
+                                    : palette.primaryText,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              if (widget.activities.isNotEmpty) const Divider(height: 18),
+              if (_showActivities && widget.activities.isNotEmpty)
+                const Divider(height: 18),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

@@ -1032,6 +1032,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('about menjelaskan fitur utama YOUNZCODE 2.0', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.byKey(const ValueKey('classic-about-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('younzcode-about-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('YOUNZCODE 2.0'), findsOneWidget);
+    expect(find.text('Dua tampilan workspace'), findsOneWidget);
+    expect(find.text('Respons agent bertahap'), findsOneWidget);
+    expect(find.text('Provider AI fleksibel'), findsOneWidget);
+    expect(find.text('Plugins dan Subagent'), findsOneWidget);
+    expect(find.text('Environment dan perubahan'), findsOneWidget);
+    expect(find.text('Build v2.0.0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('classic dapat hide dan show progress tool', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    final toggle = find.byKey(const ValueKey('toggle-tool-progress'));
+    expect(toggle, findsOneWidget);
+    expect(find.text('SHOW TOOLS'), findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(find.text('HIDE TOOLS'), findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(find.text('SHOW TOOLS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tool activity dapat disembunyikan dan ditampilkan kembali', (
     tester,
   ) async {

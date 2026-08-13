@@ -788,6 +788,185 @@ class _ModelSettingsResult {
   final int monthlyTokenBudget;
 }
 
+class _YounzcodeAboutDialog extends StatelessWidget {
+  const _YounzcodeAboutDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Dialog(
+      child: ConstrainedBox(
+        key: const ValueKey('younzcode-about-dialog'),
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 680),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 22, 16, 18),
+              child: Row(
+                children: [
+                  Image.asset(
+                    'assets/younzcode_logo_new.png',
+                    width: 46,
+                    height: 46,
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'YOUNZCODE 2.0',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text('AI coding workspace untuk Windows'),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Tutup',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: theme.dividerColor),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Build v$_appVersion',
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontWeight: FontWeight.w700,
+                        color: colors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const _AboutFeature(
+                      icon: Icons.dashboard_outlined,
+                      title: 'Dua tampilan workspace',
+                      description:
+                          'Classic menghadirkan chat AI yang sederhana dengan '
+                          'Projects, Recents, dan Environment. Focus menyediakan '
+                          'Explorer, editor, dan Agent dalam satu layar kerja.',
+                    ),
+                    const _AboutFeature(
+                      icon: Icons.forum_outlined,
+                      title: 'Respons agent bertahap',
+                      description:
+                          'Agent menjelaskan langkah sebelum menjalankan tool, '
+                          'menampilkan hasilnya sebagai Progress, lalu melanjutkan '
+                          'hingga rangkuman akhir.',
+                    ),
+                    const _AboutFeature(
+                      icon: Icons.hub_outlined,
+                      title: 'Provider AI fleksibel',
+                      description:
+                          'Gunakan OpenAI, Anthropic, Gemini, OpenRouter, Groq, '
+                          'DeepSeek, Ollama, 9router, dan provider kompatibel lain '
+                          'melalui pencarian provider.',
+                    ),
+                    const _AboutFeature(
+                      icon: Icons.extension_outlined,
+                      title: 'Plugins dan Subagent',
+                      description:
+                          'Tambahkan context, aktifkan add-on atau plugin, dan '
+                          'jalankan multi-agent langsung dari area composer.',
+                    ),
+                    const _AboutFeature(
+                      icon: Icons.fact_check_outlined,
+                      title: 'Environment dan perubahan',
+                      description:
+                          'Pantau activity, plan, file yang berubah, status Git, '
+                          'terminal, dan hasil verifikasi dari panel Environment.',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Divider(height: 1, color: theme.dividerColor),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('SELESAI'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AboutFeature extends StatelessWidget {
+  const _AboutFeature({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 18, color: colors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    height: 1.45,
+                    fontSize: 12,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel(this.text, {this.icon});
 
