@@ -1131,7 +1131,19 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('hide-explorer-panel')));
     await tester.pumpAndSettle();
     expect(explorer, findsNothing);
-    expect(find.byKey(const ValueKey('classic-sidebar')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('focus-workspace-layout')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('classic-sidebar')), findsNothing);
+
+    await tester.tap(find.text('Explorer'));
+    await tester.pumpAndSettle();
+    expect(explorer, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('focus-workspace-layout')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

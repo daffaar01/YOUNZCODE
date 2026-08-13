@@ -655,6 +655,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                   constraints.maxWidth >= 900
                               ? _buildFocusWorkspace(
                                   explorerWidth: explorerWidth,
+                                  explorerVisible: showExplorer,
                                   showInspector: showInspector,
                                   inspectorWidth: inspectorWidth,
                                 )
@@ -855,6 +856,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
 
   Widget _buildFocusWorkspace({
     required double explorerWidth,
+    required bool explorerVisible,
     required bool showInspector,
     required double inspectorWidth,
   }) {
@@ -863,29 +865,31 @@ class _AgentHomePageState extends State<AgentHomePage> {
     return Row(
       key: const ValueKey('focus-workspace-layout'),
       children: [
-        SizedBox(
-          width: explorerWidth,
-          child: _ProjectPanel(
-            workspace: _workspace,
-            onOpenFile: _openFile,
-            onChoose: _chooseWorkspace,
-            onNewChat: _clearChat,
-            onChat: _showChat,
-            onTerminal: _toggleTerminal,
-            onSettings: _openProjectSettings,
-            onSearch: _openSearch,
-            onHistory: _openChatHistory,
-            onAddons: _openAddonManager,
-            onHide: () =>
-                unawaited(_setWorkspaceLayout(_WorkspaceLayout.classic)),
+        if (explorerVisible)
+          SizedBox(
+            width: explorerWidth,
+            child: _ProjectPanel(
+              workspace: _workspace,
+              onOpenFile: _openFile,
+              onChoose: _chooseWorkspace,
+              onNewChat: _clearChat,
+              onChat: _showChat,
+              onTerminal: _toggleTerminal,
+              onSettings: _openProjectSettings,
+              onSearch: _openSearch,
+              onHistory: _openChatHistory,
+              onAddons: _openAddonManager,
+              onHide: () => setState(() => _explorerPanelVisible = false),
+            ),
           ),
-        ),
-        _PanelResizeHandle(
-          key: const ValueKey('focus-explorer-resize-handle'),
-          onDrag: (delta) => setState(
-            () => _explorerWidth = (_explorerWidth + delta).clamp(220.0, 480.0),
+        if (explorerVisible)
+          _PanelResizeHandle(
+            key: const ValueKey('focus-explorer-resize-handle'),
+            onDrag: (delta) => setState(
+              () =>
+                  _explorerWidth = (_explorerWidth + delta).clamp(220.0, 480.0),
+            ),
           ),
-        ),
         Expanded(
           child: Column(
             children: [
