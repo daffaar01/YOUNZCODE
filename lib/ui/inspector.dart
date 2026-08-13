@@ -284,7 +284,7 @@ class _ClassicEnvironmentPanel extends StatelessWidget {
     }
     final running = activities.where((item) => item.running).toList();
     final processCount = running.length + (terminalBusy ? 1 : 0);
-    return ColoredBox(
+    return Material(
       key: const ValueKey('classic-environment-panel'),
       color: colors.surface,
       child: Column(
