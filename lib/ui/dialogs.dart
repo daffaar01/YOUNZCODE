@@ -91,6 +91,116 @@ class _ModelDialogState extends State<_ModelDialog> {
     });
   }
 
+  Future<void> _showProviderPicker() async {
+    final searchController = TextEditingController();
+    var query = '';
+    final selected = await showDialog<_ProviderPreset>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final filtered = _providerPresets.where((preset) {
+            final needle = query.trim().toLowerCase();
+            if (needle.isEmpty) return true;
+            return preset.label.toLowerCase().contains(needle) ||
+                preset.baseUrl.toLowerCase().contains(needle) ||
+                preset.models.any(
+                  (model) => model.toLowerCase().contains(needle),
+                );
+          }).toList();
+          return Dialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Theme.of(context).dividerColor),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520, maxHeight: 520),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: TextField(
+                      key: const ValueKey('provider-search-field'),
+                      controller: searchController,
+                      autofocus: true,
+                      onChanged: (value) => setDialogState(() => query = value),
+                      decoration: const InputDecoration(
+                        hintText: 'Cari provider, endpoint, atau model...',
+                        prefixIcon: Icon(Icons.search, size: 20),
+                      ),
+                    ),
+                  ),
+                  Divider(height: 1, color: Theme.of(context).dividerColor),
+                  SizedBox(
+                    height: 390,
+                    child: filtered.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Text('Provider tidak ditemukan'),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final preset = filtered[index];
+                              final selected = preset.label == _providerLabel;
+                              final local = preset.baseUrl.startsWith(
+                                'http://',
+                              );
+                              return ListTile(
+                                dense: true,
+                                selected: selected,
+                                leading: Icon(
+                                  local
+                                      ? Icons.dns_outlined
+                                      : Icons.cloud_outlined,
+                                  size: 19,
+                                ),
+                                title: Text(
+                                  preset.label,
+                                  key: ValueKey(
+                                    'provider-option-${preset.label}',
+                                  ),
+                                  style: TextStyle(
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                                subtitle: preset.baseUrl.isEmpty
+                                    ? const Text('Endpoint manual')
+                                    : Text(
+                                        preset.baseUrl,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                trailing: selected
+                                    ? Icon(
+                                        Icons.check_circle,
+                                        size: 18,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                      )
+                                    : null,
+                                onTap: () => Navigator.pop(context, preset),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (selected != null && mounted) _applyPreset(selected);
+  }
+
   void _addModel() {
     final model = _newModelController.text.trim();
     if (model.isEmpty || _models.contains(model)) return;
@@ -190,7 +300,8 @@ class _ModelDialogState extends State<_ModelDialog> {
         key: const ValueKey('model-dialog-panel'),
         constraints: BoxConstraints(
           maxWidth: 640,
-          maxHeight: MediaQuery.sizeOf(context).height - 64,
+          // Keep the settings popup compact; the body remains scrollable.
+          maxHeight: math.max(360, MediaQuery.sizeOf(context).height - 140),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -252,42 +363,55 @@ class _ModelDialogState extends State<_ModelDialog> {
               child: SilkySingleChildScrollView(
                 key: const ValueKey('model-dialog-scroll'),
                 silkyConfig: _silkyScrollConfig,
-                padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const _FieldLabel('PROVIDER', icon: Icons.cloud_outlined),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        border: Border.all(color: theme.dividerColor),
+                    Material(
+                      color: colors.surface,
+                      shape: RoundedRectangleBorder(
+                        side: BorderSide(color: theme.dividerColor),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          key: const ValueKey('provider-preset'),
-                          value: _providerLabel,
-                          isExpanded: true,
-                          items: [
-                            for (final preset in _providerPresets)
-                              DropdownMenuItem(
-                                value: preset.label,
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        key: const ValueKey('provider-preset'),
+                        onTap: _showProviderPicker,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 11,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.hub_outlined,
+                                size: 18,
+                                color: colors.primary,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
                                 child: Text(
-                                  preset.label,
+                                  _providerLabel,
                                   overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                          ],
-                          onChanged: (label) {
-                            if (label == null) return;
-                            _applyPreset(
-                              _providerPresets.firstWhere(
-                                (preset) => preset.label == label,
+                              Text(
+                                'SEARCH',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: colors.onSurfaceVariant,
+                                ),
                               ),
-                            );
-                          },
+                              const SizedBox(width: 6),
+                              const Icon(Icons.expand_more, size: 20),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -304,7 +428,7 @@ class _ModelDialogState extends State<_ModelDialog> {
                         color: colors.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 16),
                     const _FieldLabel('CONNECTION', icon: Icons.link_outlined),
                     const _InlineFieldLabel('BASE URL'),
                     TextField(
@@ -351,7 +475,7 @@ class _ModelDialogState extends State<_ModelDialog> {
                         color: colors.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final fetchAction = _fetchingModels
@@ -511,7 +635,7 @@ class _ModelDialogState extends State<_ModelDialog> {
                         );
                       },
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
                     const _FieldLabel(
                       'USAGE & COST ESTIMATION',
                       icon: Icons.data_usage_outlined,
@@ -563,7 +687,7 @@ class _ModelDialogState extends State<_ModelDialog> {
               ),
             ),
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
               decoration: BoxDecoration(
                 color: Color.alphaBlend(
                   colors.primary.withValues(alpha: 0.025),

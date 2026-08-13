@@ -670,7 +670,16 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('provider-preset')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Google Gemini (OpenAI-compatible)').last);
+    await tester.enterText(
+      find.byKey(const ValueKey('provider-search-field')),
+      'Google Gemini (OpenAI-compatible)',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey('provider-option-Google Gemini (OpenAI-compatible)'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     // Base URL auto-filled and example models loaded.
@@ -692,13 +701,10 @@ void main() {
 
     await tester.tap(find.text('MANAGE MODELS'));
     await tester.pumpAndSettle();
-    final dropdown = tester.widget<DropdownButton<String>>(
-      find.byKey(const ValueKey('provider-preset')),
-    );
-    final providers = dropdown.items!
-        .map((item) => (item.child as Text).data)
-        .whereType<String>()
-        .toSet();
+    await tester.tap(find.byKey(const ValueKey('provider-preset')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('provider-search-field')), findsOneWidget);
+    final searchField = find.byKey(const ValueKey('provider-search-field'));
 
     for (final provider in const [
       'OpenAI',
@@ -724,9 +730,45 @@ void main() {
       '9router (lokal)',
       'Ollama (lokal)',
     ]) {
-      expect(providers, contains(provider), reason: provider);
+      await tester.enterText(searchField, provider);
+      await tester.pump();
+      expect(
+        find.byKey(ValueKey('provider-option-$provider')),
+        findsOneWidget,
+        reason: provider,
+      );
     }
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pencarian provider memfilter katalog dan memilih hasil', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.text('MANAGE MODELS'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('provider-preset')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('provider-search-field')),
+      'cerebras',
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('provider-option-Cerebras')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('provider-option-OpenAI')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('provider-option-Cerebras')));
+    await tester.pumpAndSettle();
+    expect(find.text('Cerebras'), findsOneWidget);
+    expect(find.text('https://api.cerebras.ai/v1'), findsOneWidget);
   });
 
   testWidgets('preset Anthropic native mengisi Base URL dan model native', (
@@ -742,7 +784,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('provider-preset')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Anthropic Claude (native)').last);
+    await tester.enterText(
+      find.byKey(const ValueKey('provider-search-field')),
+      'Anthropic Claude (native)',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('provider-option-Anthropic Claude (native)')),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('https://api.anthropic.com'), findsOneWidget);
@@ -762,7 +811,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('provider-preset')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('AgentRouter (OpenAI-compatible)').last);
+    await tester.enterText(
+      find.byKey(const ValueKey('provider-search-field')),
+      'AgentRouter',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(
+        const ValueKey('provider-option-AgentRouter (OpenAI-compatible)'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('https://agentrouter.org/v1'), findsOneWidget);
@@ -807,7 +865,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('provider-preset')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('9router (lokal)').last);
+      await tester.enterText(
+        find.byKey(const ValueKey('provider-search-field')),
+        '9router',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('provider-option-9router (lokal)')),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('http://127.0.0.1:20128/v1'), findsWidgets);
