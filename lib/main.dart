@@ -537,7 +537,10 @@ class _AgentHomePageState extends State<AgentHomePage> {
             builder: (context, constraints) {
               final showRail = constraints.maxWidth >= 760;
               final explorerAvailable = constraints.maxWidth >= 900;
-              final showExplorer = explorerAvailable && _explorerPanelVisible;
+              final showExplorer =
+                  explorerAvailable &&
+                  _explorerPanelVisible &&
+                  _workspaceLayout == _WorkspaceLayout.focus;
               final showInspector = constraints.maxWidth >= 1150;
               final availableWidth = constraints.maxWidth - (showRail ? 72 : 0);
               final inspectorWidth = _inspectorWidth
@@ -558,7 +561,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                   .toDouble();
               return Row(
                 children: [
-                  if (showRail)
+                  if (showRail && _workspaceLayout == _WorkspaceLayout.focus)
                     _CommandRail(
                       onNewChat: _clearChat,
                       onChat: _showChat,
@@ -578,40 +581,64 @@ class _AgentHomePageState extends State<AgentHomePage> {
                           !_searchMode &&
                           _activeFile == null,
                     ),
+                  if (showRail && _workspaceLayout == _WorkspaceLayout.classic)
+                    _ClassicSidebar(
+                      workspace: _workspace,
+                      sessions: _chatSessions
+                          .where((session) => session.workspace == _workspace)
+                          .toList(),
+                      activeChatId: _activeChatId,
+                      onNewChat: _clearChat,
+                      onOpenSession: _restoreChatSession,
+                      onPullRequests: _showGitDetails,
+                      onScheduled: () => _showMessage(
+                        'Scheduled tasks akan hadir pada pembaruan berikutnya.',
+                      ),
+                      onPlugins: _openAddonManager,
+                      onBrowser: _openBrowser,
+                      onImages: _openImageGeneration,
+                      onTerminal: _toggleTerminal,
+                      onHistory: _openChatHistory,
+                      onAddons: _openAddonManager,
+                      onChooseWorkspace: _chooseWorkspace,
+                      onLayoutChanged: (layout) =>
+                          unawaited(_setWorkspaceLayout(layout)),
+                    ),
                   Expanded(
                     child: Column(
                       children: [
-                        _TopWorkspaceBar(
-                          activeFile: _activeFile,
-                          searchMode: _searchMode,
-                          imageGenerationMode: _imageGenerationMode,
-                          browserMode: _browserMode,
-                          terminalVisible: _terminalVisible,
-                          inspectorVisible:
-                              showInspector && _activityPanelVisible,
-                          lightMode: widget.lightMode,
-                          onExplorer: () => setState(() {
-                            _explorerPanelVisible = true;
-                            _activeFile = null;
-                            _searchMode = false;
-                            _imageGenerationMode = false;
-                            _browserMode = false;
-                          }),
-                          onEditor: _workspace.isEmpty ? null : _showEditor,
-                          onImages: _openImageGeneration,
-                          onBrowser: _openBrowser,
-                          onTerminal: _toggleTerminal,
-                          onInspector: () => setState(
-                            () =>
-                                _activityPanelVisible = !_activityPanelVisible,
+                        if (_workspaceLayout == _WorkspaceLayout.focus)
+                          _TopWorkspaceBar(
+                            activeFile: _activeFile,
+                            searchMode: _searchMode,
+                            imageGenerationMode: _imageGenerationMode,
+                            browserMode: _browserMode,
+                            terminalVisible: _terminalVisible,
+                            inspectorVisible:
+                                showInspector && _activityPanelVisible,
+                            lightMode: widget.lightMode,
+                            onExplorer: () => setState(() {
+                              _explorerPanelVisible = true;
+                              _activeFile = null;
+                              _searchMode = false;
+                              _imageGenerationMode = false;
+                              _browserMode = false;
+                            }),
+                            onEditor: _workspace.isEmpty ? null : _showEditor,
+                            onImages: _openImageGeneration,
+                            onBrowser: _openBrowser,
+                            onTerminal: _toggleTerminal,
+                            onInspector: () => setState(
+                              () => _activityPanelVisible =
+                                  !_activityPanelVisible,
+                            ),
+                            onToggleTheme: widget.onToggleTheme,
+                            onNotifications: _showNotifications,
+                            notificationCount: _notifications.length,
+                            workspaceLayout: _workspaceLayout,
+                            onLayoutChanged: (layout) =>
+                                unawaited(_setWorkspaceLayout(layout)),
                           ),
-                          onToggleTheme: widget.onToggleTheme,
-                          onNotifications: _showNotifications,
-                          notificationCount: _notifications.length,
-                          workspaceLayout: _workspaceLayout,
-                          onLayoutChanged: (layout) =>
-                              unawaited(_setWorkspaceLayout(layout)),
-                        ),
                         Expanded(
                           child:
                               _workspaceLayout == _WorkspaceLayout.focus &&
@@ -1163,6 +1190,42 @@ class _AgentHomePageState extends State<AgentHomePage> {
             onClear: () => unawaited(_clearGoal()),
           ),
         if (_taskGraph != null) TaskGraphBanner(graph: _taskGraph!),
+        if (_workspaceLayout == _WorkspaceLayout.classic)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('classic-add-context'),
+                  onPressed: _busy ? null : _attachContext,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('ADD'),
+                ),
+                const SizedBox(width: 6),
+                TextButton.icon(
+                  key: const ValueKey('classic-plugins'),
+                  onPressed: _busy ? null : _openAddonManager,
+                  icon: const Icon(Icons.extension_outlined, size: 16),
+                  label: const Text('PLUGINS'),
+                ),
+                const SizedBox(width: 6),
+                TextButton.icon(
+                  key: const ValueKey('classic-subagent'),
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          _promptController.text = '/multi-agent ';
+                          _promptController.selection = TextSelection.collapsed(
+                            offset: _promptController.text.length,
+                          );
+                          _promptFocusNode.requestFocus();
+                        },
+                  icon: const Icon(Icons.account_tree_outlined, size: 16),
+                  label: const Text('SUBAGENT'),
+                ),
+              ],
+            ),
+          ),
         _ModelBar(
           models: _models,
           selectedModel: _model,

@@ -997,6 +997,39 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('classic menampilkan sidebar navigasi dan actions chat', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1500, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    for (final label in const [
+      'YOUNZCODE',
+      'New Chat',
+      'Pull Requests',
+      'Scheduled',
+      'Plugins',
+      'Browser',
+      'Images',
+      'Terminal',
+      'History',
+      'Add-ons',
+      'PROJECT',
+      'RECENTS',
+      'ADD',
+      'SUBAGENT',
+    ]) {
+      expect(find.text(label), findsWidgets, reason: label);
+    }
+    expect(find.byKey(const ValueKey('classic-sidebar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('classic-plugins')), findsOneWidget);
+    expect(find.byKey(const ValueKey('classic-subagent')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tool activity dapat disembunyikan dan ditampilkan kembali', (
     tester,
   ) async {
