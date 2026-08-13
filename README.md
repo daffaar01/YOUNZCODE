@@ -38,7 +38,7 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 - **Goal mode** — `/goal <tujuan>` menyimpan tujuan per chat dan menjalankan turn lanjutan otomatis sampai selesai atau terblokir; staged edit dipertahankan
 - **Provider multi** — urutan fallback, retry/failover, harga token, anggaran bulanan, dan dashboard `/usage`
 - Respons provider kosong dicoba ulang otomatis dengan mode transport alternatif
-- **Model Settings responsif** — konfigurasi provider, koneksi, model, dan biaya dikelompokkan dengan jelas; API key dikirim sebelum Fetch, preset AgentRouter dikenali, dan detail autentikasi HTTP 401 tetap tersedia
+- **Model Settings responsif** — konfigurasi provider, koneksi, model, dan biaya dikelompokkan dengan jelas; tersedia preset OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Groq, Mistral, Cohere, Together, Fireworks, Cerebras, SambaNova, xAI, Perplexity, Kimi, GLM, SiliconFlow, Hugging Face, NVIDIA, AgentRouter, 9router, dan Ollama
 
 ### 🧠 Code Intelligence
 - **Hybrid**: pencarian istilah Indonesia/Inggris, symbol index, go-to-definition, references, dan autocomplete workspace

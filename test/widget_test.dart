@@ -681,6 +681,54 @@ void main() {
     expect(find.text('gemini-2.5-pro'), findsWidgets);
   });
 
+  testWidgets('model manager menyediakan katalog provider AI utama', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.text('MANAGE MODELS'));
+    await tester.pumpAndSettle();
+    final dropdown = tester.widget<DropdownButton<String>>(
+      find.byKey(const ValueKey('provider-preset')),
+    );
+    final providers = dropdown.items!
+        .map((item) => (item.child as Text).data)
+        .whereType<String>()
+        .toSet();
+
+    for (final provider in const [
+      'OpenAI',
+      'Anthropic Claude (native)',
+      'Google Gemini (native)',
+      'OpenRouter (Claude, Gemini, dll)',
+      'DeepSeek',
+      'Mistral AI',
+      'Cohere',
+      'Together AI',
+      'Fireworks AI',
+      'Cerebras',
+      'SambaNova Cloud',
+      'xAI Grok',
+      'Perplexity',
+      'Moonshot AI (Kimi)',
+      'Zhipu AI (GLM)',
+      'SiliconFlow',
+      'Hugging Face Inference',
+      'NVIDIA NIM',
+      'Groq',
+      'AgentRouter (OpenAI-compatible)',
+      '9router (lokal)',
+      'Ollama (lokal)',
+    ]) {
+      expect(providers, contains(provider), reason: provider);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('preset Anthropic native mengisi Base URL dan model native', (
     tester,
   ) async {
