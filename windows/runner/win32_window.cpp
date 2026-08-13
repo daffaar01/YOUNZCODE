@@ -17,6 +17,7 @@ namespace {
 #endif
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+constexpr UINT kPasteClipboardHistoryMessage = WM_APP + 1;
 
 /// Registry key for app theme preference.
 ///
@@ -179,6 +180,15 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+      if (wparam == 'V' &&
+          ((GetKeyState(VK_LWIN) & 0x8000) != 0 ||
+           (GetKeyState(VK_RWIN) & 0x8000) != 0)) {
+        clipboard_history_pending_ = true;
+      }
+      break;
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();
@@ -212,6 +222,28 @@ Win32Window::MessageHandler(HWND hwnd,
       // active. Refocus the Flutter view only when this window is activated.
       if (LOWORD(wparam) != WA_INACTIVE && child_content_ != nullptr) {
         SetFocus(child_content_);
+        if (clipboard_history_pending_) {
+          clipboard_history_pending_ = false;
+          PostMessage(hwnd, kPasteClipboardHistoryMessage, 0, 0);
+        }
+      }
+      return 0;
+
+    case kPasteClipboardHistoryMessage:
+      if (child_content_ != nullptr) {
+        SetFocus(child_content_);
+        INPUT inputs[4] = {};
+        inputs[0].type = INPUT_KEYBOARD;
+        inputs[0].ki.wVk = VK_CONTROL;
+        inputs[1].type = INPUT_KEYBOARD;
+        inputs[1].ki.wVk = 'V';
+        inputs[2].type = INPUT_KEYBOARD;
+        inputs[2].ki.wVk = 'V';
+        inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+        inputs[3].type = INPUT_KEYBOARD;
+        inputs[3].ki.wVk = VK_CONTROL;
+        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+        SendInput(4, inputs, sizeof(INPUT));
       }
       return 0;
 

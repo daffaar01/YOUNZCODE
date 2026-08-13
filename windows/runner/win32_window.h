@@ -97,6 +97,10 @@ class Win32Window {
 
   // window handle for hosted content.
   HWND child_content_ = nullptr;
+
+  // Clipboard History selects an item while the app is inactive. Remember the
+  // Win+V gesture so paste can be delivered after the Flutter view refocuses.
+  bool clipboard_history_pending_ = false;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_
