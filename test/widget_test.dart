@@ -1033,6 +1033,12 @@ void main() {
     expect(find.byKey(const ValueKey('classic-sidebar')), findsOneWidget);
     expect(find.byKey(const ValueKey('classic-plugins')), findsOneWidget);
     expect(find.byKey(const ValueKey('classic-subagent')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('classic-subagent')));
+    await tester.pump();
+    final prompt = tester.widget<TextField>(
+      find.byKey(const ValueKey('prompt-field')),
+    );
+    expect(prompt.controller?.text, '/agents ');
     expect(tester.takeException(), isNull);
   });
 

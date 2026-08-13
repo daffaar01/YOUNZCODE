@@ -1174,7 +1174,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                   onPressed: _busy
                       ? null
                       : () {
-                          _promptController.text = '/multi-agent ';
+                          _promptController.text = '/agents ';
                           _promptController.selection = TextSelection.collapsed(
                             offset: _promptController.text.length,
                           );
