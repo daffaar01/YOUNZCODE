@@ -965,6 +965,14 @@ void main() {
     await _pumpLoaded(tester);
 
     expect(find.byKey(const ValueKey('focus-workspace-layout')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('classic-codex-workspace-layout')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('classic-environment-header')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('workspace-layout-picker')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Focus'));
@@ -982,6 +990,10 @@ void main() {
     await tester.tap(find.text('Classic'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('focus-workspace-layout')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('classic-codex-workspace-layout')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

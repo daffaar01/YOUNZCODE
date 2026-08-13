@@ -622,6 +622,9 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                   inspectorWidth: inspectorWidth,
                                 )
                               : Row(
+                                  key: const ValueKey(
+                                    'classic-codex-workspace-layout',
+                                  ),
                                   children: [
                                     if (showExplorer)
                                       SizedBox(
@@ -774,28 +777,69 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                       ),
                                       SizedBox(
                                         width: inspectorWidth,
-                                        child: _ActivityPanel(
-                                          key: const ValueKey('activity-panel'),
-                                          activities: _activities,
-                                          busy: _busy,
-                                          status: _agentStatus,
-                                          onHide: () => setState(
-                                            () => _activityPanelVisible = false,
-                                          ),
-                                          section: _inspectorSection,
-                                          onSectionChanged: (section) =>
-                                              setState(
-                                                () =>
-                                                    _inspectorSection = section,
+                                        child: Column(
+                                          children: [
+                                            Container(
+                                              key: const ValueKey(
+                                                'classic-environment-header',
                                               ),
-                                          pendingChanges: _pendingChanges,
-                                          changeHistory: _changeHistory,
-                                          onReviewChanges: _reviewChanges,
-                                          onRestoreCheckpoint:
-                                              _restoreCheckpoint,
-                                          onRevert: _lastAppliedTurn == null
-                                              ? null
-                                              : _revertTurn,
+                                              height: 42,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 14,
+                                                  ),
+                                              alignment: Alignment.centerLeft,
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.surface,
+                                                border: Border(
+                                                  bottom: BorderSide(
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).dividerColor,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'ENVIRONMENT',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: 1,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: _ActivityPanel(
+                                                key: const ValueKey(
+                                                  'activity-panel',
+                                                ),
+                                                activities: _activities,
+                                                busy: _busy,
+                                                status: _agentStatus,
+                                                onHide: () => setState(
+                                                  () => _activityPanelVisible =
+                                                      false,
+                                                ),
+                                                section: _inspectorSection,
+                                                onSectionChanged: (section) =>
+                                                    setState(
+                                                      () => _inspectorSection =
+                                                          section,
+                                                    ),
+                                                pendingChanges: _pendingChanges,
+                                                changeHistory: _changeHistory,
+                                                onReviewChanges: _reviewChanges,
+                                                onRestoreCheckpoint:
+                                                    _restoreCheckpoint,
+                                                onRevert:
+                                                    _lastAppliedTurn == null
+                                                    ? null
+                                                    : _revertTurn,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
