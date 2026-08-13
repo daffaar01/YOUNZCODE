@@ -10,8 +10,8 @@
 ![Dart](https://img.shields.io/badge/Dart-^3.11-0175C2?logo=dart&logoColor=white&style=flat)
 ![Version](https://img.shields.io/badge/versi-1.3.7-16A34A?style=flat)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0EA5E9?style=flat)
-[![Quality gate](https://github.com/Younzcode91/YOUNZCODE/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/Younzcode91/YOUNZCODE/actions/workflows/quality.yml)
-[![Workflow lint](https://github.com/Younzcode91/YOUNZCODE/actions/workflows/workflow-lint.yml/badge.svg?branch=main)](https://github.com/Younzcode91/YOUNZCODE/actions/workflows/workflow-lint.yml)
+[![Quality gate](https://github.com/daffaar01/YOUNZCODE/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/daffaar01/YOUNZCODE/actions/workflows/quality.yml)
+[![Workflow lint](https://github.com/daffaar01/YOUNZCODE/actions/workflows/workflow-lint.yml/badge.svg?branch=main)](https://github.com/daffaar01/YOUNZCODE/actions/workflows/workflow-lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Agen AI native yang membaca, mencari, dan mengubah kode di workspace-mu —
@@ -34,6 +34,7 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 
 ### 🤖 Agen AI
 - **Multi-agent paralel** — `/agents tugas 1 | tugas 2` menjalankan beberapa agent pada branch & Git worktree terisolasi
+- **Visual Task Graph** — menyusun pekerjaan sebagai DAG, menjalankan node yang siap, memblokir turunan task yang gagal, serta menyimpan status dan artifact secara aman. Worktree sukses atau dirty dipertahankan untuk review
 - **Goal mode** — `/goal <tujuan>` menyimpan tujuan per chat dan menjalankan turn lanjutan otomatis sampai selesai atau terblokir; staged edit dipertahankan
 - **Provider multi** — urutan fallback, retry/failover, harga token, anggaran bulanan, dan dashboard `/usage`
 - Respons provider kosong dicoba ulang otomatis dengan mode transport alternatif
@@ -41,11 +42,12 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 
 ### 🧠 Code Intelligence
 - **Hybrid**: pencarian istilah Indonesia/Inggris, symbol index, go-to-definition, references, dan autocomplete workspace
-- **Context Engine incremental** memperbarui indeks hanya untuk file yang berubah, meranking file relevan, menjelaskan alasan pemilihan, dan menambahkan context otomatis dengan character budget pada workspace tepercaya
-- File environment, credential, direktori build, file besar/biner, dan path di luar workspace tidak pernah dipilih sebagai context otomatis
+- **Context Engine incremental** memperbarui indeks lokal hanya untuk file yang berubah. Isi file workspace tidak dibaca atau dikirim sebagai context otomatis; lampiran manual dan workspace tools tetap merupakan jalur eksplisit yang terpisah
+- Request context diikat ke identitas workspace, canonical target, trust state, dan instance engine agar hasil stale/ABA dibuang sebelum request provider
+- Prompt gabungan dibatasi hingga 320.000 karakter; request user terbaru selalu dipertahankan dan dipotong deterministik bila perlu
 - **Checkpoint perubahan** tersimpan per workspace, dapat dipulihkan dari Inspector
 - **Review Mode** (`/review`) menganalisis staged dan unstaged Git diff dalam mode tanpa tools, meredaksi secret sebelum dikirim ke provider, dan menampilkan temuan terstruktur dengan file/baris
-- Suggested patch hanya dapat diterapkan setelah pengguna menekan **APPLY PATCH** dan `git apply --check` lulus; quality gate relevan dijalankan setelah penerapan
+- `/review` sepenuhnya **read-only**: hasil masuk ke timeline chat dan tidak menyediakan APPLY PATCH, `/review-apply`, atau perubahan file otomatis
 
 ### 🛡️ Keamanan
 - **API key hanya di memori** selama aplikasi berjalan — base URL, model, dan workspace disimpan sebagai preferensi lokal
@@ -55,7 +57,11 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 
 ### 🔌 Add-on & MCP
 - **Add-on Manager** — health check, latensi, log, dan kebijakan izin per tool MCP
-- Mendukung skill, plugin, MCP, dan extension — lihat [ADDONS_GUIDE.md](ADDONS_GUIDE.md)
+- **Remote MCP hardened** — endpoint remote wajib HTTPS dan beralamat publik, socket terhubung ke IP yang sudah divalidasi tanpa DNS kedua atau proxy, redirect ditolak, TLS memverifikasi hostname, serta response/SSE dibatasi oleh deadline dan ukuran
+- Header credential MCP disimpan sebagai reference dan di-resolve saat request; exact credential disensor secara recursive dari error maupun successful JSON/SSE result, termasuk map key
+- **Declarative Extension SDK** — plugin hanya dapat memberikan command deklaratif dengan capability eksplisit; command bawaan dilindungi dan extension tidak menjalankan JavaScript atau executable arbitrer
+- `/mcp` menampilkan ringkasan server MCP di timeline chat tanpa membuka Add-on Manager atau menampilkan URL
+- Mendukung skill, plugin deklaratif, MCP, dan extension — lihat [ADDONS_GUIDE.md](ADDONS_GUIDE.md)
 
 ### 🖼️ Media & Browser
 - **Agent Browser** (Microsoft Edge WebView2) — buka URL HTTPS / preview `localhost`, baca halaman, klik, ketik, upload file workspace, simpan screenshot
@@ -105,7 +111,9 @@ dart run tool/update_keys.dart tool/signing/update_signing_key_new.txt
 
 ```powershell
 dart run tool/sign_update.dart --key tool/signing/update_signing_private_key.txt --key tool/signing/update_signing_key_new.txt
-```Setelah pengguna mengejar ke rilis tersebut, tandatangani hanya dengan kunci baru
+```
+
+Setelah pengguna mengejar ke rilis tersebut, tandatangani hanya dengan kunci baru
 dan hapus kunci lama dari daftar. Rilis lama tetap diverifikasi via field
 `signature`/`signatures` yang sesuai.
 
@@ -193,14 +201,14 @@ lib/
 ├── main.dart                  # Shell aplikasi
 ├── app/                       # Workflow state: workspace lifecycle, konfigurasi agent,
 │                              #   browser, command, goal, turn agent, session/editor/terminal
-├── services/                  # 30+ service: git, MCP client, provider routing & usage,
+├── services/                  # Git, Remote MCP, multi-agent/task graph, provider routing,
 │                              #   debug adapter, quality gate, code intelligence, checkpoint,
-│                              #   secret scanner, workspace trust, update, media download
-├── models/                    # Chat session, addon, agent goal, workspace change
+│                              #   secret scanner, workspace trust, extension, update, media
+├── models/                    # Chat session, addon, task graph, agent goal, workspace change
 ├── ui/                        # Editor, browser panel, inspector, image studio, dialogs, overlays
 ├── skills/                    # Skill pack (graphify)
 ├── installer/                 # Inno Setup (YOUNZCODE.iss)
-└── test/                      # 33+ file unit test + integration test (browser smoke)
+└── test/                      # Unit, widget, security, dan integration tests
 ```
 
 ---
