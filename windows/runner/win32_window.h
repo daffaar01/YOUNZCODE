@@ -98,12 +98,6 @@ class Win32Window {
   // window handle for hosted content.
   HWND child_content_ = nullptr;
 
-  // Clipboard History changes the clipboard while the app is inactive, but
-  // does not send a paste event to Flutter when the app regains focus.
-  DWORD clipboard_sequence_on_deactivate_ = 0;
-  DWORD clipboard_deactivated_at_ = 0;
-  bool clipboard_change_watch_active_ = false;
-  int clipboard_poll_attempts_ = 0;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_

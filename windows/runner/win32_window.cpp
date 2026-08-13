@@ -17,9 +17,6 @@ namespace {
 #endif
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
-constexpr UINT kPasteClipboardHistoryMessage = WM_APP + 1;
-constexpr UINT_PTR kClipboardHistoryPollTimer = 1;
-
 /// Registry key for app theme preference.
 ///
 /// A value of 0 indicates apps should use dark mode. A non-zero or missing
@@ -212,54 +209,8 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_ACTIVATE:
       // Do not steal focus while Windows UI such as Clipboard History is
       // active. Refocus the Flutter view only when this window is activated.
-      if (LOWORD(wparam) == WA_INACTIVE) {
-        clipboard_sequence_on_deactivate_ = GetClipboardSequenceNumber();
-        clipboard_deactivated_at_ = GetTickCount();
-        clipboard_change_watch_active_ = true;
-      } else if (child_content_ != nullptr) {
+      if (LOWORD(wparam) != WA_INACTIVE && child_content_ != nullptr) {
         SetFocus(child_content_);
-        const DWORD inactive_duration =
-            GetTickCount() - clipboard_deactivated_at_;
-        if (clipboard_change_watch_active_ && inactive_duration <= 30000) {
-          clipboard_poll_attempts_ = 0;
-          SetTimer(hwnd, kClipboardHistoryPollTimer, 50, nullptr);
-        } else {
-          clipboard_change_watch_active_ = false;
-        }
-      }
-      return 0;
-
-    case WM_TIMER:
-      if (wparam == kClipboardHistoryPollTimer) {
-        ++clipboard_poll_attempts_;
-        if (GetClipboardSequenceNumber() !=
-            clipboard_sequence_on_deactivate_) {
-          KillTimer(hwnd, kClipboardHistoryPollTimer);
-          clipboard_change_watch_active_ = false;
-          PostMessage(hwnd, kPasteClipboardHistoryMessage, 0, 0);
-        } else if (clipboard_poll_attempts_ >= 20) {
-          KillTimer(hwnd, kClipboardHistoryPollTimer);
-          clipboard_change_watch_active_ = false;
-        }
-        return 0;
-      }
-      break;
-
-    case kPasteClipboardHistoryMessage:
-      if (child_content_ != nullptr) {
-        SetFocus(child_content_);
-        INPUT inputs[4] = {};
-        inputs[0].type = INPUT_KEYBOARD;
-        inputs[0].ki.wVk = VK_CONTROL;
-        inputs[1].type = INPUT_KEYBOARD;
-        inputs[1].ki.wVk = 'V';
-        inputs[2].type = INPUT_KEYBOARD;
-        inputs[2].ki.wVk = 'V';
-        inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-        inputs[3].type = INPUT_KEYBOARD;
-        inputs[3].ki.wVk = VK_CONTROL;
-        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-        SendInput(4, inputs, sizeof(INPUT));
       }
       return 0;
 
