@@ -31,7 +31,7 @@ class _PanelResizeHandleState extends State<_PanelResizeHandle> {
             child: AnimatedContainer(
               duration: _fastMotion,
               width: _hovered ? 3 : 1,
-              color: _hovered ? colors.primary : Theme.of(context).dividerColor,
+              color: _hovered ? colors.primary : Colors.transparent,
             ),
           ),
         ),
@@ -73,16 +73,12 @@ class _CommandRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     final compact = MediaQuery.sizeOf(context).height < 560;
     return Container(
       key: const ValueKey('command-rail'),
       width: 72,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(right: BorderSide(color: theme.dividerColor)),
-      ),
+      decoration: BoxDecoration(color: colors.surface),
       child: Column(
         children: [
           SizedBox(height: compact ? 6 : 16),
@@ -176,7 +172,7 @@ class _CommandRail extends StatelessWidget {
   }
 }
 
-class _ClassicSidebar extends StatelessWidget {
+class _ClassicSidebar extends StatefulWidget {
   const _ClassicSidebar({
     required this.workspace,
     required this.sessions,
@@ -193,7 +189,12 @@ class _ClassicSidebar extends StatelessWidget {
     required this.onAddons,
     required this.onChooseWorkspace,
     required this.onLayoutChanged,
+    required this.workspaceLayout,
     required this.onAbout,
+    required this.browserMode,
+    required this.imageGenerationMode,
+    required this.terminalVisible,
+    required this.changeCount,
   });
 
   final String workspace;
@@ -211,143 +212,241 @@ class _ClassicSidebar extends StatelessWidget {
   final VoidCallback onAddons;
   final VoidCallback onChooseWorkspace;
   final ValueChanged<_WorkspaceLayout> onLayoutChanged;
+  final _WorkspaceLayout workspaceLayout;
   final VoidCallback onAbout;
+  final bool browserMode;
+  final bool imageGenerationMode;
+  final bool terminalVisible;
+  final int changeCount;
+
+  @override
+  State<_ClassicSidebar> createState() => _ClassicSidebarState();
+}
+
+class _ClassicSidebarState extends State<_ClassicSidebar> {
+  bool _collapsed = false;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final folder = workspace.isEmpty
+    final colors = Theme.of(context).colorScheme;
+    final folder = widget.workspace.isEmpty
         ? 'Pilih workspace'
-        : workspace.replaceAll('\\', '/').split('/').last;
-    final recent = sessions.toList()
+        : widget.workspace.replaceAll('\\', '/').split('/').last;
+    final recent = widget.sessions.toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return Container(
+    return AnimatedContainer(
       key: const ValueKey('classic-sidebar'),
-      width: 266,
+      duration: _mediumMotion,
+      curve: _motionCurve,
+      width: _collapsed ? 72 : 266,
       color: colors.surface,
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 18, 14, 12),
-            child: Row(
-              children: [
-                Image.asset(
-                  'assets/younzcode_logo_new.png',
-                  width: 28,
-                  height: 28,
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'YOUNZCODE',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                ),
-                IconButton(
-                  key: const ValueKey('classic-about-button'),
-                  tooltip: 'About YOUNZCODE',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onAbout,
-                  icon: const Icon(Icons.info_outline, size: 18),
-                ),
-                PopupMenuButton<_WorkspaceLayout>(
-                  key: const ValueKey('workspace-layout-picker'),
-                  tooltip: 'Pilih tampilan workspace',
-                  initialValue: _WorkspaceLayout.classic,
-                  onSelected: onLayoutChanged,
-                  icon: const Icon(Icons.more_horiz, size: 19),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: _WorkspaceLayout.classic,
-                      child: Text('Classic'),
-                    ),
-                    PopupMenuItem(
-                      value: _WorkspaceLayout.focus,
-                      child: Text('Focus'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          _ClassicNavItem(
-            icon: Icons.add_comment_outlined,
-            label: 'New Chat',
-            onTap: onNewChat,
-          ),
-          _ClassicNavItem(
-            icon: Icons.account_tree_outlined,
-            label: 'Pull Requests',
-            onTap: onPullRequests,
-          ),
-          _ClassicNavItem(
-            icon: Icons.schedule_outlined,
-            label: 'Scheduled',
-            onTap: onScheduled,
-          ),
-          _ClassicNavItem(
-            icon: Icons.extension_outlined,
-            label: 'Plugins',
-            onTap: onPlugins,
-          ),
-          _ClassicNavItem(
-            icon: Icons.travel_explore,
-            label: 'Browser',
-            onTap: onBrowser,
-          ),
-          _ClassicNavItem(
-            icon: Icons.image_outlined,
-            label: 'Images',
-            onTap: onImages,
-          ),
-          _ClassicNavItem(
-            icon: Icons.terminal,
-            label: 'Terminal',
-            onTap: onTerminal,
-          ),
-          _ClassicNavItem(
-            icon: Icons.history,
-            label: 'History',
-            onTap: onHistory,
-          ),
-          _ClassicNavItem(
-            icon: Icons.widgets_outlined,
-            label: 'Add-ons',
-            onTap: onAddons,
-          ),
-          const SizedBox(height: 12),
-          _ClassicSectionLabel('PROJECT'),
-          _ClassicNavItem(
-            key: const ValueKey('classic-project'),
-            icon: Icons.folder_outlined,
-            label: folder,
-            onTap: onChooseWorkspace,
-          ),
-          const SizedBox(height: 8),
-          _ClassicSectionLabel('RECENTS'),
-          if (recent.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Text(
-                'Belum ada chat sebelumnya',
-                style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 220;
+          return ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(compact ? 12 : 16, 18, 14, 12),
+                child: compact
+                    ? Column(
+                        children: [
+                          Image.asset(
+                            'assets/younzcode_logo_new.png',
+                            width: 28,
+                            height: 28,
+                          ),
+                          const SizedBox(height: 6),
+                          IconButton(
+                            key: const ValueKey('classic-sidebar-toggle'),
+                            tooltip: 'Expand sidebar',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => setState(() => _collapsed = false),
+                            icon: const Icon(
+                              Icons.keyboard_double_arrow_right,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Image.asset(
+                            'assets/younzcode_logo_new.png',
+                            width: 28,
+                            height: 28,
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'YOUNZCODE',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.45,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            key: const ValueKey('classic-about-button'),
+                            tooltip: 'About YOUNZCODE',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: widget.onAbout,
+                            icon: const Icon(Icons.info_outline, size: 18),
+                          ),
+                          PopupMenuButton<_WorkspaceLayout>(
+                            key: const ValueKey('workspace-layout-picker'),
+                            tooltip: 'Pilih tampilan workspace',
+                            initialValue: widget.workspaceLayout,
+                            onSelected: widget.onLayoutChanged,
+                            icon: Icon(
+                              widget.workspaceLayout == _WorkspaceLayout.classic
+                                  ? Icons.view_quilt_outlined
+                                  : Icons.vertical_split_outlined,
+                              size: 18,
+                            ),
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: _WorkspaceLayout.classic,
+                                child: ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(
+                                    Icons.view_quilt_outlined,
+                                    size: 19,
+                                  ),
+                                  title: Text('Classic'),
+                                  subtitle: Text('Sidebar dan workspace utama'),
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: _WorkspaceLayout.focus,
+                                child: ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Icon(
+                                    Icons.vertical_split_outlined,
+                                    size: 19,
+                                  ),
+                                  title: Text('Focus'),
+                                  subtitle: Text(
+                                    'Explorer dan Agent berdampingan',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            key: const ValueKey('classic-sidebar-toggle'),
+                            tooltip: 'Collapse sidebar',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => setState(() => _collapsed = true),
+                            icon: const Icon(
+                              Icons.keyboard_double_arrow_left,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
               ),
-            )
-          else
-            ...recent
-                .take(12)
-                .map(
-                  (session) => _ClassicNavItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: session.title,
-                    selected: session.id == activeChatId,
-                    onTap: () => onOpenSession(session),
-                  ),
+              _ClassicNavItem(
+                icon: Icons.add_comment_outlined,
+                label: 'New Chat',
+                onTap: widget.onNewChat,
+                compact: compact,
+              ),
+              _ClassicNavItem(
+                icon: Icons.account_tree_outlined,
+                label: 'Pull Requests',
+                onTap: widget.onPullRequests,
+                compact: compact,
+                badgeCount: widget.changeCount,
+              ),
+              _ClassicNavItem(
+                icon: Icons.schedule_outlined,
+                label: 'Scheduled',
+                onTap: widget.onScheduled,
+                compact: compact,
+              ),
+              _ClassicNavItem(
+                icon: Icons.extension_outlined,
+                label: 'Plugins',
+                onTap: widget.onPlugins,
+                compact: compact,
+              ),
+              _ClassicNavItem(
+                icon: Icons.travel_explore,
+                label: 'Browser',
+                onTap: widget.onBrowser,
+                compact: compact,
+                selected: widget.browserMode,
+              ),
+              _ClassicNavItem(
+                icon: Icons.image_outlined,
+                label: 'Images',
+                onTap: widget.onImages,
+                compact: compact,
+                selected: widget.imageGenerationMode,
+              ),
+              _ClassicNavItem(
+                icon: Icons.terminal,
+                label: 'Terminal',
+                onTap: widget.onTerminal,
+                compact: compact,
+                selected: widget.terminalVisible,
+              ),
+              _ClassicNavItem(
+                icon: Icons.history,
+                label: 'History',
+                onTap: widget.onHistory,
+                compact: compact,
+              ),
+              _ClassicNavItem(
+                icon: Icons.widgets_outlined,
+                label: 'Add-ons',
+                onTap: widget.onAddons,
+                compact: compact,
+              ),
+              if (!compact) ...[
+                const SizedBox(height: 12),
+                _ClassicSectionLabel('PROJECT'),
+                _ClassicNavItem(
+                  key: const ValueKey('classic-project'),
+                  icon: Icons.folder_outlined,
+                  label: folder,
+                  onTap: widget.onChooseWorkspace,
                 ),
-          const SizedBox(height: 12),
-        ],
+                const SizedBox(height: 8),
+                _ClassicSectionLabel('RECENTS'),
+                if (recent.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Text(
+                      'Belum ada chat sebelumnya',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                else
+                  ...recent
+                      .take(12)
+                      .map(
+                        (session) => _ClassicNavItem(
+                          icon: Icons.chat_bubble_outline,
+                          label: session.title,
+                          selected: session.id == widget.activeChatId,
+                          onTap: () => widget.onOpenSession(session),
+                        ),
+                      ),
+                const SizedBox(height: 12),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -379,32 +478,87 @@ class _ClassicNavItem extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.selected = false,
+    this.compact = false,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool selected;
+  final bool compact;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-      child: Material(
-        color: selected
-            ? colors.primary.withValues(alpha: 0.10)
-            : Colors.transparent,
+    final iconWidget = Badge(
+      isLabelVisible: badgeCount > 0,
+      label: Text('${badgeCount.clamp(0, 99)}'),
+      child: Icon(icon, size: 18),
+    );
+    final item = Material(
+      color: selected
+          ? colors.primary.withValues(alpha: 0.10)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        child: ListTile(
-          dense: true,
-          minTileHeight: 36,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          leading: Icon(icon, size: 18),
-          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-          onTap: onTap,
+        onTap: onTap,
+        child: SizedBox(
+          height: 36,
+          child: compact
+              ? Stack(
+                  children: [
+                    if (selected)
+                      Positioned(
+                        left: 0,
+                        top: 9,
+                        bottom: 9,
+                        child: Container(
+                          width: 3,
+                          decoration: BoxDecoration(
+                            color: colors.primary,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    Center(child: iconWidget),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const SizedBox(width: 4),
+                    if (selected)
+                      Container(
+                        width: 3,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: colors.primary,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      )
+                    else
+                      const SizedBox(width: 3),
+                    const SizedBox(width: 10),
+                    iconWidget,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
         ),
       ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+      child: compact ? Tooltip(message: label, child: item) : item,
     );
   }
 }
@@ -424,8 +578,7 @@ class _RailAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     final compact = MediaQuery.sizeOf(context).height < 560;
     return Tooltip(
       message: label,
@@ -441,11 +594,7 @@ class _RailAction extends StatelessWidget {
               key: ValueKey('rail-${label.toLowerCase().replaceAll(' ', '-')}'),
               width: 48,
               height: compact ? 36 : 42,
-              decoration: BoxDecoration(
-                border: selected
-                    ? Border(left: BorderSide(color: colors.primary, width: 2))
-                    : null,
-              ),
+              decoration: const BoxDecoration(),
               child: Icon(
                 icon,
                 size: 21,
@@ -502,16 +651,12 @@ class _TopWorkspaceBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     return Container(
       key: const ValueKey('top-workspace-bar'),
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: theme.dividerColor)),
-      ),
+      decoration: BoxDecoration(color: colors.surface),
       child: Row(
         children: [
           Text(
@@ -534,7 +679,6 @@ class _TopWorkspaceBar extends StatelessWidget {
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     color: colors.onSurface.withValues(alpha: 0.04),
-                    border: Border.all(color: theme.dividerColor),
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Row(
@@ -745,7 +889,6 @@ class _ProjectPanelState extends State<_ProjectPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final colors = Theme.of(context).colorScheme;
     final folderName = widget.workspace.isEmpty
         ? 'Belum dipilih'
@@ -905,9 +1048,7 @@ class _ProjectPanelState extends State<_ProjectPanel> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: theme.dividerColor)),
-            ),
+            decoration: const BoxDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

@@ -42,6 +42,7 @@ dependencies:
   cryptography: ^2.7.0
   silky_scroll: ^2.6.2
   webview_windows: ^0.4.0
+  desktop_drop: 0.7.1
 
 dev_dependencies:
   flutter_test:

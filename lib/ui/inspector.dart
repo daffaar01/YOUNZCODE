@@ -271,8 +271,223 @@ class _ClassicEnvironmentPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
+    final files = changes?.files ?? const <WorkspaceFileChange>[];
+    final running = activities.where((item) => item.running).toList();
+    final processCount = running.length + (terminalBusy ? 1 : 0);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 12, 12, 0),
+      child: Material(
+        key: const ValueKey('classic-environment-panel'),
+        color: Color.alphaBlend(
+          colors.onSurface.withValues(alpha: 0.035),
+          colors.surface,
+        ),
+        elevation: 14,
+        shadowColor: Colors.black.withValues(alpha: 0.32),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: const ValueKey('environment-summary-card'),
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (_) => _EnvironmentDetailsDialog(
+              gitStatus: gitStatus,
+              changes: changes,
+              activities: activities,
+              terminalBusy: terminalBusy,
+              sources: sources,
+              onAddSource: onAddSource,
+              onChanges: onChanges,
+              onGit: onGit,
+            ),
+          ),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'ENVIRONMENT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('environment-add-source'),
+                      tooltip: 'Tambah source',
+                      onPressed: onAddSource,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.add, size: 18),
+                    ),
+                    const Icon(Icons.open_in_new, size: 15),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _EnvironmentMetric(
+                        icon: Icons.difference_outlined,
+                        label: 'Changes',
+                        value: files.isEmpty ? '0' : '${files.length}',
+                        onTap: files.isEmpty ? onGit : onChanges,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _EnvironmentMetric(
+                        icon: Icons.terminal_outlined,
+                        label: 'Processes',
+                        value: '$processCount',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _EnvironmentMetric(
+                        icon: Icons.attach_file,
+                        label: 'Sources',
+                        value: '${sources.length}',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      gitStatus.dirty
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline,
+                      size: 16,
+                      color: gitStatus.dirty ? colors.tertiary : colors.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        gitStatus.branch.isEmpty
+                            ? 'No branch selected'
+                            : gitStatus.branch,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      gitStatus.dirty ? 'Modified' : 'Clean',
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                        color: gitStatus.dirty
+                            ? colors.tertiary
+                            : colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Klik untuk membuka detail workspace',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: colors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EnvironmentMetric extends StatelessWidget {
+  const _EnvironmentMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.onSurface.withValues(alpha: 0.045),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 15, color: colors.primary),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontFamily: 'Consolas',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 9, color: colors.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EnvironmentDetailsDialog extends StatelessWidget {
+  const _EnvironmentDetailsDialog({
+    required this.gitStatus,
+    required this.changes,
+    required this.activities,
+    required this.terminalBusy,
+    required this.sources,
+    required this.onAddSource,
+    required this.onChanges,
+    required this.onGit,
+  });
+
+  final GitStatus gitStatus;
+  final WorkspaceTurnChanges? changes;
+  final List<_AgentActivity> activities;
+  final bool terminalBusy;
+  final List<String> sources;
+  final VoidCallback onAddSource;
+  final VoidCallback onChanges;
+  final VoidCallback onGit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final files = changes?.files ?? const <WorkspaceFileChange>[];
     var additions = 0;
     var deletions = 0;
@@ -284,113 +499,127 @@ class _ClassicEnvironmentPanel extends StatelessWidget {
     }
     final running = activities.where((item) => item.running).toList();
     final processCount = running.length + (terminalBusy ? 1 : 0);
-    return Material(
-      key: const ValueKey('classic-environment-panel'),
-      color: colors.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: 48,
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(left: 16),
-                    child: Text(
-                      'ENVIRONMENT',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
+    return Dialog(
+      key: const ValueKey('environment-details-dialog'),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 660),
+        child: Material(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'ENVIRONMENT',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ),
-                  ),
+                    IconButton(
+                      key: const ValueKey('environment-dialog-add-source'),
+                      tooltip: 'Tambah source',
+                      onPressed: onAddSource,
+                      icon: const Icon(Icons.add),
+                    ),
+                    IconButton(
+                      tooltip: 'Tutup',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  key: const ValueKey('environment-add-source'),
-                  tooltip: 'Tambah source',
-                  onPressed: onAddSource,
-                  icon: const Icon(Icons.add, size: 20),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  children: [
+                    _EnvironmentRow(
+                      key: const ValueKey('environment-changes'),
+                      icon: Icons.difference_outlined,
+                      label: 'Changes',
+                      trailing: files.isEmpty
+                          ? '0'
+                          : '${files.length}  +$additions  -$deletions',
+                      onTap: files.isEmpty ? onGit : onChanges,
+                    ),
+                    _EnvironmentRow(
+                      icon: Icons.computer_outlined,
+                      label: 'Local',
+                      trailing: gitStatus.dirty ? 'Modified' : 'Clean',
+                    ),
+                    _EnvironmentRow(
+                      key: const ValueKey('environment-branch'),
+                      icon: Icons.account_tree_outlined,
+                      label: gitStatus.branch.isEmpty
+                          ? 'No branch'
+                          : gitStatus.branch,
+                      trailing: gitStatus.mainBranch ? 'main' : null,
+                      onTap: onGit,
+                    ),
+                    _EnvironmentRow(
+                      key: const ValueKey('environment-commit-push'),
+                      icon: Icons.commit_outlined,
+                      label: 'Commit or push',
+                      muted: !gitStatus.isRepository,
+                      onTap: onGit,
+                    ),
+                    _EnvironmentRow(
+                      key: const ValueKey('environment-compare-branch'),
+                      icon: Icons.compare_arrows_outlined,
+                      label: 'Compare branch',
+                      onTap: onGit,
+                    ),
+                    const SizedBox(height: 12),
+                    _EnvironmentSectionHeader(
+                      label: 'BACKGROUND PROCESSES',
+                      count: processCount,
+                    ),
+                    if (processCount == 0)
+                      const _EnvironmentEmpty('Tidak ada proses aktif')
+                    else ...[
+                      for (final activity in running.take(4))
+                        _EnvironmentRow(
+                          icon: Icons.terminal_outlined,
+                          label: activity.label,
+                          trailing: 'Running',
+                        ),
+                      if (terminalBusy)
+                        const _EnvironmentRow(
+                          icon: Icons.terminal,
+                          label: 'Terminal command',
+                          trailing: 'Running',
+                        ),
+                    ],
+                    const SizedBox(height: 12),
+                    _EnvironmentSectionHeader(
+                      label: 'SOURCES',
+                      count: sources.length,
+                    ),
+                    if (sources.isEmpty)
+                      const _EnvironmentEmpty('Belum ada source terlampir')
+                    else
+                      for (final source in sources)
+                        _EnvironmentRow(
+                          icon: Icons.insert_drive_file_outlined,
+                          label: source.replaceAll('\\', '/').split('/').last,
+                          trailing: 'Attached',
+                        ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: theme.dividerColor),
-          _EnvironmentRow(
-            key: const ValueKey('environment-changes'),
-            icon: Icons.difference_outlined,
-            label: 'Changes',
-            trailing: files.isEmpty
-                ? '0'
-                : '${files.length}  +$additions  -$deletions',
-            onTap: files.isEmpty ? onGit : onChanges,
-          ),
-          _EnvironmentRow(
-            icon: Icons.computer_outlined,
-            label: 'Local',
-            trailing: gitStatus.dirty ? 'Modified' : 'Clean',
-          ),
-          _EnvironmentRow(
-            key: const ValueKey('environment-branch'),
-            icon: Icons.account_tree_outlined,
-            label: gitStatus.branch.isEmpty ? 'No branch' : gitStatus.branch,
-            trailing: gitStatus.mainBranch ? 'main' : null,
-            onTap: onGit,
-          ),
-          _EnvironmentRow(
-            key: const ValueKey('environment-commit-push'),
-            icon: Icons.commit_outlined,
-            label: 'Commit or push',
-            muted: !gitStatus.isRepository,
-            onTap: onGit,
-          ),
-          _EnvironmentRow(
-            key: const ValueKey('environment-compare-branch'),
-            icon: Icons.compare_arrows_outlined,
-            label: 'Compare branch',
-            onTap: onGit,
-          ),
-          Divider(height: 24, color: theme.dividerColor),
-          _EnvironmentSectionHeader(
-            label: 'BACKGROUND PROCESSES',
-            count: processCount,
-          ),
-          if (processCount == 0)
-            const _EnvironmentEmpty('Tidak ada proses aktif')
-          else ...[
-            for (final activity in running.take(4))
-              _EnvironmentRow(
-                icon: Icons.terminal_outlined,
-                label: activity.label,
-                trailing: 'Running',
               ),
-            if (terminalBusy)
-              const _EnvironmentRow(
-                icon: Icons.terminal,
-                label: 'Terminal command',
-                trailing: 'Running',
-              ),
-          ],
-          Divider(height: 24, color: theme.dividerColor),
-          _EnvironmentSectionHeader(label: 'SOURCES', count: sources.length),
-          Expanded(
-            child: sources.isEmpty
-                ? const _EnvironmentEmpty('Belum ada source terlampir')
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    itemCount: sources.length,
-                    itemBuilder: (context, index) {
-                      final source = sources[index];
-                      return _EnvironmentRow(
-                        icon: Icons.insert_drive_file_outlined,
-                        label: source.replaceAll('\\', '/').split('/').last,
-                        trailing: 'Attached',
-                      );
-                    },
-                  ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -855,8 +1084,14 @@ class _LoadBar extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onSuggestion});
+  const _EmptyState({
+    required this.workspaceSelected,
+    required this.onChooseWorkspace,
+    required this.onSuggestion,
+  });
 
+  final bool workspaceSelected;
+  final VoidCallback onChooseWorkspace;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -916,11 +1151,77 @@ class _EmptyState extends StatelessWidget {
                       fontSize: compact ? 13 : 15,
                     ),
                   ),
-                  SizedBox(height: compact ? 22 : 30),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          workspaceSelected
+                              ? Icons.check_circle_outline
+                              : Icons.folder_open_outlined,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          workspaceSelected
+                              ? 'WORKSPACE READY'
+                              : 'NO WORKSPACE SELECTED',
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: .6,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!workspaceSelected) ...[
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      key: const ValueKey('empty-choose-workspace'),
+                      onPressed: onChooseWorkspace,
+                      icon: const Icon(Icons.folder_open_outlined, size: 17),
+                      label: const Text('CHOOSE WORKSPACE'),
+                    ),
+                  ],
+                  SizedBox(height: compact ? 22 : 28),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'QUICK START',
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   GridView.count(
                     shrinkWrap: true,
                     crossAxisCount: compact ? 1 : 2,
-                    mainAxisExtent: 82,
+                    mainAxisExtent: compact ? 88 : 96,
                     mainAxisSpacing: 14,
                     crossAxisSpacing: 14,
                     physics: const NeverScrollableScrollPhysics(),
@@ -1042,6 +1343,24 @@ class _MessageCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: user
+                          ? theme.colorScheme.primary.withValues(alpha: 0.14)
+                          : theme.colorScheme.primary.withValues(alpha: 0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      user ? Icons.person_outline : Icons.auto_awesome,
+                      size: 13,
+                      color: user
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     user
                         ? 'YOU'
@@ -1077,13 +1396,12 @@ class _MessageCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              SelectableText(
-                displayedContent,
-                style: TextStyle(
-                  height: user ? 1.55 : 1.65,
-                  fontSize: user ? 13.5 : 14,
-                ),
-              ),
+              user
+                  ? SelectableText(
+                      displayedContent,
+                      style: const TextStyle(height: 1.55, fontSize: 13.5),
+                    )
+                  : _AgentResponseContent(content: displayedContent),
               if (!user && !progress) ...[
                 const SizedBox(height: 10),
                 Align(
@@ -1099,6 +1417,139 @@ class _MessageCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AgentResponseContent extends StatelessWidget {
+  const _AgentResponseContent({required this.content});
+
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <Widget>[];
+    final fence = RegExp(r'```([^\n]*)\n([\s\S]*?)```');
+    var cursor = 0;
+    for (final match in fence.allMatches(content)) {
+      if (match.start > cursor) {
+        parts.add(
+          SelectableText(
+            content.substring(cursor, match.start),
+            style: const TextStyle(height: 1.65, fontSize: 14),
+          ),
+        );
+      }
+      parts.add(
+        _ResponseCodeBlock(
+          language: match.group(1)?.trim() ?? '',
+          code: match.group(2) ?? '',
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < content.length || parts.isEmpty) {
+      parts.add(
+        SelectableText(
+          content.substring(cursor),
+          style: const TextStyle(height: 1.65, fontSize: 14),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < parts.length; index++) ...[
+          if (index > 0) const SizedBox(height: 10),
+          parts[index],
+        ],
+      ],
+    );
+  }
+}
+
+class _ResponseCodeBlock extends StatelessWidget {
+  const _ResponseCodeBlock({required this.language, required this.code});
+
+  final String language;
+  final String code;
+
+  Future<void> _copy(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Kode disalin.'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('response-code-block'),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colors.onSurface.withValues(alpha: 0.055),
+        border: Border.all(color: colors.onSurface.withValues(alpha: 0.12)),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            color: colors.onSurface.withValues(alpha: 0.06),
+            child: Row(
+              children: [
+                Icon(Icons.code, size: 14, color: colors.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    language.isEmpty ? 'CODE' : language.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: 'Consolas',
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: .8,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('copy-response-code'),
+                  tooltip: 'Salin kode',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 24,
+                    height: 24,
+                  ),
+                  onPressed: () => _copy(context),
+                  icon: const Icon(Icons.copy_outlined, size: 14),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: SelectableText(
+              code.trimRight(),
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 12,
+                height: 1.55,
+                color: colors.onSurface,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1243,8 +1694,8 @@ class _ModelBar extends StatelessWidget {
           children: [
             Expanded(
               child: Container(
-                height: 34,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
                   color: colors.onSurface.withValues(alpha: 0.06),
                   border: Border.all(color: Theme.of(context).dividerColor),
@@ -1292,11 +1743,15 @@ class _ModelBar extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             if (compact)
-              IconButton(
-                key: const ValueKey('manage-models-compact'),
-                tooltip: 'Manage models',
-                onPressed: busy ? null : onManage,
-                icon: const Icon(Icons.description_outlined, size: 18),
+              SizedBox.square(
+                dimension: 32,
+                child: IconButton(
+                  key: const ValueKey('manage-models-compact'),
+                  tooltip: 'Manage models',
+                  padding: EdgeInsets.zero,
+                  onPressed: busy ? null : onManage,
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                ),
               )
             else
               TextButton.icon(
@@ -1305,9 +1760,6 @@ class _ModelBar extends StatelessWidget {
                 label: const Text('MANAGE MODELS'),
                 style: TextButton.styleFrom(
                   foregroundColor: colors.primary,
-                  side: BorderSide(
-                    color: colors.primary.withValues(alpha: 0.45),
-                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -1322,6 +1774,7 @@ class _ModelBar extends StatelessWidget {
               key: const ValueKey('agent-mode-selector'),
               value: planMode,
               onChanged: busy ? null : onPlanModeChanged,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             const SizedBox(width: 6),
             Text(
@@ -1335,14 +1788,9 @@ class _ModelBar extends StatelessWidget {
           ],
         );
         return Container(
-          height: compact ? 112 : 56,
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(
-              top: BorderSide(color: Theme.of(context).dividerColor),
-            ),
-          ),
+          height: compact ? 96 : 44,
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 2),
+          decoration: BoxDecoration(color: colors.surface),
           child: compact
               ? Column(
                   children: [
@@ -1377,6 +1825,7 @@ class _Composer extends StatefulWidget {
     required this.onAttachContext,
     required this.onRemoveContext,
     required this.onClearContext,
+    required this.onDropFiles,
     required this.slashCommands,
     required this.onSlashCommand,
   });
@@ -1392,6 +1841,7 @@ class _Composer extends StatefulWidget {
   final VoidCallback onAttachContext;
   final ValueChanged<String> onRemoveContext;
   final VoidCallback onClearContext;
+  final ValueChanged<List<String>> onDropFiles;
   final List<_SlashCommand> slashCommands;
   final Future<void> Function(String command) onSlashCommand;
 
@@ -1401,12 +1851,15 @@ class _Composer extends StatefulWidget {
 
 class _ComposerState extends State<_Composer> {
   bool _hasText = false;
+  bool _focused = false;
+  bool _dragging = false;
   List<_SlashCommand> _matchingCommands = const [];
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_syncText);
+    widget.focusNode.addListener(_syncFocus);
   }
 
   @override
@@ -1416,6 +1869,17 @@ class _ComposerState extends State<_Composer> {
       oldWidget.controller.removeListener(_syncText);
       widget.controller.addListener(_syncText);
       _syncText();
+    }
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode.removeListener(_syncFocus);
+      widget.focusNode.addListener(_syncFocus);
+      _syncFocus();
+    }
+  }
+
+  void _syncFocus() {
+    if (mounted && _focused != widget.focusNode.hasFocus) {
+      setState(() => _focused = widget.focusNode.hasFocus);
     }
   }
 
@@ -1443,6 +1907,7 @@ class _ComposerState extends State<_Composer> {
   @override
   void dispose() {
     widget.controller.removeListener(_syncText);
+    widget.focusNode.removeListener(_syncFocus);
     super.dispose();
   }
 
@@ -1450,196 +1915,267 @@ class _ComposerState extends State<_Composer> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-      color: colors.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_matchingCommands.isNotEmpty)
-            Container(
-              key: const ValueKey('slash-command-menu'),
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height >= 700 ? 440 : 280,
+    final statusButtonStyle = TextButton.styleFrom(
+      minimumSize: const Size(0, 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
+    return DropTarget(
+      onDragEntered: (_) => setState(() => _dragging = true),
+      onDragExited: (_) => setState(() => _dragging = false),
+      onDragDone: (detail) {
+        setState(() => _dragging = false);
+        widget.onDropFiles(detail.files.map((file) => file.path).toList());
+      },
+      child: AnimatedContainer(
+        duration: _fastMotion,
+        curve: _motionCurve,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          boxShadow: _focused || _dragging
+              ? [
+                  BoxShadow(
+                    color: colors.primary.withValues(
+                      alpha: _dragging ? 0.18 : 0.10,
+                    ),
+                    blurRadius: _dragging ? 20 : 14,
+                    spreadRadius: _dragging ? 1 : 0,
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_dragging)
+              Container(
+                key: const ValueKey('composer-drop-banner'),
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.10),
+                  border: Border.all(
+                    color: colors.primary.withValues(alpha: 0.5),
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.file_download_outlined,
+                      size: 16,
+                      color: colors.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'DROP FILES TO ADD CONTEXT',
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: colors.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              margin: const EdgeInsets.only(bottom: 6),
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                border: Border.all(color: theme.dividerColor),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Material(
-                type: MaterialType.transparency,
-                child: SilkySingleChildScrollView(
-                  silkyConfig: _silkyScrollConfig,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final columns = constraints.maxWidth >= 480 ? 2 : 1;
-                      final itemWidth = constraints.maxWidth / columns;
-                      return Wrap(
-                        children: [
-                          for (final command in _matchingCommands)
-                            SizedBox(
-                              width: itemWidth,
-                              child: ListTile(
-                                key: ValueKey(
-                                  'slash-command-${command.command.substring(1)}',
-                                ),
-                                dense: true,
-                                minTileHeight: 52,
-                                visualDensity: VisualDensity.compact,
-                                leading: Icon(
-                                  command.icon,
-                                  size: 17,
-                                  color: colors.primary,
-                                ),
-                                title: Text(
-                                  command.command,
-                                  style: const TextStyle(
-                                    fontFamily: 'Consolas',
-                                    fontWeight: FontWeight.w700,
+            if (_matchingCommands.isNotEmpty)
+              Container(
+                key: const ValueKey('slash-command-menu'),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height >= 700
+                      ? 440
+                      : 280,
+                ),
+                margin: const EdgeInsets.only(bottom: 6),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border.all(color: theme.dividerColor),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: SilkySingleChildScrollView(
+                    silkyConfig: _silkyScrollConfig,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = constraints.maxWidth >= 480 ? 2 : 1;
+                        final itemWidth = constraints.maxWidth / columns;
+                        return Wrap(
+                          children: [
+                            for (final command in _matchingCommands)
+                              SizedBox(
+                                width: itemWidth,
+                                child: ListTile(
+                                  key: ValueKey(
+                                    'slash-command-${command.command.substring(1)}',
                                   ),
+                                  dense: true,
+                                  minTileHeight: 52,
+                                  visualDensity: VisualDensity.compact,
+                                  leading: Icon(
+                                    command.icon,
+                                    size: 17,
+                                    color: colors.primary,
+                                  ),
+                                  title: Text(
+                                    command.command,
+                                    style: const TextStyle(
+                                      fontFamily: 'Consolas',
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    command.description,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  onTap: widget.busy
+                                      ? null
+                                      : () => _selectCommand(command),
                                 ),
-                                subtitle: Text(
-                                  command.description,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                onTap: widget.busy
-                                    ? null
-                                    : () => _selectCommand(command),
                               ),
-                            ),
-                        ],
-                      );
-                    },
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
-            ),
-          if (widget.contextFiles.isNotEmpty) ...[
-            Row(
+            if (widget.contextFiles.isNotEmpty) ...[
+              Row(
+                children: [
+                  Text(
+                    '${widget.contextFiles.length} files · ~${_estimatedTokens()} tokens',
+                    style: TextStyle(
+                      fontFamily: 'Consolas',
+                      fontSize: 10,
+                      color: colors.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    key: const ValueKey('clear-context'),
+                    onPressed: widget.busy ? null : widget.onClearContext,
+                    child: const Text('CLEAR CONTEXT'),
+                  ),
+                ],
+              ),
+              SizedBox(
+                height: 34,
+                child: SilkyListView.separated(
+                  silkyConfig: _silkyHorizontalScrollConfig,
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.contextFiles.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 6),
+                  itemBuilder: (context, index) {
+                    final file = widget.contextFiles[index];
+                    return InputChip(
+                      label: Text(
+                        file.replaceAll('\\', '/').split('/').last,
+                        style: const TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 10,
+                        ),
+                      ),
+                      onDeleted: widget.busy
+                          ? null
+                          : () => widget.onRemoveContext(file),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+            Stack(
+              alignment: Alignment.bottomRight,
               children: [
-                Text(
-                  '${widget.contextFiles.length} files · ~${_estimatedTokens()} tokens',
-                  style: TextStyle(
-                    fontFamily: 'Consolas',
-                    fontSize: 10,
-                    color: colors.primary,
+                CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.enter): () {
+                      if (!widget.busy && _hasText) widget.onSend();
+                    },
+                  },
+                  child: TextField(
+                    key: const ValueKey('prompt-field'),
+                    controller: widget.controller,
+                    focusNode: widget.focusNode,
+                    minLines: 1,
+                    maxLines: 4,
+                    enabled: !widget.busy,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    style: const TextStyle(fontSize: 14, height: 1.35),
+                    decoration: const InputDecoration(
+                      hintText: 'Describe a task or type / for commands...',
+                      contentPadding: EdgeInsets.fromLTRB(12, 6, 48, 8),
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                    ),
                   ),
                 ),
-                const Spacer(),
-                TextButton(
-                  key: const ValueKey('clear-context'),
-                  onPressed: widget.busy ? null : widget.onClearContext,
-                  child: const Text('CLEAR CONTEXT'),
+                Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: SizedBox(
+                    width: 30,
+                    height: 30,
+                    child: FilledButton(
+                      key: ValueKey(widget.busy ? 'stop-agent' : 'send-agent'),
+                      onPressed: widget.busy
+                          ? widget.onStop
+                          : !_hasText
+                          ? null
+                          : widget.onSend,
+                      style: FilledButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        backgroundColor: widget.busy
+                            ? colors.error
+                            : colors.primary,
+                      ),
+                      child: Icon(
+                        widget.busy ? Icons.stop_rounded : Icons.send_rounded,
+                        color: colors.onPrimary,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            SizedBox(
-              height: 34,
-              child: SilkyListView.separated(
-                silkyConfig: _silkyHorizontalScrollConfig,
-                scrollDirection: Axis.horizontal,
-                itemCount: widget.contextFiles.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 6),
-                itemBuilder: (context, index) {
-                  final file = widget.contextFiles[index];
-                  return InputChip(
-                    label: Text(
-                      file.replaceAll('\\', '/').split('/').last,
-                      style: const TextStyle(
-                        fontFamily: 'Consolas',
-                        fontSize: 10,
-                      ),
+            const SizedBox(height: 1),
+            Row(
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('attach-context'),
+                  onPressed: widget.busy ? null : widget.onAttachContext,
+                  icon: const Icon(Icons.attach_file, size: 14),
+                  label: Text('${widget.contextFiles.length} FILES'),
+                  style: statusButtonStyle,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.planMode
+                        ? 'READ-ONLY · Enter to send · Shift+Enter for new line'
+                        : 'Enter to send · Shift+Enter for new line',
+                    style: TextStyle(
+                      fontFamily: 'Consolas',
+                      fontSize: 9,
+                      color: colors.onSurfaceVariant,
                     ),
-                    onDeleted: widget.busy
-                        ? null
-                        : () => widget.onRemoveContext(file),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
           ],
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              CallbackShortcuts(
-                bindings: {
-                  const SingleActivator(LogicalKeyboardKey.enter): () {
-                    if (!widget.busy && _hasText) widget.onSend();
-                  },
-                },
-                child: TextField(
-                  key: const ValueKey('prompt-field'),
-                  controller: widget.controller,
-                  focusNode: widget.focusNode,
-                  minLines: 4,
-                  maxLines: 7,
-                  enabled: !widget.busy,
-                  keyboardType: TextInputType.multiline,
-                  textInputAction: TextInputAction.newline,
-                  style: const TextStyle(fontSize: 14, height: 1.45),
-                  decoration: const InputDecoration(
-                    hintText: 'Describe a task or type / for commands...',
-                    contentPadding: EdgeInsets.fromLTRB(16, 16, 64, 24),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: FilledButton(
-                    key: ValueKey(widget.busy ? 'stop-agent' : 'send-agent'),
-                    onPressed: widget.busy
-                        ? widget.onStop
-                        : !_hasText
-                        ? null
-                        : widget.onSend,
-                    style: FilledButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      backgroundColor: widget.busy
-                          ? colors.error
-                          : colors.primary,
-                    ),
-                    child: Icon(
-                      widget.busy ? Icons.stop_rounded : Icons.send_rounded,
-                      color: colors.onPrimary,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Row(
-            children: [
-              TextButton.icon(
-                key: const ValueKey('attach-context'),
-                onPressed: widget.busy ? null : widget.onAttachContext,
-                icon: const Icon(Icons.attach_file, size: 14),
-                label: Text('${widget.contextFiles.length} FILES'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.planMode
-                      ? 'READ-ONLY · Enter to send · Shift+Enter for new line'
-                      : 'Enter to send · Shift+Enter for new line',
-                  style: TextStyle(
-                    fontFamily: 'Consolas',
-                    fontSize: 9,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1799,9 +2335,7 @@ class _StatusBar extends StatelessWidget {
     required this.connected,
     required this.configured,
     required this.busy,
-    required this.model,
     required this.status,
-    required this.tokens,
     required this.gitStatus,
     required this.onGit,
     required this.workspaceTrusted,
@@ -1811,9 +2345,7 @@ class _StatusBar extends StatelessWidget {
   final bool connected;
   final bool configured;
   final bool busy;
-  final String model;
   final String status;
-  final int tokens;
   final GitStatus gitStatus;
   final VoidCallback onGit;
   final bool workspaceTrusted;
@@ -1824,6 +2356,7 @@ class _StatusBar extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final light = theme.brightness == Brightness.light;
+    final compact = MediaQuery.sizeOf(context).width < 620;
     final state = busy
         ? status.toUpperCase()
         : connected
@@ -1840,31 +2373,20 @@ class _StatusBar extends StatelessWidget {
       key: const ValueKey('status-bar'),
       height: 32,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(top: BorderSide(color: theme.dividerColor)),
-      ),
+      decoration: BoxDecoration(color: colors.surface),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              'Environment: Windows  |  Model: $model  |  Build: v$_appVersion'
-              '${tokens > 0 ? '  |  Tokens: $tokens' : ''}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Consolas',
-                fontSize: 10,
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ),
+          const Spacer(),
           if (gitStatus.isRepository) ...[
             const SizedBox(width: 16),
             InkWell(
               onTap: onGit,
               child: Text(
-                '${gitStatus.branch}${gitStatus.dirty ? ' *' : ''}',
+                compact
+                    ? '${gitStatus.branch.split('/').last}${gitStatus.dirty ? ' *' : ''}'
+                    : '${gitStatus.branch}${gitStatus.dirty ? ' *' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Consolas',
                   fontSize: 10,
@@ -1884,17 +2406,28 @@ class _StatusBar extends StatelessWidget {
               onTap: onTrustWorkspace,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(
-                  'RESTRICTED MODE · TRUST WORKSPACE',
-                  style: TextStyle(
-                    fontFamily: 'Consolas',
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: light
-                        ? const Color(0xFFB7862A)
-                        : const Color(0xFFD7A544),
-                  ),
-                ),
+                child: compact
+                    ? Tooltip(
+                        message: 'Trust workspace',
+                        child: Icon(
+                          Icons.lock_outline,
+                          size: 15,
+                          color: light
+                              ? const Color(0xFFB7862A)
+                              : const Color(0xFFD7A544),
+                        ),
+                      )
+                    : Text(
+                        'RESTRICTED MODE · TRUST WORKSPACE',
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: light
+                              ? const Color(0xFFB7862A)
+                              : const Color(0xFFD7A544),
+                        ),
+                      ),
               ),
             ),
           ],
@@ -1906,7 +2439,11 @@ class _StatusBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            connected ? 'SYNCED' : state,
+            compact
+                ? (connected ? 'SYNCED' : state.split(' · ').first)
+                : (connected ? 'SYNCED' : state),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(fontFamily: 'Consolas', fontSize: 9, color: color),
           ),
         ],

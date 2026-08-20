@@ -6,9 +6,19 @@ extension _CommandWorkflow on _AgentHomePageState {
     final prompt = rawInput.trim();
     if (_busy || prompt.isEmpty) return;
     if (prompt.startsWith('/')) {
+      _preparedCheckpointPrompt = null;
       _promptController.clear();
       await _runSlashCommand(rawInput.trimLeft());
       return;
+    }
+    final preparedCheckpointPrompt = _preparedCheckpointPrompt;
+    if (preparedCheckpointPrompt != null) {
+      _preparedCheckpointPrompt = null;
+      if (prompt == preparedCheckpointPrompt) {
+        _promptController.clear();
+        await _continueFromCheckpoint();
+        return;
+      }
     }
     if (_workspace.isEmpty || !Directory(_workspace).existsSync()) {
       _showMessage('Pilih folder workspace yang valid terlebih dahulu.');
@@ -110,6 +120,10 @@ extension _CommandWorkflow on _AgentHomePageState {
         _showMcpSummary(argument);
       case '/review':
         await _openReview();
+      case '/retry':
+        _prepareRetryLastPrompt();
+      case '/continue':
+        _prepareCheckpointContinuation();
 
       case '/fork':
         await _forkChat();
@@ -938,6 +952,10 @@ extension _CommandWorkflow on _AgentHomePageState {
         await _openSettings();
       case 'plan':
         _setPlanMode(!_planMode);
+      case 'retry':
+        _prepareRetryLastPrompt();
+      case 'continue':
+        _prepareCheckpointContinuation();
     }
   }
 

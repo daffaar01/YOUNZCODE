@@ -38,7 +38,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Buat shortcut di Desktop"; GroupDescription: "Shortcut tambahan:"; Flags: unchecked
 
 [Files]
-Source: "..\release\*"; DestDir: "{app}"; Excludes: "skills\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\release\*"; DestDir: "{app}"; Excludes: "skills\*,CMakeFiles\*,cmake_install.cmake"; Flags: ignoreversion recursesubdirs
 Source: "..\skills\*"; DestDir: "{app}\skills"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -48,6 +48,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Jalankan {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\data\data"
+Type: filesandordirs; Name: "{app}\data\flutter_assets\flutter_assets"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

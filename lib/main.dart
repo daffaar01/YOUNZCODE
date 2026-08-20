@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -125,6 +126,12 @@ const _slashCommands = <_SlashCommand>[
   _SlashCommand('/agents', 'Run isolated parallel agents', Icons.groups_2),
   _SlashCommand('/mcp', 'Manage MCP servers', Icons.device_hub),
   _SlashCommand('/review', 'Review pending or Git changes', Icons.rate_review),
+  _SlashCommand('/retry', 'Prepare the last prompt for review', Icons.replay),
+  _SlashCommand(
+    '/continue',
+    'Prepare checkpoint continuation for review',
+    Icons.play_arrow_outlined,
+  ),
 
   _SlashCommand('/fork', 'Fork the current chat', Icons.call_split),
   _SlashCommand('/model', 'Open model settings', Icons.psychology_outlined),
@@ -256,12 +263,10 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
     final input = light ? const Color(0xFFFFFFFF) : const Color(0xFF0D1117);
     return ThemeData(
       brightness: light ? Brightness.light : Brightness.dark,
-      scaffoldBackgroundColor: light
-          ? const Color(0xFFF3F5F9)
-          : const Color(0xFF0D1117),
+      scaffoldBackgroundColor: scheme.surface,
       colorScheme: scheme,
       fontFamily: 'Inter',
-      dividerColor: border,
+      dividerColor: Colors.transparent,
       textTheme: const TextTheme(
         bodyMedium: TextStyle(fontSize: 13.5, height: 1.5),
         bodySmall: TextStyle(fontSize: 12, height: 1.42),
@@ -400,6 +405,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   final _addons = <Addon>[];
   final _activities = <_AgentActivity>[];
   final _agentCheckpoint = <Map<String, dynamic>>[];
+  String? _preparedCheckpointPrompt;
   final _models = <String>['gpt-4.1-mini'];
   final _documents = <_OpenDocument>[];
   final _terminalController = TextEditingController();
@@ -532,6 +538,8 @@ class _AgentHomePageState extends State<AgentHomePage> {
           control: true,
           shift: true,
         ): _openCommandPalette,
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            _openCommandPalette,
         const SingleActivator(LogicalKeyboardKey.keyP, control: true):
             _openFileSearch,
         const SingleActivator(
@@ -551,7 +559,12 @@ class _AgentHomePageState extends State<AgentHomePage> {
                   _explorerPanelVisible &&
                   _workspaceLayout == _WorkspaceLayout.focus;
               final showInspector = constraints.maxWidth >= 1150;
-              final availableWidth = constraints.maxWidth - (showRail ? 72 : 0);
+              final railWidth = showRail
+                  ? _workspaceLayout == _WorkspaceLayout.classic
+                        ? 266.0
+                        : 72.0
+                  : 0.0;
+              final availableWidth = constraints.maxWidth - railWidth;
               final inspectorWidth = _inspectorWidth
                   .clamp(220.0, math.max(220.0, availableWidth - 580))
                   .toDouble();
@@ -612,7 +625,12 @@ class _AgentHomePageState extends State<AgentHomePage> {
                       onChooseWorkspace: _chooseWorkspace,
                       onLayoutChanged: (layout) =>
                           unawaited(_setWorkspaceLayout(layout)),
+                      workspaceLayout: _workspaceLayout,
                       onAbout: _showAbout,
+                      browserMode: _browserMode,
+                      imageGenerationMode: _imageGenerationMode,
+                      terminalVisible: _terminalVisible,
+                      changeCount: _pendingChanges?.files.length ?? 0,
                     ),
                   Expanded(
                     child: Column(
@@ -815,15 +833,18 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                       ),
                                       SizedBox(
                                         width: inspectorWidth,
-                                        child: _ClassicEnvironmentPanel(
-                                          gitStatus: _gitStatus,
-                                          changes: _pendingChanges,
-                                          activities: _activities,
-                                          terminalBusy: _terminalBusy,
-                                          sources: _contextFiles,
-                                          onAddSource: _attachContext,
-                                          onChanges: _reviewChanges,
-                                          onGit: _showGitDetails,
+                                        child: Align(
+                                          alignment: Alignment.topCenter,
+                                          child: _ClassicEnvironmentPanel(
+                                            gitStatus: _gitStatus,
+                                            changes: _pendingChanges,
+                                            activities: _activities,
+                                            terminalBusy: _terminalBusy,
+                                            sources: _contextFiles,
+                                            onAddSource: _attachContext,
+                                            onChanges: _reviewChanges,
+                                            onGit: _showGitDetails,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -834,9 +855,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                           connected: _providerVerified,
                           configured: _apiKey.isNotEmpty,
                           busy: _busy,
-                          model: _model,
                           status: _agentStatus,
-                          tokens: _sessionTokens,
                           gitStatus: _gitStatus,
                           onGit: _showGitDetails,
                           workspaceTrusted: _workspaceTrusted,
@@ -860,8 +879,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
     required bool showInspector,
     required double inspectorWidth,
   }) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     return Row(
       key: const ValueKey('focus-workspace-layout'),
       children: [
@@ -988,7 +1006,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
             ],
           ),
         ),
-        Container(width: 1, color: theme.dividerColor),
+        const SizedBox.shrink(),
         SizedBox(
           width: math.max(500, showInspector ? inspectorWidth + 140 : 500),
           child: Column(
@@ -997,10 +1015,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                 height: 40,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 alignment: Alignment.centerLeft,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  border: Border(bottom: BorderSide(color: theme.dividerColor)),
-                ),
+                decoration: BoxDecoration(color: colors.surface),
                 child: const Text(
                   'AGENT',
                   style: TextStyle(
@@ -1024,6 +1039,13 @@ class _AgentHomePageState extends State<AgentHomePage> {
   }
 
   Widget _buildConversation(bool compact) {
+    final colors = Theme.of(context).colorScheme;
+    final actionStyle = TextButton.styleFrom(
+      minimumSize: const Size(0, 32),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
     return Column(
       children: [
         if (compact)
@@ -1067,7 +1089,11 @@ class _AgentHomePageState extends State<AgentHomePage> {
           ),
         Expanded(
           child: _entries.isEmpty && !_busy
-              ? _EmptyState(onSuggestion: _useSuggestion)
+              ? _EmptyState(
+                  workspaceSelected: _workspace.isNotEmpty,
+                  onChooseWorkspace: _chooseWorkspace,
+                  onSuggestion: _useSuggestion,
+                )
               : SilkyScroll.fromConfig(
                   config: _silkyScrollConfig,
                   controller: _scrollController,
@@ -1101,9 +1127,12 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                   ? _ExecutionSummary(
                                       activities: _activities,
                                       turnState: _turnState,
-                                      onRetry: _agentCheckpoint.isEmpty
+                                      onRetry: _hasRetryablePrompt
+                                          ? _prepareRetryLastPrompt
+                                          : null,
+                                      onContinue: _agentCheckpoint.isEmpty
                                           ? null
-                                          : _continueFromCheckpoint,
+                                          : _prepareCheckpointContinuation,
                                       duration: _lastTurnDuration,
                                       pendingChanges: _pendingChanges,
                                       canRevert: _lastAppliedTurn != null,
@@ -1150,65 +1179,113 @@ class _AgentHomePageState extends State<AgentHomePage> {
             onClear: () => unawaited(_clearGoal()),
           ),
         if (_taskGraph != null) TaskGraphBanner(graph: _taskGraph!),
-        if (_workspaceLayout == _WorkspaceLayout.classic)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-            child: Row(
-              children: [
-                TextButton.icon(
-                  key: const ValueKey('classic-add-context'),
-                  onPressed: _busy ? null : _attachContext,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('ADD'),
+        Align(
+          alignment: Alignment.center,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: Container(
+              key: const ValueKey('composer-shell'),
+              width: double.infinity,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.4),
                 ),
-                const SizedBox(width: 6),
-                TextButton.icon(
-                  key: const ValueKey('classic-plugins'),
-                  onPressed: _busy ? null : _openAddonManager,
-                  icon: const Icon(Icons.extension_outlined, size: 16),
-                  label: const Text('PLUGINS'),
-                ),
-                const SizedBox(width: 6),
-                TextButton.icon(
-                  key: const ValueKey('classic-subagent'),
-                  onPressed: _busy
-                      ? null
-                      : () {
-                          _promptController.text = '/agents ';
-                          _promptController.selection = TextSelection.collapsed(
-                            offset: _promptController.text.length,
-                          );
-                          _promptFocusNode.requestFocus();
-                        },
-                  icon: const Icon(Icons.account_tree_outlined, size: 16),
-                  label: const Text('SUBAGENT'),
-                ),
-              ],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  if (_workspaceLayout == _WorkspaceLayout.classic)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
+                      child: Row(
+                        children: [
+                          TextButton.icon(
+                            key: const ValueKey('classic-add-context'),
+                            onPressed: _busy ? null : _attachContext,
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('ADD'),
+                            style: actionStyle,
+                          ),
+                          const SizedBox(width: 6),
+                          TextButton.icon(
+                            key: const ValueKey('classic-plugins'),
+                            onPressed: _busy ? null : _openAddonManager,
+                            icon: const Icon(
+                              Icons.extension_outlined,
+                              size: 16,
+                            ),
+                            label: const Text('PLUGINS'),
+                            style: actionStyle,
+                          ),
+                          const SizedBox(width: 6),
+                          TextButton.icon(
+                            key: const ValueKey('classic-subagent'),
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    _promptController.text = '/agents ';
+                                    _promptController.selection =
+                                        TextSelection.collapsed(
+                                          offset: _promptController.text.length,
+                                        );
+                                    _promptFocusNode.requestFocus();
+                                  },
+                            icon: const Icon(
+                              Icons.account_tree_outlined,
+                              size: 16,
+                            ),
+                            label: const Text('SUBAGENT'),
+                            style: actionStyle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  _ModelBar(
+                    models: _models,
+                    selectedModel: _model,
+                    busy: _busy,
+                    planMode: _planMode,
+                    onSelected: _selectModel,
+                    onManage: _openSettings,
+                    onPlanModeChanged: _setPlanMode,
+                  ),
+                  _Composer(
+                    controller: _promptController,
+                    focusNode: _promptFocusNode,
+                    busy: _busy,
+                    onSend: _send,
+                    onStop: () => unawaited(_cancelAgent()),
+                    planMode: _planMode,
+                    onPlanModeChanged: _setPlanMode,
+                    contextFiles: _contextFiles,
+                    onAttachContext: _attachContext,
+                    onRemoveContext: (file) =>
+                        setState(() => _contextFiles.remove(file)),
+                    onClearContext: () => setState(() => _contextFiles.clear()),
+                    onDropFiles: (files) {
+                      if (_workspace.isEmpty) {
+                        _showMessage(
+                          'Pilih workspace sebelum menambahkan context.',
+                        );
+                        return;
+                      }
+                      setState(() {
+                        for (final file in files) {
+                          if (!_contextFiles.contains(file)) {
+                            _contextFiles.add(file);
+                          }
+                        }
+                      });
+                    },
+                    slashCommands: _slashCommands,
+                    onSlashCommand: _runSlashCommand,
+                  ),
+                ],
+              ),
             ),
           ),
-        _ModelBar(
-          models: _models,
-          selectedModel: _model,
-          busy: _busy,
-          planMode: _planMode,
-          onSelected: _selectModel,
-          onManage: _openSettings,
-          onPlanModeChanged: _setPlanMode,
-        ),
-        _Composer(
-          controller: _promptController,
-          focusNode: _promptFocusNode,
-          busy: _busy,
-          onSend: _send,
-          onStop: () => unawaited(_cancelAgent()),
-          planMode: _planMode,
-          onPlanModeChanged: _setPlanMode,
-          contextFiles: _contextFiles,
-          onAttachContext: _attachContext,
-          onRemoveContext: (file) => setState(() => _contextFiles.remove(file)),
-          onClearContext: () => setState(() => _contextFiles.clear()),
-          slashCommands: _slashCommands,
-          onSlashCommand: _runSlashCommand,
         ),
       ],
     );

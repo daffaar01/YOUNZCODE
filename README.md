@@ -25,11 +25,14 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 ## ✨ Fitur
 
 ### YOUNZCODE 2.0
-- **Classic workspace** — sidebar polos dengan New Chat, Projects, Recents, Browser, Images, Terminal, History, Plugins, dan Add-ons; chat AI berada di tengah dan Environment di kanan
+- **Classic workspace** — sidebar polos tanpa pembatas garis, berisi New Chat, Projects, Recents, Browser, Images, Terminal, History, Plugins, dan Add-ons; sidebar dapat diciutkan menjadi icon rail dengan indikator pilihan, tooltip, dan badge perubahan
 - **Focus workspace** — Explorer, editor, terminal, dan Agent tampil berdampingan untuk pekerjaan coding yang lebih intensif
-- **UI responsif** — sidebar Classic dapat di-scroll pada jendela pendek; model bar, toolbar editor, indikator file sensitif, dan terminal menyesuaikan panel sempit tanpa overflow
+- **Environment card** — status workspace, Git, proses, dan source diringkas dalam card; klik card membuka popup detail agar panel utama tetap ringkas
+- **Onboarding workspace** — empty state menampilkan status workspace, quick start, dan aksi yang paling relevan saat belum ada percakapan
+- **UI responsif** — sidebar Classic dapat di-scroll pada jendela pendek; model bar, toolbar editor, indikator file sensitif, terminal, dan status bar menyesuaikan panel sempit tanpa overflow
 - **Respons agent bertahap** — sebelum menjalankan tool agent menjelaskan langkahnya, menampilkan hasil sebagai Progress, lalu melanjutkan sampai rangkuman akhir
-- **Composer terintegrasi** — tambahkan context, buka Plugins, atau siapkan Subagent langsung dari area chat
+- **Composer terintegrasi** — tambahkan context dengan tombol atau drag-and-drop file, buka Plugins, siapkan Subagent, dan gunakan command palette (`Ctrl+K`)
+- **Respons mudah ditinjau** — pesan agent memiliki avatar, fenced code block dengan label bahasa, dan tombol salin; `Retry` serta `Continue` hanya menyiapkan draf di composer sebelum dikirim
 - Dialog **About YOUNZCODE** di header sidebar menjelaskan mode workspace, provider AI, progress agent, plugin/subagent, dan panel Environment
 
 ### 🖥️ Editor & Debugging
@@ -78,7 +81,8 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 - **Image Studio** — generasi gambar berbasis AI
 
 ### 💾 Workspace & Git
-- **Git Center** — status detail, stage/unstage, discard, commit, branch, merge/abort, push, dan pengelolaan worktree
+- **Git Center** — ringkasan file staged/added/removed/conflict, stage/unstage, discard, commit, branch, merge/abort, push, dan pengelolaan worktree
+- **Diff yang mudah dibaca** — preview perubahan berwarna, statistik penambahan/penghapusan, empty state saat tidak ada diff, dan tombol salin diff
 - **Terminal persisten** untuk menjalankan perintah shell
 - **Percakapan otomatis tersimpan** per workspace — `NEW CHAT` membuat sesi baru, menu `HISTORY` membuka/melanjutkan/menghapus (maks. 50 sesi terbaru)
 - Narasi aktivitas tool tetap terlihat selama sesi aktif, tetapi tidak ikut dipersistenkan ke riwayat chat lokal untuk mengurangi penyimpanan path, cuplikan source, atau output shell yang tidak diperlukan

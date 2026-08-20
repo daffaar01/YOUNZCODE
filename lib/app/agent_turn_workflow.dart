@@ -1,9 +1,53 @@
 part of '../main.dart';
 
 extension _AgentTurnWorkflow on _AgentHomePageState {
+  bool get _hasRetryablePrompt =>
+      _entries.any((entry) => entry.role == ChatRole.user);
+
+  void _prepareCheckpointContinuation() {
+    if (_busy || _agentCheckpoint.isEmpty) return;
+    if (_promptController.text.trim().isNotEmpty) {
+      _showMessage(
+        'Composer sudah berisi teks. Kosongkan atau edit teks tersebut sebelum '
+        'menyiapkan lanjutan checkpoint.',
+      );
+      _promptFocusNode.requestFocus();
+      return;
+    }
+    const prompt =
+        'Lanjutkan tugas dari checkpoint terakhir. Tinjau hasil yang sudah '
+        'selesai, lalu kerjakan bagian yang masih belum selesai.';
+    _preparedCheckpointPrompt = prompt;
+    _useSuggestion(prompt);
+    _showMessage('Draf lanjutan siap. Periksa lalu tekan Kirim.');
+  }
+
   Future<void> _continueFromCheckpoint() async {
     if (_busy || _agentCheckpoint.isEmpty) return;
     await _runAgentOperation((agent) => agent.continueFromCheckpoint());
+  }
+
+  void _prepareRetryLastPrompt() {
+    if (_busy) return;
+    if (_promptController.text.trim().isNotEmpty) {
+      _showMessage(
+        'Composer sudah berisi teks. Kirim atau hapus teks tersebut sebelum '
+        'menyiapkan retry.',
+      );
+      _promptFocusNode.requestFocus();
+      return;
+    }
+    final lastPrompt = _entries.reversed
+        .where((entry) => entry.role == ChatRole.user)
+        .map((entry) => entry.content.trim())
+        .firstWhere((content) => content.isNotEmpty, orElse: () => '');
+    if (lastPrompt.isEmpty) {
+      _showMessage('Belum ada prompt pengguna yang bisa diulang.');
+      return;
+    }
+    _preparedCheckpointPrompt = null;
+    _useSuggestion(lastPrompt);
+    _showMessage('Draf retry siap. Periksa lalu tekan Kirim.');
   }
 
   Future<void> _runAgentOperation(

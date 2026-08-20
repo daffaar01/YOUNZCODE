@@ -124,7 +124,7 @@ void main() {
       find.byKey(const ValueKey('classic-codex-workspace-layout')),
       findsOneWidget,
     );
-    expect(find.textContaining('Build: v2.0.0'), findsOneWidget);
+    expect(find.textContaining('Environment: Windows'), findsNothing);
     expect(find.text('AGENT SESSION'), findsNothing);
     expect(find.text('YOUNZCODE DESKTOP'), findsNothing);
     expect(find.byKey(const ValueKey('model-selector')), findsOneWidget);
@@ -313,9 +313,17 @@ void main() {
       find.byKey(const ValueKey('prompt-field')),
     );
     final sendRect = tester.getRect(find.byKey(const ValueKey('send-agent')));
+    final shell = tester.widget<Container>(
+      find.byKey(const ValueKey('composer-shell')),
+    );
+    final shellDecoration = shell.decoration! as BoxDecoration;
 
+    expect(promptRect.width, lessThanOrEqualTo(860.5));
     expect(promptRect.contains(sendRect.center), isTrue);
-    expect(sendRect.height, closeTo(44, 0.5));
+    expect(sendRect.height, closeTo(30, 0.5));
+    expect(shellDecoration.border, isNotNull);
+    expect((shellDecoration.border! as Border).top.width, 1);
+    expect(shellDecoration.borderRadius, BorderRadius.circular(12));
     expect(
       find.text('Enter to send · Shift+Enter for new line'),
       findsOneWidget,
@@ -1042,6 +1050,89 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('classic sidebar dapat diciutkan menjadi icon rail', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1500, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    final sidebar = find.byKey(const ValueKey('classic-sidebar'));
+    expect(tester.getSize(sidebar).width, closeTo(266, 0.5));
+    await tester.tap(find.byKey(const ValueKey('classic-sidebar-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(sidebar).width, closeTo(72, 0.5));
+    expect(find.text('PROJECT'), findsNothing);
+    expect(find.byTooltip('Browser'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('classic-sidebar-toggle')));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(sidebar).width, closeTo(266, 0.5));
+    expect(find.byKey(const ValueKey('workspace-layout-picker')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('command palette dapat dicari melalui Ctrl+K', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.byKey(const ValueKey('prompt-field')));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(find.text('COMMAND PALETTE'), findsOneWidget);
+    final search = find.byKey(const ValueKey('command-palette-search'));
+    expect(search, findsOneWidget);
+    await tester.enterText(search, 'retry');
+    await tester.pump();
+    expect(find.text('Prepare Retry Prompt'), findsOneWidget);
+    expect(find.text('Open File'), findsNothing);
+    await tester.tap(find.text('Prepare Retry Prompt'));
+    await tester.pumpAndSettle();
+    expect(find.text('Belum ada prompt pengguna yang bisa diulang.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('slash menu menampilkan aksi retry dan continue yang aman', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    final field = find.byKey(const ValueKey('prompt-field'));
+    await tester.enterText(field, '/');
+    await tester.pump();
+    expect(find.text('/retry'), findsOneWidget);
+    expect(find.text('/continue'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('slash-command-retry')));
+    await tester.pump();
+    expect(find.text('Belum ada prompt pengguna yang bisa diulang.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('send-agent')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('status bar tetap aman pada viewport sempit', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(580, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    expect(find.byKey(const ValueKey('classic-sidebar')), findsNothing);
+    expect(find.byKey(const ValueKey('status-bar')), findsOneWidget);
+    expect(tester.getSize(find.byKey(const ValueKey('status-bar'))).width, 580);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('environment menampilkan git, processes, dan sources', (
     tester,
   ) async {
@@ -1053,15 +1144,34 @@ void main() {
 
     expect(find.text('ENVIRONMENT'), findsOneWidget);
     expect(find.text('Changes'), findsOneWidget);
+    expect(find.text('Processes'), findsOneWidget);
+    expect(find.text('Sources'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('environment-add-source')),
+      findsOneWidget,
+    );
+    final environmentCard = tester.widget<Material>(
+      find.byKey(const ValueKey('classic-environment-panel')),
+    );
+    expect(environmentCard.elevation, greaterThan(0));
+    expect(environmentCard.borderRadius, BorderRadius.circular(16));
+    expect(
+      Theme.of(
+        tester.element(find.byKey(const ValueKey('classic-environment-panel'))),
+      ).dividerColor,
+      Colors.transparent,
+    );
+    await tester.tap(find.byKey(const ValueKey('environment-summary-card')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('environment-details-dialog')),
+      findsOneWidget,
+    );
     expect(find.text('Local'), findsOneWidget);
     expect(find.text('Commit or push'), findsOneWidget);
     expect(find.text('Compare branch'), findsOneWidget);
     expect(find.text('BACKGROUND PROCESSES'), findsOneWidget);
     expect(find.text('SOURCES'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('environment-add-source')),
-      findsOneWidget,
-    );
     expect(tester.takeException(), isNull);
   });
 

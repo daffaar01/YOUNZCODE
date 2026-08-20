@@ -250,6 +250,7 @@ class _ExecutionSummary extends StatelessWidget {
     required this.activities,
     required this.turnState,
     this.onRetry,
+    this.onContinue,
     required this.duration,
     required this.pendingChanges,
     required this.canRevert,
@@ -261,6 +262,7 @@ class _ExecutionSummary extends StatelessWidget {
   final List<_AgentActivity> activities;
   final _AgentTurnState turnState;
   final VoidCallback? onRetry;
+  final VoidCallback? onContinue;
   final Duration duration;
   final WorkspaceTurnChanges? pendingChanges;
   final bool canRevert;
@@ -448,13 +450,27 @@ class _ExecutionSummary extends StatelessWidget {
               ],
             ),
           ],
-          if (canRetry) ...[
+          if (canRetry && (onRetry != null || onContinue != null)) ...[
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              key: const ValueKey('continue-from-checkpoint'),
-              onPressed: onRetry,
-              icon: const Icon(Icons.replay, size: 16),
-              label: const Text('CONTINUE FROM CHECKPOINT'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (onRetry != null)
+                  OutlinedButton.icon(
+                    key: const ValueKey('retry-last-prompt'),
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.replay, size: 16),
+                    label: const Text('EDIT LAST PROMPT'),
+                  ),
+                if (onContinue != null)
+                  OutlinedButton.icon(
+                    key: const ValueKey('continue-from-checkpoint'),
+                    onPressed: onContinue,
+                    icon: const Icon(Icons.play_arrow_outlined, size: 16),
+                    label: const Text('PREPARE CONTINUE'),
+                  ),
+              ],
             ),
           ],
         ],

@@ -63,6 +63,22 @@ add_subdirectory("runner")
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
+if(CMAKE_GENERATOR MATCHES "Ninja" AND TARGET webview_windows_plugin)
+  set(WEBVIEW2_NUGET_DIR "${CMAKE_BINARY_DIR}/packages/Microsoft.Web.WebView2")
+  set(WIL_NUGET_DIR "${CMAKE_BINARY_DIR}/packages/Microsoft.Windows.ImplementationLibrary")
+  target_include_directories(webview_windows_plugin PRIVATE
+    "${WEBVIEW2_NUGET_DIR}/build/native/include"
+    "${WIL_NUGET_DIR}/include"
+  )
+  get_target_property(WEBVIEW2_LINK_LIBRARIES webview_windows_plugin LINK_LIBRARIES)
+  list(FILTER WEBVIEW2_LINK_LIBRARIES EXCLUDE REGEX "\\.targets$")
+  set_property(TARGET webview_windows_plugin PROPERTY LINK_LIBRARIES
+    "${WEBVIEW2_LINK_LIBRARIES}"
+  )
+  target_link_libraries(webview_windows_plugin PRIVATE
+    "${WEBVIEW2_NUGET_DIR}/build/native/x64/WebView2Loader.dll.lib"
+  )
+endif()
 
 
 # === Installation ===
@@ -78,6 +94,13 @@ endif()
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
+if(CMAKE_GENERATOR MATCHES "Ninja" AND TARGET webview_windows_plugin)
+  install(FILES
+    "${CMAKE_BINARY_DIR}/packages/Microsoft.Web.WebView2/build/native/x64/WebView2Loader.dll"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime
+  )
+endif()
 
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)

@@ -3149,41 +3149,95 @@ class _QuickFileDialogState extends State<_QuickFileDialog> {
   }
 }
 
-class _CommandPaletteDialog extends StatelessWidget {
+class _CommandPaletteDialog extends StatefulWidget {
   const _CommandPaletteDialog();
 
   @override
+  State<_CommandPaletteDialog> createState() => _CommandPaletteDialogState();
+}
+
+class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
+  static const actions = <(String, IconData, String)>[
+    ('file', Icons.file_open_outlined, 'Open File'),
+    ('chat', Icons.add_comment_outlined, 'New Chat'),
+    ('search', Icons.manage_search, 'Search Workspace'),
+    ('images', Icons.image_outlined, 'Image Generation'),
+    ('browser', Icons.travel_explore, 'Agent Browser'),
+    ('terminal', Icons.terminal, 'Toggle Terminal'),
+    ('settings', Icons.tune, 'Project Settings'),
+    ('model', Icons.psychology_outlined, 'Switch Model'),
+    ('plan', Icons.account_tree_outlined, 'Toggle Plan Mode'),
+    ('retry', Icons.replay, 'Prepare Retry Prompt'),
+    ('continue', Icons.play_arrow_outlined, 'Prepare Checkpoint Continue'),
+  ];
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const actions = <(String, IconData, String)>[
-      ('file', Icons.file_open_outlined, 'Open File'),
-      ('chat', Icons.add_comment_outlined, 'New Chat'),
-      ('search', Icons.manage_search, 'Search Workspace'),
-      ('images', Icons.image_outlined, 'Image Generation'),
-      ('browser', Icons.travel_explore, 'Agent Browser'),
-      ('terminal', Icons.terminal, 'Toggle Terminal'),
-      ('settings', Icons.tune, 'Project Settings'),
-      ('model', Icons.psychology_outlined, 'Switch Model'),
-      ('plan', Icons.account_tree_outlined, 'Toggle Plan Mode'),
-    ];
+    final query = _searchController.text.trim().toLowerCase();
+    final matches = actions
+        .where(
+          (action) =>
+              query.isEmpty ||
+              action.$1.contains(query) ||
+              action.$3.toLowerCase().contains(query),
+        )
+        .toList();
     return Dialog(
       child: SizedBox(
         width: 560,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              leading: Icon(Icons.keyboard_command_key),
-              title: Text('COMMAND PALETTE'),
-              subtitle: Text('Ctrl+Shift+P'),
-            ),
-            const Divider(height: 1),
-            for (final action in actions)
-              ListTile(
-                leading: Icon(action.$2, size: 18),
-                title: Text(action.$3),
-                onTap: () => Navigator.pop(context, action.$1),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 620),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                leading: Icon(Icons.keyboard_command_key),
+                title: Text('COMMAND PALETTE'),
+                subtitle: Text('Ctrl+K · Ctrl+Shift+P'),
               ),
-          ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: TextField(
+                  key: const ValueKey('command-palette-search'),
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: 'Cari perintah...',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: matches.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(28),
+                        child: Text('Tidak ada perintah yang cocok.'),
+                      )
+                    : SilkyListView.builder(
+                        silkyConfig: _silkyScrollConfig,
+                        shrinkWrap: true,
+                        itemCount: matches.length,
+                        itemBuilder: (context, index) {
+                          final action = matches[index];
+                          return ListTile(
+                            leading: Icon(action.$2, size: 18),
+                            title: Text(action.$3),
+                            onTap: () => Navigator.pop(context, action.$1),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -3340,21 +3394,36 @@ class _GitDialogState extends State<_GitDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final size = MediaQuery.sizeOf(context);
+    final diffStats = _GitDiffStats.fromDiff(_diff);
     return Dialog(
+      key: const ValueKey('git-dialog'),
       child: SizedBox(
-        width: 980,
-        height: 720,
+        width: math.min(980.0, math.max(320.0, size.width - 32)),
+        height: math.min(720.0, math.max(420.0, size.height - 32)),
         child: DefaultTabController(
           length: 4,
           child: Column(
             children: [
               ListTile(
-                leading: const Icon(Icons.account_tree_outlined),
+                contentPadding: const EdgeInsets.fromLTRB(18, 10, 8, 4),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.account_tree_outlined,
+                    color: colors.primary,
+                  ),
+                ),
                 title: Text(_status.branch.isEmpty ? 'Git' : _status.branch),
                 subtitle: Text(
                   _status.dirty
-                      ? '${_status.entries.length} changed files'
-                      : 'Working tree clean',
+                      ? 'Review, stage, dan commit perubahan workspace.'
+                      : 'Workspace sinkron dengan commit terakhir.',
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -3374,6 +3443,69 @@ class _GitDialogState extends State<_GitDialog> {
                       icon: const Icon(Icons.close),
                     ),
                   ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+                child: Container(
+                  key: const ValueKey('git-summary'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHighest.withValues(
+                      alpha: 0.42,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _GitSummaryMetric(
+                          key: const ValueKey('git-stat-files'),
+                          icon: Icons.description_outlined,
+                          value: '${_status.entries.length}',
+                          label: 'FILES',
+                        ),
+                      ),
+                      Expanded(
+                        child: _GitSummaryMetric(
+                          icon: Icons.add_task_outlined,
+                          value:
+                              '${_status.entries.where((entry) => entry.staged).length}',
+                          label: 'STAGED',
+                          color: colors.primary,
+                        ),
+                      ),
+                      Expanded(
+                        child: _GitSummaryMetric(
+                          icon: Icons.add,
+                          value: '+${diffStats.additions}',
+                          label: 'ADDED',
+                          color: const Color(0xFF2F9E69),
+                        ),
+                      ),
+                      Expanded(
+                        child: _GitSummaryMetric(
+                          icon: Icons.remove,
+                          value: '-${diffStats.deletions}',
+                          label: 'REMOVED',
+                          color: colors.error,
+                        ),
+                      ),
+                      Expanded(
+                        child: _GitSummaryMetric(
+                          icon: Icons.warning_amber_rounded,
+                          value: '${_status.conflicts.length}',
+                          label: 'CONFLICTS',
+                          color: _status.conflicts.isEmpty
+                              ? colors.onSurfaceVariant
+                              : colors.error,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               if (_operationError != null)
@@ -3402,7 +3534,7 @@ class _GitDialogState extends State<_GitDialog> {
                     : TabBarView(
                         children: [
                           _changesTab(),
-                          _CodeOutput(_diff.isEmpty ? 'No diff.' : _diff),
+                          _GitDiffPreview(value: _diff),
                           _CodeOutput(
                             _history.isEmpty ? 'No commits.' : _history,
                           ),
@@ -3418,69 +3550,100 @@ class _GitDialogState extends State<_GitDialog> {
   }
 
   Widget _changesTab() {
+    final colors = Theme.of(context).colorScheme;
     return SilkyListView(
       silkyConfig: _silkyScrollConfig,
       padding: const EdgeInsets.all(16),
       children: [
         if (_status.entries.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: Text('WORKING TREE CLEAN')),
-          ),
-        for (final entry in _status.entries)
-          ListTile(
-            dense: true,
-            leading: SizedBox(
-              width: 30,
-              child: Text(
-                '${entry.indexStatus}${entry.workTreeStatus}',
-                style: TextStyle(
-                  fontFamily: 'Consolas',
-                  fontWeight: FontWeight.bold,
-                  color: entry.conflicted
-                      ? Theme.of(context).colorScheme.error
-                      : Theme.of(context).colorScheme.primary,
-                ),
-              ),
+          Container(
+            key: const ValueKey('git-empty-state'),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 56),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(16),
             ),
-            title: Text(
-              entry.path,
-              style: const TextStyle(fontFamily: 'Consolas'),
-            ),
-            subtitle: entry.conflicted
-                ? const Text(
-                    'CONFLICT — edit file, lalu stage sebagai resolved',
-                  )
-                : Text(entry.staged ? 'STAGED' : 'UNSTAGED'),
-            onTap: () => widget.onOpenFile(entry.path),
-            trailing: Wrap(
-              spacing: 2,
+            child: Column(
               children: [
-                IconButton(
-                  tooltip: entry.staged ? 'Unstage' : 'Stage',
-                  onPressed: _mutating
-                      ? null
-                      : () => _run(
-                          () => entry.staged
-                              ? widget.service.unstage(widget.workspace, [
-                                  entry.path,
-                                ])
-                              : widget.service.stage(widget.workspace, [
-                                  entry.path,
-                                ]),
-                        ),
-                  icon: Icon(
-                    entry.staged
-                        ? Icons.remove_circle_outline
-                        : Icons.add_circle_outline,
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2F9E69).withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Color(0xFF2F9E69),
+                    size: 30,
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Discard',
-                  onPressed: _mutating ? null : () => _discard(entry),
-                  icon: const Icon(Icons.undo),
+                const SizedBox(height: 14),
+                const Text(
+                  'WORKING TREE CLEAN',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tidak ada perubahan lokal yang perlu ditinjau.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.onSurfaceVariant),
                 ),
               ],
+            ),
+          ),
+        for (final entry in _status.entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Material(
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.30),
+              borderRadius: BorderRadius.circular(12),
+              child: ListTile(
+                dense: true,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                leading: _GitFileStatusBadge(entry: entry),
+                title: Text(
+                  entry.path,
+                  style: const TextStyle(fontFamily: 'Consolas'),
+                ),
+                subtitle: entry.conflicted
+                    ? const Text(
+                        'CONFLICT — edit file, lalu stage sebagai resolved',
+                      )
+                    : Text(entry.staged ? 'STAGED' : 'UNSTAGED'),
+                onTap: () => widget.onOpenFile(entry.path),
+                trailing: Wrap(
+                  spacing: 2,
+                  children: [
+                    IconButton(
+                      tooltip: entry.staged ? 'Unstage' : 'Stage',
+                      onPressed: _mutating
+                          ? null
+                          : () => _run(
+                              () => entry.staged
+                                  ? widget.service.unstage(widget.workspace, [
+                                      entry.path,
+                                    ])
+                                  : widget.service.stage(widget.workspace, [
+                                      entry.path,
+                                    ]),
+                            ),
+                      icon: Icon(
+                        entry.staged
+                            ? Icons.remove_circle_outline
+                            : Icons.add_circle_outline,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Discard',
+                      onPressed: _mutating ? null : () => _discard(entry),
+                      icon: const Icon(Icons.undo),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         if (_status.entries.isNotEmpty) ...[
@@ -3666,6 +3829,289 @@ class _GitDialogState extends State<_GitDialog> {
                   ),
           ),
       ],
+    );
+  }
+}
+
+class _GitDiffStats {
+  const _GitDiffStats({required this.additions, required this.deletions});
+
+  factory _GitDiffStats.fromDiff(String diff) {
+    var additions = 0;
+    var deletions = 0;
+    for (final line in diff.split('\n')) {
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        additions++;
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        deletions++;
+      }
+    }
+    return _GitDiffStats(additions: additions, deletions: deletions);
+  }
+
+  final int additions;
+  final int deletions;
+}
+
+class _GitSummaryMetric extends StatelessWidget {
+  const _GitSummaryMetric({
+    super.key,
+    required this.icon,
+    required this.value,
+    required this.label,
+    this.color,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final metricColor = color ?? colors.onSurface;
+    return Semantics(
+      label: '$label $value',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 15, color: metricColor),
+              const SizedBox(width: 5),
+              Text(
+                value,
+                style: TextStyle(
+                  color: metricColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.7,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GitFileStatusBadge extends StatelessWidget {
+  const _GitFileStatusBadge({required this.entry});
+
+  final GitFileStatus entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final color = switch (entry.displayStatus) {
+      'A' => const Color(0xFF2F9E69),
+      'D' => colors.error,
+      'R' => colors.tertiary,
+      '!' => colors.error,
+      _ => colors.primary,
+    };
+    return Container(
+      width: 30,
+      height: 30,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        entry.displayStatus,
+        style: TextStyle(
+          color: color,
+          fontFamily: 'Consolas',
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _GitDiffPreview extends StatelessWidget {
+  const _GitDiffPreview({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    if (value.trim().isEmpty) {
+      return Center(
+        child: Container(
+          key: const ValueKey('git-diff-empty-state'),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.difference_outlined, size: 30),
+              SizedBox(height: 10),
+              Text(
+                'NO DIFF TO PREVIEW',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final lines = value.split('\n');
+    final stats = _GitDiffStats.fromDiff(value);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 10, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.difference_outlined, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'UNIFIED DIFF',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '+${stats.additions}',
+                style: const TextStyle(
+                  color: Color(0xFF2F9E69),
+                  fontFamily: 'Consolas',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '-${stats.deletions}',
+                style: TextStyle(
+                  color: colors.error,
+                  fontFamily: 'Consolas',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                key: const ValueKey('copy-git-diff'),
+                tooltip: 'Copy diff',
+                visualDensity: VisualDensity.compact,
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: value));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Diff disalin.')),
+                  );
+                },
+                icon: const Icon(Icons.copy_outlined, size: 18),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SilkyListView.builder(
+            key: const ValueKey('git-diff-preview'),
+            silkyConfig: _silkyScrollConfig,
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            itemCount: lines.length,
+            itemBuilder: (context, index) =>
+                _GitDiffLine(lineNumber: index + 1, value: lines[index]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GitDiffLine extends StatelessWidget {
+  const _GitDiffLine({required this.lineNumber, required this.value});
+
+  final int lineNumber;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isAddition = value.startsWith('+') && !value.startsWith('+++');
+    final isDeletion = value.startsWith('-') && !value.startsWith('---');
+    final isHunk = value.startsWith('@@');
+    final isHeader =
+        value.startsWith('diff --git') ||
+        value.startsWith('index ') ||
+        value.startsWith('---') ||
+        value.startsWith('+++');
+    final accent = isAddition
+        ? const Color(0xFF2F9E69)
+        : isDeletion
+        ? colors.error
+        : isHunk
+        ? colors.tertiary
+        : isHeader
+        ? colors.primary
+        : Colors.transparent;
+    final background = accent == Colors.transparent
+        ? Colors.transparent
+        : accent.withValues(alpha: isHunk || isHeader ? 0.08 : 0.11);
+    return Container(
+      decoration: BoxDecoration(
+        color: background,
+        border: Border(
+          left: BorderSide(
+            color: accent,
+            width: accent == Colors.transparent ? 0 : 3,
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 42,
+            child: Text(
+              '$lineNumber',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+                fontFamily: 'Consolas',
+                fontSize: 10,
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SelectableText(
+              value.isEmpty ? ' ' : value,
+              style: TextStyle(
+                color: isAddition || isDeletion || isHunk || isHeader
+                    ? accent
+                    : colors.onSurface,
+                fontFamily: 'Consolas',
+                fontSize: 11,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
