@@ -82,6 +82,12 @@ const _fastMotion = Duration(milliseconds: 140);
 const _mediumMotion = Duration(milliseconds: 240);
 const _motionCurve = Curves.easeOutCubic;
 const _appVersion = '2.0.0';
+const _recentWorkspacesKey = 'recent_workspaces';
+const _composerDensityKey = 'composer_density';
+const _accentColorKey = 'accent_color';
+const _fontScaleKey = 'font_scale';
+const _uiDensityKey = 'ui_density';
+const _favoriteModelKey = 'favorite_model';
 const _silkyScrollConfig = SilkyScrollConfig(
   silkyScrollDuration: Duration(milliseconds: 700),
   animationCurve: Curves.easeOutCubic,
@@ -105,6 +111,24 @@ enum _AgentTurnState {
 }
 
 enum _WorkspaceLayout { classic, focus }
+
+enum _ComposerDensity { compact, comfortable }
+
+enum UiDensity { compact, comfortable }
+
+class AppearanceSettings {
+  const AppearanceSettings({
+    required this.accentColor,
+    required this.fontScale,
+    required this.uiDensity,
+    required this.favoriteModel,
+  });
+
+  final Color accentColor;
+  final double fontScale;
+  final UiDensity uiDensity;
+  final String favoriteModel;
+}
 
 enum _InspectorSection { activity, plan, files }
 
@@ -202,13 +226,30 @@ class KodeAgentApp extends StatefulWidget {
 
 class _KodeAgentAppState extends State<KodeAgentApp> {
   bool _lightMode = false;
+  Color _accentColor = const Color(0xFF5B9DFF);
+  double _fontScale = 1;
+  UiDensity _uiDensity = UiDensity.comfortable;
+  String _favoriteModel = '';
 
   @override
   void initState() {
     super.initState();
     SharedPreferences.getInstance().then((preferences) {
       if (mounted) {
-        setState(() => _lightMode = preferences.getBool('light_mode') ?? false);
+        setState(() {
+          _lightMode = preferences.getBool('light_mode') ?? false;
+          _accentColor = Color(
+            preferences.getInt(_accentColorKey) ?? _accentColor.toARGB32(),
+          );
+          _fontScale = (preferences.getDouble(_fontScaleKey) ?? 1).clamp(
+            0.85,
+            1.2,
+          );
+          _uiDensity = preferences.getString(_uiDensityKey) == 'compact'
+              ? UiDensity.compact
+              : UiDensity.comfortable;
+          _favoriteModel = preferences.getString(_favoriteModelKey) ?? '';
+        });
       }
     });
   }
@@ -220,6 +261,22 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
     await preferences.setBool('light_mode', lightMode);
   }
 
+  Future<void> _updateAppearance(AppearanceSettings settings) async {
+    setState(() {
+      _accentColor = settings.accentColor;
+      _fontScale = settings.fontScale;
+      _uiDensity = settings.uiDensity;
+      _favoriteModel = settings.favoriteModel;
+    });
+    final preferences = await SharedPreferences.getInstance();
+    await Future.wait([
+      preferences.setInt(_accentColorKey, settings.accentColor.toARGB32()),
+      preferences.setDouble(_fontScaleKey, settings.fontScale),
+      preferences.setString(_uiDensityKey, settings.uiDensity.name),
+      preferences.setString(_favoriteModelKey, settings.favoriteModel),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -228,7 +285,17 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
       theme: _buildTheme(light: true),
       darkTheme: _buildTheme(light: false),
       themeMode: _lightMode ? ThemeMode.light : ThemeMode.dark,
-      home: AgentHomePage(lightMode: _lightMode, onToggleTheme: _toggleTheme),
+      home: AgentHomePage(
+        lightMode: _lightMode,
+        onToggleTheme: _toggleTheme,
+        appearance: AppearanceSettings(
+          accentColor: _accentColor,
+          fontScale: _fontScale,
+          uiDensity: _uiDensity,
+          favoriteModel: _favoriteModel,
+        ),
+        onAppearanceChanged: _updateAppearance,
+      ),
     );
   }
 
@@ -237,22 +304,22 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
     // colours (success/warning/error) live outside the accent and are applied
     // per-widget, so the accent never competes with a second decorative hue.
     final scheme = light
-        ? const ColorScheme.light(
-            primary: Color(0xFF2F6FE0),
+        ? ColorScheme.light(
+            primary: _accentColor,
             onPrimary: Color(0xFFFFFFFF),
             secondary: Color(0xFF55627A),
-            tertiary: Color(0xFF2F6FE0),
+            tertiary: _accentColor,
             surface: Color(0xFFFFFFFF),
             onSurface: Color(0xFF1A222E),
             onSurfaceVariant: Color(0xFF55627A),
             outline: Color(0xFFDDE3EC),
             error: Color(0xFFD64A34),
           )
-        : const ColorScheme.dark(
-            primary: Color(0xFF5B9DFF),
+        : ColorScheme.dark(
+            primary: _accentColor,
             onPrimary: Color(0xFFFFFFFF),
             secondary: Color(0xFF9AA7B8),
-            tertiary: Color(0xFF8AB4F0),
+            tertiary: _accentColor,
             surface: Color(0xFF10151D),
             onSurface: Color(0xFFE7ECF3),
             onSurfaceVariant: Color(0xFF9AA7B8),
@@ -265,11 +332,14 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
       brightness: light ? Brightness.light : Brightness.dark,
       scaffoldBackgroundColor: scheme.surface,
       colorScheme: scheme,
+      visualDensity: _uiDensity == UiDensity.compact
+          ? VisualDensity.compact
+          : VisualDensity.standard,
       fontFamily: 'Inter',
       dividerColor: Colors.transparent,
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(fontSize: 13.5, height: 1.5),
-        bodySmall: TextStyle(fontSize: 12, height: 1.42),
+      textTheme: TextTheme(
+        bodyMedium: TextStyle(fontSize: 13.5 * _fontScale, height: 1.5),
+        bodySmall: TextStyle(fontSize: 12 * _fontScale, height: 1.42),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -386,10 +456,14 @@ class AgentHomePage extends StatefulWidget {
     super.key,
     required this.lightMode,
     required this.onToggleTheme,
+    required this.appearance,
+    required this.onAppearanceChanged,
   });
 
   final bool lightMode;
   final VoidCallback onToggleTheme;
+  final AppearanceSettings appearance;
+  final Future<void> Function(AppearanceSettings) onAppearanceChanged;
 
   @override
   State<AgentHomePage> createState() => _AgentHomePageState();
@@ -431,6 +505,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   final _mainBranchWarningPolicy = MainBranchWarningPolicy();
   final _entries = <ChatEntry>[];
   final _chatSessions = <ChatSession>[];
+  final _recentWorkspaces = <String>[];
   final _addons = <Addon>[];
   final _activities = <_AgentActivity>[];
   final _agentCheckpoint = <Map<String, dynamic>>[];
@@ -483,6 +558,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
   bool _terminalBusy = false;
   bool _planMode = false;
   _WorkspaceLayout _workspaceLayout = _WorkspaceLayout.classic;
+  _ComposerDensity _composerDensity = _ComposerDensity.comfortable;
   AgentGoal? _goal;
   TaskGraph? _taskGraph;
   String? _activeFile;
@@ -527,6 +603,12 @@ class _AgentHomePageState extends State<AgentHomePage> {
     });
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('workspace_layout', layout.name);
+  }
+
+  Future<void> _setComposerDensity(_ComposerDensity density) async {
+    setState(() => _composerDensity = density);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_composerDensityKey, density.name);
   }
 
   void _showAbout() {
@@ -716,7 +798,19 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                         width: explorerWidth,
                                         child: _ProjectPanel(
                                           workspace: _workspace,
+                                          activeFile: _activeFile,
+                                          dirtyFiles: {
+                                            for (final document in _documents)
+                                              if (document.dirty) document.path,
+                                          },
+                                          recentWorkspaces: List.unmodifiable(
+                                            _recentWorkspaces,
+                                          ),
                                           onOpenFile: _openFile,
+                                          onOpenRecent: (workspace) =>
+                                              unawaited(
+                                                _activateWorkspace(workspace),
+                                              ),
                                           onChoose: _chooseWorkspace,
                                           onNewChat: _clearChat,
                                           onChat: _showChat,
@@ -928,7 +1022,15 @@ class _AgentHomePageState extends State<AgentHomePage> {
             width: explorerWidth,
             child: _ProjectPanel(
               workspace: _workspace,
+              activeFile: _activeFile,
+              dirtyFiles: {
+                for (final document in _documents)
+                  if (document.dirty) document.path,
+              },
+              recentWorkspaces: List.unmodifiable(_recentWorkspaces),
               onOpenFile: _openFile,
+              onOpenRecent: (workspace) =>
+                  unawaited(_activateWorkspace(workspace)),
               onChoose: _chooseWorkspace,
               onNewChat: _clearChat,
               onChat: _showChat,
@@ -1080,12 +1182,6 @@ class _AgentHomePageState extends State<AgentHomePage> {
 
   Widget _buildConversation(bool compact) {
     final colors = Theme.of(context).colorScheme;
-    final actionStyle = TextButton.styleFrom(
-      minimumSize: const Size(0, 32),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-    );
     return Column(
       children: [
         if (compact)
@@ -1127,15 +1223,30 @@ class _AgentHomePageState extends State<AgentHomePage> {
               ),
             ),
           ),
+        if (_busy || _turnState != _AgentTurnState.idle)
+          _AgentStickyStatus(
+            busy: _busy,
+            status: _agentStatus,
+            activities: _activities,
+            turnState: _turnState,
+            startedAt: _turnStartedAt,
+            duration: _lastTurnDuration,
+            onShowSummary: () =>
+                setState(() => _executionSummaryVisible = true),
+          ),
         Expanded(
           child: _entries.isEmpty && !_busy
               ? _EmptyState(
                   workspaceSelected: _workspace.isNotEmpty,
                   workspaceTrusted: _workspaceTrusted,
                   providerConfigured: _apiKey.isNotEmpty,
+                  recentWorkspaces: List.unmodifiable(_recentWorkspaces),
                   onChooseWorkspace: _chooseWorkspace,
+                  onOpenWorkspace: (workspace) =>
+                      unawaited(_activateWorkspace(workspace)),
                   onTrustWorkspace: () => unawaited(_trustCurrentWorkspace()),
                   onConfigureProvider: _openSettings,
+                  onOpenHistory: _openChatHistory,
                   onFocusComposer: _promptFocusNode.requestFocus,
                   onSuggestion: _useSuggestion,
                 )
@@ -1242,54 +1353,22 @@ class _AgentHomePageState extends State<AgentHomePage> {
               child: Column(
                 children: [
                   if (_workspaceLayout == _WorkspaceLayout.classic)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
-                      child: Row(
-                        children: [
-                          TextButton.icon(
-                            key: const ValueKey('classic-add-context'),
-                            onPressed: _busy ? null : _attachContext,
-                            icon: const Icon(Icons.add, size: 16),
-                            label: const Text('ADD'),
-                            style: actionStyle,
-                          ),
-                          const SizedBox(width: 6),
-                          TextButton.icon(
-                            key: const ValueKey('classic-plugins'),
-                            onPressed: _busy ? null : _openAddonManager,
-                            icon: const Icon(
-                              Icons.extension_outlined,
-                              size: 16,
-                            ),
-                            label: const Text('PLUGINS'),
-                            style: actionStyle,
-                          ),
-                          const SizedBox(width: 6),
-                          TextButton.icon(
-                            key: const ValueKey('classic-subagent'),
-                            onPressed: _busy
-                                ? null
-                                : () {
-                                    _promptController.text = '/agents ';
-                                    _promptController.selection =
-                                        TextSelection.collapsed(
-                                          offset: _promptController.text.length,
-                                        );
-                                    _promptFocusNode.requestFocus();
-                                  },
-                            icon: const Icon(
-                              Icons.account_tree_outlined,
-                              size: 16,
-                            ),
-                            label: const Text('SUBAGENT'),
-                            style: actionStyle,
-                          ),
-                        ],
-                      ),
+                    _ComposerActionBar(
+                      busy: _busy,
+                      onAddContext: _attachContext,
+                      onPlugins: _openAddonManager,
+                      onSubagent: () {
+                        _promptController.text = '/agents ';
+                        _promptController.selection = TextSelection.collapsed(
+                          offset: _promptController.text.length,
+                        );
+                        _promptFocusNode.requestFocus();
+                      },
                     ),
                   _ModelBar(
                     models: _models,
                     selectedModel: _model,
+                    favoriteModel: widget.appearance.favoriteModel,
                     busy: _busy,
                     planMode: _planMode,
                     onSelected: _selectModel,
@@ -1299,6 +1378,8 @@ class _AgentHomePageState extends State<AgentHomePage> {
                   _Composer(
                     controller: _promptController,
                     focusNode: _promptFocusNode,
+                    density: _composerDensity,
+                    onDensityChanged: _setComposerDensity,
                     workspaceSelected: _workspace.isNotEmpty,
                     busy: _busy,
                     onSend: _send,

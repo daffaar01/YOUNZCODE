@@ -245,6 +245,140 @@ class _OnboardingStep extends StatelessWidget {
   );
 }
 
+class _AgentStickyStatus extends StatefulWidget {
+  const _AgentStickyStatus({
+    required this.busy,
+    required this.status,
+    required this.activities,
+    required this.turnState,
+    required this.startedAt,
+    required this.duration,
+    required this.onShowSummary,
+  });
+
+  final bool busy;
+  final String status;
+  final List<_AgentActivity> activities;
+  final _AgentTurnState turnState;
+  final DateTime? startedAt;
+  final Duration duration;
+  final VoidCallback onShowSummary;
+
+  @override
+  State<_AgentStickyStatus> createState() => _AgentStickyStatusState();
+}
+
+class _AgentStickyStatusState extends State<_AgentStickyStatus> {
+  late final Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && widget.busy) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _elapsedLabel() {
+    final elapsed = widget.busy && widget.startedAt != null
+        ? DateTime.now().difference(widget.startedAt!)
+        : widget.duration;
+    final seconds = elapsed.inSeconds;
+    return '${(seconds ~/ 60).toString().padLeft(2, '0')}:'
+        '${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final light = Theme.of(context).brightness == Brightness.light;
+    final accent = widget.busy
+        ? colors.primary
+        : widget.turnState == _AgentTurnState.success
+        ? (light ? const Color(0xFF2F9E69) : const Color(0xFF57C08A))
+        : widget.turnState == _AgentTurnState.cancelled ||
+              widget.turnState == _AgentTurnState.paused
+        ? (light ? const Color(0xFFB7862A) : const Color(0xFFD7A544))
+        : colors.error;
+    final label = widget.busy
+        ? widget.status
+        : switch (widget.turnState) {
+            _AgentTurnState.success => 'Task selesai',
+            _AgentTurnState.cancelled => 'Task dibatalkan',
+            _AgentTurnState.paused => 'Checkpoint tersimpan',
+            _AgentTurnState.timedOut => 'Task melewati batas waktu',
+            _AgentTurnState.failed => 'Task gagal',
+            _ => widget.status,
+          };
+    return Container(
+      key: const ValueKey('agent-sticky-status'),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(
+          bottom: BorderSide(color: accent.withValues(alpha: 0.35)),
+        ),
+      ),
+      child: Row(
+        children: [
+          if (widget.busy)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+            )
+          else
+            Icon(
+              widget.turnState == _AgentTurnState.success
+                  ? Icons.check_circle_outline
+                  : Icons.info_outline,
+              size: 16,
+              color: accent,
+            ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+            ),
+          ),
+          Text(
+            '${widget.activities.length} tools · ${_elapsedLabel()}',
+            style: TextStyle(
+              fontFamily: 'Consolas',
+              fontSize: 9,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          if (!widget.busy) ...[
+            const SizedBox(width: 6),
+            IconButton(
+              key: const ValueKey('sticky-show-summary'),
+              tooltip: 'Tampilkan ringkasan task',
+              visualDensity: VisualDensity.compact,
+              onPressed: widget.onShowSummary,
+              icon: const Icon(Icons.expand_more, size: 17),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _ExecutionSummary extends StatelessWidget {
   const _ExecutionSummary({
     required this.activities,
@@ -361,6 +495,41 @@ class _ExecutionSummary extends StatelessWidget {
             ],
           ),
           const Divider(height: 24),
+          if (turnState != _AgentTurnState.success) ...[
+            Container(
+              key: const ValueKey('execution-recovery-card'),
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: bad.withValues(alpha: 0.07),
+                border: Border.all(color: bad.withValues(alpha: 0.28)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.build_circle_outlined, size: 18, color: bad),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      turnState == _AgentTurnState.paused ||
+                              turnState == _AgentTurnState.cancelled
+                          ? 'Checkpoint tersimpan. Tinjau hasil yang sudah selesai '
+                                'atau siapkan lanjutan dari composer.'
+                          : 'Task belum selesai. Periksa detail tool, edit prompt '
+                                'atau coba ulang dengan provider lain.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Text(
             '${activities.length} tool events · $complete completed'
             '$activityOutcome · '

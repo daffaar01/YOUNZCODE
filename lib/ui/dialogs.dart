@@ -1436,10 +1436,13 @@ class _ProjectSettingsDialog extends StatefulWidget {
     required this.environment,
     required this.baseUrl,
     required this.model,
+    required this.models,
     required this.apiKey,
     required this.timeoutMs,
     required this.dapTimeoutMs,
     required this.headers,
+    required this.appearance,
+    required this.onAppearanceChanged,
     required this.onSave,
   });
 
@@ -1452,10 +1455,13 @@ class _ProjectSettingsDialog extends StatefulWidget {
   final Map<String, String> environment;
   final String baseUrl;
   final String model;
+  final List<String> models;
   final String apiKey;
   final int timeoutMs;
   final int dapTimeoutMs;
   final Map<String, String> headers;
+  final AppearanceSettings appearance;
+  final Future<void> Function(AppearanceSettings) onAppearanceChanged;
   final Future<void> Function(
     bool allowWrite,
     bool allowTerminal,
@@ -1495,6 +1501,10 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
   final _headerValueController = TextEditingController();
   late final _environment = {...widget.environment};
   late final _headers = {...widget.headers};
+  late Color _accentColor = widget.appearance.accentColor;
+  late double _fontScale = widget.appearance.fontScale;
+  late UiDensity _uiDensity = widget.appearance.uiDensity;
+  late String _favoriteModel = widget.appearance.favoriteModel;
   bool _testingConnection = false;
   String? _connectionStatus;
   int _tab = 0;
@@ -1515,6 +1525,14 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
   }
 
   Future<void> _save() async {
+    await widget.onAppearanceChanged(
+      AppearanceSettings(
+        accentColor: _accentColor,
+        fontScale: _fontScale,
+        uiDensity: _uiDensity,
+        favoriteModel: _favoriteModel,
+      ),
+    );
     await widget.onSave(
       _allowWrite,
       _allowTerminal,
@@ -1572,6 +1590,7 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
     final colors = theme.colorScheme;
     final tabs = const [
       'GENERAL',
+      'APPEARANCE',
       'ENV VARIABLES',
       'PERMISSIONS',
       'SECURITY',
@@ -1720,12 +1739,101 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
   Widget _content() {
     return switch (_tab) {
       0 => _generalTab(),
-      1 => _environmentTab(),
-      2 => _permissionsTab(),
-      3 => _securityTab(),
+      1 => _appearanceTab(),
+      2 => _environmentTab(),
+      3 => _permissionsTab(),
+      4 => _securityTab(),
       _ => _apiTab(),
     };
   }
+
+  Widget _appearanceTab() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('PERSONALIZATION', style: _SettingsHeading.style),
+      const SizedBox(height: 8),
+      Text(
+        'Sesuaikan tampilan workspace agar nyaman dipakai setiap hari.',
+        style: TextStyle(
+          fontSize: 11,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      const SizedBox(height: 18),
+      const _FieldLabel('UI DENSITY'),
+      SegmentedButton<UiDensity>(
+        segments: const [
+          ButtonSegment(
+            value: UiDensity.compact,
+            icon: Icon(Icons.density_small),
+            label: Text('COMPACT'),
+          ),
+          ButtonSegment(
+            value: UiDensity.comfortable,
+            icon: Icon(Icons.density_medium),
+            label: Text('COMFORTABLE'),
+          ),
+        ],
+        selected: {_uiDensity},
+        onSelectionChanged: (values) =>
+            setState(() => _uiDensity = values.first),
+      ),
+      const SizedBox(height: 18),
+      Row(
+        children: [
+          const Expanded(child: _FieldLabel('FONT SIZE')),
+          Text('${(_fontScale * 100).round()}%'),
+        ],
+      ),
+      Slider(
+        key: const ValueKey('appearance-font-scale'),
+        value: _fontScale,
+        min: 0.85,
+        max: 1.2,
+        divisions: 7,
+        label: '${(_fontScale * 100).round()}%',
+        onChanged: (value) => setState(() => _fontScale = value),
+      ),
+      const SizedBox(height: 12),
+      const _FieldLabel('ACCENT COLOR'),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final color in const [
+            Color(0xFF5B9DFF),
+            Color(0xFF7C6CF2),
+            Color(0xFF2F9E69),
+            Color(0xFFD97706),
+            Color(0xFFE0528D),
+          ])
+            ChoiceChip(
+              key: ValueKey('appearance-accent-${color.toARGB32()}'),
+              selected: _accentColor.toARGB32() == color.toARGB32(),
+              onSelected: (_) => setState(() => _accentColor = color),
+              avatar: CircleAvatar(backgroundColor: color, radius: 8),
+              label: Text(
+                '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+              ),
+            ),
+        ],
+      ),
+      const SizedBox(height: 18),
+      const _FieldLabel('FAVORITE MODEL'),
+      DropdownButtonFormField<String>(
+        key: const ValueKey('appearance-favorite-model'),
+        initialValue: widget.models.contains(_favoriteModel)
+            ? _favoriteModel
+            : '',
+        items: [
+          const DropdownMenuItem(value: '', child: Text('Tidak ada favorit')),
+          for (final model in widget.models)
+            DropdownMenuItem(value: model, child: Text(model)),
+        ],
+        onChanged: (value) => setState(() => _favoriteModel = value ?? ''),
+      ),
+    ],
+  );
 
   Widget _generalTab() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1744,6 +1852,14 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
       const SizedBox(height: 18),
       const _FieldLabel('DEFAULT SHELL'),
       const _StaticField(value: 'PowerShell (Windows)'),
+      const SizedBox(height: 26),
+      Text(
+        'Project identity and shell defaults stay separate from appearance settings.',
+        style: TextStyle(
+          fontSize: 11,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     ],
   );
 
@@ -1939,21 +2055,80 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
           style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 16),
+        Container(
+          key: const ValueKey('provider-status-card'),
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: cs.primary.withValues(alpha: 0.07),
+            border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _connectionStatus?.startsWith('CONNECTION') == true
+                    ? Icons.check_circle_outline
+                    : _apiKeyController.text.trim().isEmpty
+                    ? Icons.cloud_off_outlined
+                    : Icons.cloud_queue_outlined,
+                color: _connectionStatus?.startsWith('CONNECTION') == true
+                    ? const Color(0xFF2F9E69)
+                    : cs.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _connectionStatus?.startsWith('CONNECTION') == true
+                          ? 'PROVIDER CONNECTED'
+                          : _apiKeyController.text.trim().isEmpty
+                          ? 'PROVIDER NOT CONFIGURED'
+                          : 'PROVIDER READY TO TEST',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${_apiBaseController.text.trim()} · '
+                      '${_apiModelController.text.trim()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
         const _FieldLabel('BASE URL'),
         TextField(
           controller: _apiBaseController,
+          onChanged: (_) => setState(() {}),
           style: const TextStyle(fontFamily: 'Consolas', fontSize: 12),
         ),
         const SizedBox(height: 12),
         const _FieldLabel('MODEL'),
         TextField(
           controller: _apiModelController,
+          onChanged: (_) => setState(() {}),
           style: const TextStyle(fontFamily: 'Consolas', fontSize: 12),
         ),
         const SizedBox(height: 12),
         const _FieldLabel('TOKEN VALUE'),
         TextField(
           controller: _apiKeyController,
+          onChanged: (_) => setState(() {}),
           obscureText: true,
           style: const TextStyle(fontFamily: 'Consolas', fontSize: 12),
         ),
@@ -2805,73 +2980,630 @@ class _McpHealthDialogState extends State<_McpHealthDialog> {
   }
 }
 
-class _ChatHistoryDialog extends StatelessWidget {
+class _WorkspacePickerEntry {
+  const _WorkspacePickerEntry({
+    required this.path,
+    required this.trusted,
+    required this.sessionCount,
+    required this.lastOpenedAt,
+    required this.active,
+  });
+
+  final String path;
+  final bool trusted;
+  final int sessionCount;
+  final DateTime? lastOpenedAt;
+  final bool active;
+}
+
+class _WorkspacePickerDialog extends StatefulWidget {
+  const _WorkspacePickerDialog({required this.entries});
+
+  static const browseValue = '__browse_workspace__';
+
+  final List<_WorkspacePickerEntry> entries;
+
+  @override
+  State<_WorkspacePickerDialog> createState() => _WorkspacePickerDialogState();
+}
+
+class _WorkspacePickerDialogState extends State<_WorkspacePickerDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final query = _query.trim().toLowerCase();
+    final entries = widget.entries.where((entry) {
+      if (query.isEmpty) return true;
+      return entry.path.toLowerCase().contains(query) ||
+          path.basename(entry.path).toLowerCase().contains(query);
+    }).toList();
+    return Dialog(
+      key: const ValueKey('workspace-picker-dialog'),
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: theme.dividerColor),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 650),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 14, 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.folder_open_outlined,
+                      color: colors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PILIH WORKSPACE',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .7,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Buka kembali proyek terakhir atau pilih folder baru.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Tutup',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+              child: TextField(
+                key: const ValueKey('workspace-picker-search'),
+                autofocus: widget.entries.isNotEmpty,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: const InputDecoration(
+                  hintText: 'Cari workspace terakhir...',
+                  prefixIcon: Icon(Icons.search),
+                ),
+              ),
+            ),
+            Divider(height: 1, color: theme.dividerColor),
+            Flexible(
+              child: entries.isEmpty
+                  ? _WorkspacePickerEmpty(hasHistory: widget.entries.isNotEmpty)
+                  : SilkyListView.separated(
+                      silkyConfig: _silkyScrollConfig,
+                      padding: const EdgeInsets.all(14),
+                      itemCount: entries.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final entry = entries[index];
+                        return _WorkspacePickerTile(
+                          entry: entry,
+                          onTap: () => Navigator.pop(context, entry.path),
+                        );
+                      },
+                    ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: theme.dividerColor)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${widget.entries.length} workspace tersimpan',
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  FilledButton.icon(
+                    key: const ValueKey('workspace-picker-browse'),
+                    onPressed: () => Navigator.pop(
+                      context,
+                      _WorkspacePickerDialog.browseValue,
+                    ),
+                    icon: const Icon(
+                      Icons.create_new_folder_outlined,
+                      size: 18,
+                    ),
+                    label: const Text('PILIH FOLDER LAIN'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspacePickerEmpty extends StatelessWidget {
+  const _WorkspacePickerEmpty({required this.hasHistory});
+
+  final bool hasHistory;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              hasHistory ? Icons.search_off : Icons.folder_copy_outlined,
+              size: 38,
+              color: colors.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              hasHistory
+                  ? 'Workspace tidak ditemukan.'
+                  : 'Belum ada workspace terakhir.',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Pilih folder proyek untuk mulai bekerja.',
+              style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspacePickerTile extends StatelessWidget {
+  const _WorkspacePickerTile({required this.entry, required this.onTap});
+
+  final _WorkspacePickerEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final folder = path.basename(entry.path);
+    return Material(
+      color: entry.active
+          ? colors.primary.withValues(alpha: 0.1)
+          : colors.onSurface.withValues(alpha: 0.025),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: entry.active
+              ? colors.primary.withValues(alpha: 0.55)
+              : colors.onSurface.withValues(alpha: 0.08),
+        ),
+      ),
+      child: InkWell(
+        key: ValueKey('workspace-picker-${entry.path}'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                entry.active ? Icons.folder_special : Icons.folder_outlined,
+                color: colors.primary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            folder.isEmpty ? entry.path : folder,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (entry.active) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            'AKTIF',
+                            style: TextStyle(
+                              fontFamily: 'Consolas',
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: colors.primary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      entry.path,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 5,
+                      children: [
+                        _WorkspacePickerMeta(
+                          icon: entry.trusted
+                              ? Icons.verified_user_outlined
+                              : Icons.shield_outlined,
+                          label: entry.trusted ? 'TRUSTED' : 'RESTRICTED',
+                          color: entry.trusted
+                              ? colors.primary
+                              : colors.onSurfaceVariant,
+                        ),
+                        _WorkspacePickerMeta(
+                          icon: Icons.chat_bubble_outline,
+                          label: '${entry.sessionCount} CHAT',
+                          color: colors.onSurfaceVariant,
+                        ),
+                        if (entry.lastOpenedAt != null)
+                          _WorkspacePickerMeta(
+                            icon: Icons.schedule,
+                            label: _formatDashboardDate(entry.lastOpenedAt!),
+                            color: colors.onSurfaceVariant,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspacePickerMeta extends StatelessWidget {
+  const _WorkspacePickerMeta({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 12, color: color),
+      const SizedBox(width: 4),
+      Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Consolas',
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    ],
+  );
+}
+
+String _formatDashboardDate(DateTime value) {
+  final local = value.toLocal();
+  final now = DateTime.now();
+  final difference = now.difference(local);
+  if (difference.inMinutes < 1) return 'BARU SAJA';
+  if (difference.inHours < 1) return '${difference.inMinutes} MENIT';
+  if (difference.inDays < 1) return '${difference.inHours} JAM';
+  if (difference.inDays < 7) return '${difference.inDays} HARI';
+  return '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}/${local.year}';
+}
+
+class _ChatHistoryDialog extends StatefulWidget {
   const _ChatHistoryDialog({
     required this.sessions,
     required this.activeId,
     required this.onOpen,
     required this.onDelete,
+    required this.onUpdate,
   });
 
   final List<ChatSession> sessions;
   final String activeId;
   final ValueChanged<ChatSession> onOpen;
-  final ValueChanged<ChatSession> onDelete;
+  final Future<void> Function(ChatSession) onDelete;
+  final Future<void> Function(ChatSession) onUpdate;
+
+  @override
+  State<_ChatHistoryDialog> createState() => _ChatHistoryDialogState();
+}
+
+class _ChatHistoryDialogState extends State<_ChatHistoryDialog> {
+  final _searchController = TextEditingController();
+  late final List<ChatSession> _sessions = [...widget.sessions];
+  String _workspaceFilter = '*';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<ChatSession> get _visibleSessions {
+    final query = _searchController.text.trim().toLowerCase();
+    final visible = _sessions.where((session) {
+      final matchesWorkspace =
+          _workspaceFilter == '*' || session.workspace == _workspaceFilter;
+      final matchesQuery =
+          query.isEmpty ||
+          session.title.toLowerCase().contains(query) ||
+          session.workspace.toLowerCase().contains(query);
+      return matchesWorkspace && matchesQuery;
+    }).toList();
+    visible.sort((left, right) {
+      if (left.pinned != right.pinned) return left.pinned ? -1 : 1;
+      return right.updatedAt.compareTo(left.updatedAt);
+    });
+    return visible;
+  }
+
+  Future<void> _update(ChatSession session) async {
+    setState(() {
+      final index = _sessions.indexWhere((item) => item.id == session.id);
+      if (index >= 0) _sessions[index] = session;
+    });
+    await widget.onUpdate(session);
+  }
+
+  Future<void> _rename(ChatSession session) async {
+    final controller = TextEditingController(text: session.title);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('RENAME CHAT'),
+        content: TextField(
+          key: const ValueKey('history-rename-field'),
+          autofocus: true,
+          controller: controller,
+          maxLength: 80,
+          decoration: const InputDecoration(labelText: 'Judul chat'),
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('BATAL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('SIMPAN'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    final title = value?.trim() ?? '';
+    if (title.isEmpty || !mounted) return;
+    await _update(session.copyWith(customTitle: title));
+  }
+
+  Future<void> _delete(ChatSession session) async {
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('HAPUS CHAT?'),
+        content: Text(
+          'Percakapan "${session.title}" akan dihapus dari history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('BATAL'),
+          ),
+          FilledButton(
+            key: const ValueKey('history-delete-confirm'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('HAPUS'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    await widget.onDelete(session);
+    if (mounted) {
+      setState(() => _sessions.removeWhere((item) => item.id == session.id));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final visibleSessions = _visibleSessions;
+    final workspaces = _sessions.map((session) => session.workspace).toSet()
+      ..remove('');
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.history, size: 20),
-          SizedBox(width: 9),
-          Text('CHAT HISTORY'),
+          const Icon(Icons.history, size: 20),
+          const SizedBox(width: 9),
+          const Expanded(child: Text('CHAT HISTORY')),
+          Text(
+            '${visibleSessions.length}',
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
       content: SizedBox(
         width: 560,
-        height: 420,
-        child: sessions.isEmpty
-            ? Center(
-                child: Text(
-                  'Belum ada percakapan tersimpan di workspace ini.',
-                  style: TextStyle(color: cs.onSurfaceVariant),
+        height: 470,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const ValueKey('history-search'),
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Cari judul atau workspace...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
                 ),
-              )
-            : SilkyListView.separated(
-                silkyConfig: _silkyScrollConfig,
-                itemCount: sessions.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final session = sessions[index];
-                  final active = session.id == activeId;
-                  return ListTile(
-                    key: ValueKey('chat-session-${session.id}'),
-                    selected: active,
-                    leading: Icon(
-                      active ? Icons.chat_bubble : Icons.chat_bubble_outline,
-                      color: active ? cs.primary : cs.onSurfaceVariant,
+                if (workspaces.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: DropdownButton<String>(
+                      key: const ValueKey('history-workspace-filter'),
+                      value: _workspaceFilter,
+                      isExpanded: true,
+                      underline: const SizedBox.shrink(),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '*',
+                          child: Text(
+                            'ALL WORKSPACES',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        for (final workspace in workspaces)
+                          DropdownMenuItem(
+                            value: workspace,
+                            child: Text(
+                              path.basename(workspace),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _workspaceFilter = value ?? '*'),
                     ),
-                    title: Text(
-                      session.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: visibleSessions.isEmpty
+                  ? Center(
+                      child: Text(
+                        _sessions.isEmpty
+                            ? 'Belum ada percakapan tersimpan.'
+                            : 'Tidak ada chat yang cocok dengan filter.',
+                        style: TextStyle(color: cs.onSurfaceVariant),
+                      ),
+                    )
+                  : SilkyListView.separated(
+                      silkyConfig: _silkyScrollConfig,
+                      itemCount: visibleSessions.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final session = visibleSessions[index];
+                        final active = session.id == widget.activeId;
+                        return ListTile(
+                          key: ValueKey('chat-session-${session.id}'),
+                          selected: active,
+                          leading: Icon(
+                            session.pinned
+                                ? Icons.push_pin
+                                : active
+                                ? Icons.chat_bubble
+                                : Icons.chat_bubble_outline,
+                            color: session.pinned
+                                ? cs.tertiary
+                                : active
+                                ? cs.primary
+                                : cs.onSurfaceVariant,
+                          ),
+                          title: Text(
+                            session.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${session.entries.length} pesan  ·  '
+                            '${_formatChatDate(session.updatedAt)}  ·  '
+                            '${path.basename(session.workspace)}',
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                          onTap: () => widget.onOpen(session),
+                          trailing: PopupMenuButton<String>(
+                            key: ValueKey('chat-menu-${session.id}'),
+                            onSelected: (value) {
+                              if (value == 'pin') {
+                                _update(
+                                  session.copyWith(pinned: !session.pinned),
+                                );
+                              } else if (value == 'rename') {
+                                _rename(session);
+                              } else if (value == 'delete') {
+                                _delete(session);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                value: 'pin',
+                                child: Text(
+                                  session.pinned ? 'Unpin chat' : 'Pin chat',
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'rename',
+                                child: Text('Rename'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Delete'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    subtitle: Text(
-                      '${session.entries.length} pesan  ·  '
-                      '${_formatChatDate(session.updatedAt)}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    onTap: () => onOpen(session),
-                    trailing: IconButton(
-                      onPressed: () => onDelete(session),
-                      tooltip: 'Hapus percakapan',
-                      icon: const Icon(Icons.delete_outline, size: 17),
-                    ),
-                  );
-                },
-              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -3264,6 +3996,7 @@ class _GitDialog extends StatefulWidget {
 class _GitDialogState extends State<_GitDialog> {
   final _branchController = TextEditingController();
   final _commitController = TextEditingController();
+  final _changesFilterController = TextEditingController();
   GitStatus _status = const GitStatus(isRepository: true);
   List<String> _branches = const [];
   List<GitWorktree> _worktrees = const [];
@@ -3285,6 +4018,7 @@ class _GitDialogState extends State<_GitDialog> {
   void dispose() {
     _branchController.dispose();
     _commitController.dispose();
+    _changesFilterController.dispose();
     super.dispose();
   }
 
@@ -3590,10 +4324,36 @@ class _GitDialogState extends State<_GitDialog> {
 
   Widget _changesTab() {
     final colors = Theme.of(context).colorScheme;
+    final query = _changesFilterController.text.trim().toLowerCase();
+    final entries = _status.entries.where((entry) {
+      if (query.isEmpty) return true;
+      return entry.path.toLowerCase().contains(query) ||
+          entry.displayStatus.toLowerCase().contains(query);
+    }).toList();
     return SilkyListView(
       silkyConfig: _silkyScrollConfig,
       padding: const EdgeInsets.all(16),
       children: [
+        TextField(
+          key: const ValueKey('git-changes-filter'),
+          controller: _changesFilterController,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Filter changed files...',
+            prefixIcon: const Icon(Icons.filter_list),
+            suffixIcon: query.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Hapus filter',
+                    onPressed: () {
+                      _changesFilterController.clear();
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (_status.entries.isEmpty)
           Container(
             key: const ValueKey('git-empty-state'),
@@ -3631,7 +4391,26 @@ class _GitDialogState extends State<_GitDialog> {
               ],
             ),
           ),
-        for (final entry in _status.entries)
+        if (_status.entries.isNotEmpty && entries.isEmpty)
+          Container(
+            key: const ValueKey('git-filter-empty-state'),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.search_off, size: 30),
+                SizedBox(height: 10),
+                Text(
+                  'TIDAK ADA FILE YANG COCOK',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+          ),
+        for (final entry in entries)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Material(
@@ -3656,6 +4435,12 @@ class _GitDialogState extends State<_GitDialog> {
                 trailing: Wrap(
                   spacing: 2,
                   children: [
+                    IconButton(
+                      key: ValueKey('git-open-${entry.path}'),
+                      tooltip: 'Buka di editor',
+                      onPressed: () => widget.onOpenFile(entry.path),
+                      icon: const Icon(Icons.open_in_new, size: 18),
+                    ),
                     IconButton(
                       tooltip: entry.staged ? 'Unstage' : 'Stage',
                       onPressed: _mutating
@@ -3685,7 +4470,7 @@ class _GitDialogState extends State<_GitDialog> {
               ),
             ),
           ),
-        if (_status.entries.isNotEmpty) ...[
+        if (entries.isNotEmpty) ...[
           const Divider(),
           Row(
             children: [
@@ -3695,10 +4480,10 @@ class _GitDialogState extends State<_GitDialog> {
                     : () => _run(
                         () => widget.service.stage(
                           widget.workspace,
-                          _status.entries.map((entry) => entry.path),
+                          entries.map((entry) => entry.path),
                         ),
                       ),
-                child: const Text('STAGE ALL'),
+                child: Text(query.isEmpty ? 'STAGE ALL' : 'STAGE FILTERED'),
               ),
               const SizedBox(width: 8),
               OutlinedButton(

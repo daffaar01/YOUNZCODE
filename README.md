@@ -29,11 +29,17 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 - **Focus workspace** — Explorer, editor, terminal, dan Agent tampil berdampingan untuk pekerjaan coding yang lebih intensif
 - **Environment card** — status workspace, Git, proses, dan source diringkas dalam card; klik card membuka popup detail agar panel utama tetap ringkas
 - **Onboarding workspace** — empty state menampilkan status workspace, progress setup `0/3`, quick start, CTA memilih/trust workspace, dan konfigurasi provider/model
+- **Workspace picker informatif** — cari workspace, lihat status trusted/restricted, jumlah chat, waktu terakhir dipakai, recent workspace, atau pilih folder baru
 - **Status interaktif** — chip `OFFLINE`, `RESTRICTED MODE`, atau `SYNCED` dapat dibuka untuk melihat penyebab dan tindakan berikutnya
 - **UI responsif** — sidebar Classic dapat di-scroll pada jendela pendek; model bar, toolbar editor, indikator file sensitif, terminal, dan status bar menyesuaikan panel sempit tanpa overflow
 - **Respons agent bertahap** — sebelum menjalankan tool agent menjelaskan langkahnya, menampilkan timeline Konteks → Analisis → Tool → Perubahan → Review, lalu melanjutkan sampai rangkuman akhir
-- **Composer terintegrasi** — tambahkan context dengan tombol atau drag-and-drop file, overlay drop yang jelas, chip attachment, shortcut `/review`, `/retry`, `/continue`, dan command palette (`Ctrl+K`)
+- **Feedback agent yang selalu terlihat** — sticky status menampilkan durasi dan jumlah tool, recovery card memberi langkah lanjut saat gagal/cancel/timeout, serta toast dan notifikasi menandai task selesai
+- **Composer terintegrasi** — tambahkan context dengan tombol atau drag-and-drop file, overlay drop yang jelas, chip attachment, toolbar `ADD / PLUGINS / SUBAGENT`, mode kepadatan Ringkas/Lega, shortcut `/review`, `/retry`, `/continue`, dan command palette (`Ctrl+K`)
 - **Respons mudah ditinjau** — pesan agent memiliki avatar, fenced code block dengan label bahasa, dan tombol salin; `Retry` serta `Continue` hanya menyiapkan draf di composer sebelum dikirim
+- **Project Settings lengkap** — tab Appearance untuk accent color, ukuran font, UI density, dan model favorit; tab API menampilkan status provider dalam card yang mudah dipindai
+- **Chat History produktif** — cari chat, filter workspace, pin/unpin, rename, dan hapus dengan konfirmasi; metadata jumlah pesan dan waktu terakhir tetap terlihat
+- **Git Center lebih cepat** — filter changed files, buka file langsung dari daftar perubahan, stage hasil filter, dan empty state yang jelas saat tidak ada kecocokan
+- **Explorer lebih kontekstual** — breadcrumb file aktif, recent workspace, serta indikator file belum disimpan di tree dan editor
 - Dialog **About YOUNZCODE** di header sidebar menjelaskan mode workspace, provider AI, progress agent, plugin/subagent, dan panel Environment
 
 ### 🖥️ Editor & Debugging

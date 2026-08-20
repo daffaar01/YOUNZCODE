@@ -1250,9 +1250,12 @@ class _EmptyState extends StatelessWidget {
     required this.workspaceSelected,
     required this.workspaceTrusted,
     required this.providerConfigured,
+    required this.recentWorkspaces,
     required this.onChooseWorkspace,
+    required this.onOpenWorkspace,
     required this.onTrustWorkspace,
     required this.onConfigureProvider,
+    required this.onOpenHistory,
     required this.onFocusComposer,
     required this.onSuggestion,
   });
@@ -1260,9 +1263,12 @@ class _EmptyState extends StatelessWidget {
   final bool workspaceSelected;
   final bool workspaceTrusted;
   final bool providerConfigured;
+  final List<String> recentWorkspaces;
   final VoidCallback onChooseWorkspace;
+  final ValueChanged<String> onOpenWorkspace;
   final VoidCallback onTrustWorkspace;
   final VoidCallback onConfigureProvider;
+  final VoidCallback onOpenHistory;
   final VoidCallback onFocusComposer;
   final ValueChanged<String> onSuggestion;
 
@@ -1270,49 +1276,65 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final short = constraints.maxHeight < 520;
         final compact = constraints.maxWidth < 620;
         final horizontalPadding = compact ? 20.0 : 32.0;
+        final topPadding = short ? 8.0 : 28.0;
+        final bottomPadding = short ? 24.0 : 44.0;
         return SilkySingleChildScrollView(
           silkyConfig: _silkyScrollConfig,
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: 28,
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            topPadding,
+            horizontalPadding,
+            bottomPadding,
           ),
           child: Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: 720,
-                minHeight: math.max(0, constraints.maxHeight - 56),
+                minHeight: math.max(
+                  0,
+                  constraints.maxHeight - topPadding - bottomPadding,
+                ),
               ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: short
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Opacity(
-                    opacity: 0.18,
-                    child: Container(
-                      width: compact ? 88 : 112,
-                      height: compact ? 88 : 112,
-                      padding: const EdgeInsets.all(12),
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      child: Image.asset(
-                        'assets/younzcode_logo_new.png',
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.high,
+                  if (!short) ...[
+                    Opacity(
+                      opacity: 0.18,
+                      child: Container(
+                        width: compact ? 88 : 112,
+                        height: compact ? 88 : 112,
+                        padding: const EdgeInsets.all(12),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        child: Image.asset(
+                          'assets/younzcode_logo_new.png',
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.high,
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(height: compact ? 20 : 28),
+                    SizedBox(height: compact ? 20 : 28),
+                  ],
                   Text(
                     'What are we building?',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: compact ? 27 : 34,
+                      fontSize: short
+                          ? 26
+                          : compact
+                          ? 27
+                          : 34,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.6,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: short ? 6 : 12),
                   Text(
                     'Select a workspace or describe a task to begin. I can help '
                     'with architecture, debugging, or test automation.',
@@ -1320,14 +1342,18 @@ class _EmptyState extends StatelessWidget {
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                       height: 1.5,
-                      fontSize: compact ? 13 : 15,
+                      fontSize: short
+                          ? 12
+                          : compact
+                          ? 13
+                          : 15,
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  SizedBox(height: short ? 6 : 18),
                   Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 8,
+                      vertical: short ? 6 : 8,
                     ),
                     decoration: BoxDecoration(
                       color: Theme.of(
@@ -1366,7 +1392,7 @@ class _EmptyState extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: short ? 6 : 10),
                   _WorkspaceSetupCard(
                     workspaceSelected: workspaceSelected,
                     workspaceTrusted: workspaceTrusted,
@@ -1376,10 +1402,26 @@ class _EmptyState extends StatelessWidget {
                     onConfigureProvider: onConfigureProvider,
                     onFocusComposer: onFocusComposer,
                   ),
-                  SizedBox(height: compact ? 22 : 28),
-                  Row(
-                    children: [
-                      Text(
+                  if (recentWorkspaces.isNotEmpty) ...[
+                    SizedBox(height: short ? 6 : 24),
+                    _RecentWorkspaceStrip(
+                      workspaces: recentWorkspaces,
+                      onOpen: onOpenWorkspace,
+                      onChoose: onChooseWorkspace,
+                    ),
+                  ] else if (!short) ...[
+                    const SizedBox(height: 24),
+                    _DashboardActionStrip(
+                      onChooseWorkspace: onChooseWorkspace,
+                      onHistory: onOpenHistory,
+                      onFocusComposer: onFocusComposer,
+                    ),
+                  ],
+                  if (short) ...[
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
                         'QUICK START',
                         style: TextStyle(
                           fontFamily: 'Consolas',
@@ -1389,66 +1431,383 @@ class _EmptyState extends StatelessWidget {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const Spacer(),
-                      Text(
-                        'KLIK ATAU TEKAN ENTER',
-                        style: TextStyle(
-                          fontFamily: 'Consolas',
-                          fontSize: 9,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    SizedBox(height: short ? 4 : 8),
+                    Wrap(
+                      key: const ValueKey('quick-start-compact'),
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _QuickStartChip(
+                          icon: Icons.bolt_outlined,
+                          label: 'FEATURE',
+                          tooltip: 'Generate Feature · Bootstrap new module',
+                          onTap: () => onSuggestion(
+                            'Buat fitur baru dengan mengikuti pola kode yang sudah ada.',
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  GridView.count(
-                    shrinkWrap: true,
-                    crossAxisCount: compact ? 1 : 2,
-                    mainAxisExtent: compact ? 88 : 96,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _SuggestionCard(
-                        icon: Icons.bolt_outlined,
-                        title: 'Generate Feature',
-                        subtitle: 'Bootstrap new module',
-                        onTap: () => onSuggestion(
-                          'Buat fitur baru dengan mengikuti pola kode yang sudah ada.',
+                        _QuickStartChip(
+                          icon: Icons.bug_report_outlined,
+                          label: 'BUG',
+                          tooltip: 'Fix Logic Bug · Trace and repair errors',
+                          onTap: () => onSuggestion(
+                            'Bantu saya menganalisis dan memperbaiki bug pada proyek ini.',
+                          ),
                         ),
-                      ),
-                      _SuggestionCard(
-                        icon: Icons.bug_report_outlined,
-                        title: 'Fix Logic Bug',
-                        subtitle: 'Trace and repair errors',
-                        onTap: () => onSuggestion(
-                          'Bantu saya menganalisis dan memperbaiki bug pada proyek ini.',
+                        _QuickStartChip(
+                          icon: Icons.checklist_rtl_outlined,
+                          label: 'TEST',
+                          tooltip:
+                              'Write Test Suite · Unit & integration coverage',
+                          onTap: () => onSuggestion(
+                            'Jalankan semua test dan perbaiki kegagalan yang ditemukan.',
+                          ),
                         ),
-                      ),
-                      _SuggestionCard(
-                        icon: Icons.checklist_rtl_outlined,
-                        title: 'Write Test Suite',
-                        subtitle: 'Unit & integration coverage',
-                        onTap: () => onSuggestion(
-                          'Jalankan semua test dan perbaiki kegagalan yang ditemukan.',
+                        _QuickStartChip(
+                          icon: Icons.menu_book_outlined,
+                          label: 'EXPLAIN',
+                          tooltip: 'Explain Codebase · Analyze relationships',
+                          onTap: () => onSuggestion(
+                            'Jelaskan arsitektur proyek ini dan modul-modul utamanya.',
+                          ),
                         ),
-                      ),
-                      _SuggestionCard(
-                        icon: Icons.menu_book_outlined,
-                        title: 'Explain Codebase',
-                        subtitle: 'Analyze relationships',
-                        onTap: () => onSuggestion(
-                          'Jelaskan arsitektur proyek ini dan modul-modul utamanya.',
+                      ],
+                    ),
+                  ] else ...[
+                    SizedBox(height: compact ? 22 : 28),
+                    Row(
+                      children: [
+                        Text(
+                          'QUICK START',
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const Spacer(),
+                        Text(
+                          'KLIK ATAU TEKAN ENTER',
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 9,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    GridView.count(
+                      shrinkWrap: true,
+                      crossAxisCount: compact ? 1 : 2,
+                      mainAxisExtent: compact ? 88 : 96,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _SuggestionCard(
+                          icon: Icons.bolt_outlined,
+                          title: 'Generate Feature',
+                          subtitle: 'Bootstrap new module',
+                          onTap: () => onSuggestion(
+                            'Buat fitur baru dengan mengikuti pola kode yang sudah ada.',
+                          ),
+                        ),
+                        _SuggestionCard(
+                          icon: Icons.bug_report_outlined,
+                          title: 'Fix Logic Bug',
+                          subtitle: 'Trace and repair errors',
+                          onTap: () => onSuggestion(
+                            'Bantu saya menganalisis dan memperbaiki bug pada proyek ini.',
+                          ),
+                        ),
+                        _SuggestionCard(
+                          icon: Icons.checklist_rtl_outlined,
+                          title: 'Write Test Suite',
+                          subtitle: 'Unit & integration coverage',
+                          onTap: () => onSuggestion(
+                            'Jalankan semua test dan perbaiki kegagalan yang ditemukan.',
+                          ),
+                        ),
+                        _SuggestionCard(
+                          icon: Icons.menu_book_outlined,
+                          title: 'Explain Codebase',
+                          subtitle: 'Analyze relationships',
+                          onTap: () => onSuggestion(
+                            'Jelaskan arsitektur proyek ini dan modul-modul utamanya.',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  SizedBox(height: short ? 20 : 28),
                 ],
               ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _RecentWorkspaceStrip extends StatelessWidget {
+  const _RecentWorkspaceStrip({
+    required this.workspaces,
+    required this.onOpen,
+    required this.onChoose,
+  });
+
+  final List<String> workspaces;
+  final ValueChanged<String> onOpen;
+  final VoidCallback onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      key: const ValueKey('recent-workspaces-strip'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'RECENT WORKSPACES',
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              key: const ValueKey('dashboard-choose-workspace'),
+              onPressed: onChoose,
+              icon: const Icon(Icons.add, size: 15),
+              label: const Text('WORKSPACE BARU'),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 28),
+                padding: const EdgeInsets.symmetric(horizontal: 7),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final workspace in workspaces.take(3))
+              _RecentWorkspaceCard(
+                workspace: workspace,
+                onTap: () => onOpen(workspace),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RecentWorkspaceCard extends StatelessWidget {
+  const _RecentWorkspaceCard({required this.workspace, required this.onTap});
+
+  final String workspace;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final folder = path.basename(workspace);
+    return SizedBox(
+      width: 214,
+      child: Material(
+        color: colors.onSurface.withValues(alpha: 0.035),
+        borderRadius: BorderRadius.circular(11),
+        child: InkWell(
+          key: ValueKey('recent-workspace-${workspace.replaceAll('\\', '/')}'),
+          borderRadius: BorderRadius.circular(11),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(11),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.11),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.folder_outlined,
+                    size: 17,
+                    color: colors.primary,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        folder.isEmpty ? workspace : folder,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        workspace,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 9,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 15,
+                  color: colors.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardActionStrip extends StatelessWidget {
+  const _DashboardActionStrip({
+    required this.onChooseWorkspace,
+    required this.onHistory,
+    required this.onFocusComposer,
+  });
+
+  final VoidCallback onChooseWorkspace;
+  final VoidCallback onHistory;
+  final VoidCallback onFocusComposer;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      key: const ValueKey('dashboard-action-strip'),
+      children: [
+        Expanded(
+          child: _DashboardAction(
+            icon: Icons.folder_open_outlined,
+            label: 'BUKA WORKSPACE',
+            detail: 'Pilih folder proyek',
+            onTap: onChooseWorkspace,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _DashboardAction(
+            icon: Icons.history,
+            label: 'CHAT HISTORY',
+            detail: 'Buka percakapan tersimpan',
+            onTap: onHistory,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _DashboardAction(
+            icon: Icons.edit_outlined,
+            label: 'MULAI MENULIS',
+            detail: 'Fokus ke composer',
+            onTap: onFocusComposer,
+            accent: colors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashboardAction extends StatelessWidget {
+  const _DashboardAction({
+    required this.icon,
+    required this.label,
+    required this.detail,
+    required this.onTap,
+    this.accent,
+  });
+
+  final IconData icon;
+  final String label;
+  final String detail;
+  final VoidCallback onTap;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final color = accent ?? colors.onSurfaceVariant;
+    return Material(
+      color: colors.onSurface.withValues(alpha: 0.03),
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(11),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      detail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2049,6 +2408,7 @@ class _ModelBar extends StatelessWidget {
   const _ModelBar({
     required this.models,
     required this.selectedModel,
+    required this.favoriteModel,
     required this.busy,
     required this.planMode,
     required this.onSelected,
@@ -2058,6 +2418,7 @@ class _ModelBar extends StatelessWidget {
 
   final List<String> models;
   final String selectedModel;
+  final String favoriteModel;
   final bool busy;
   final bool planMode;
   final ValueChanged<String> onSelected;
@@ -2067,6 +2428,13 @@ class _ModelBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final hasFavoriteModel =
+        favoriteModel.isNotEmpty && models.contains(favoriteModel);
+    final orderedModels = [
+      if (hasFavoriteModel) favoriteModel,
+      for (final model in models)
+        if (model != favoriteModel) model,
+    ];
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 620;
@@ -2108,10 +2476,31 @@ class _ModelBar extends StatelessWidget {
                                   if (value != null) onSelected(value);
                                 },
                           items: [
-                            for (final model in models)
+                            for (final model in orderedModels)
                               DropdownMenuItem(
                                 value: model,
-                                child: Text(model),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        model,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (model == favoriteModel) ...[
+                                      const SizedBox(width: 8),
+                                      Icon(
+                                        Icons.star_rounded,
+                                        key: const ValueKey(
+                                          'favorite-model-indicator',
+                                        ),
+                                        size: 15,
+                                        color: colors.primary,
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                           ],
                         ),
@@ -2196,6 +2585,8 @@ class _Composer extends StatefulWidget {
   const _Composer({
     required this.controller,
     required this.focusNode,
+    required this.density,
+    required this.onDensityChanged,
     required this.workspaceSelected,
     required this.busy,
     required this.onSend,
@@ -2214,6 +2605,8 @@ class _Composer extends StatefulWidget {
 
   final TextEditingController controller;
   final FocusNode focusNode;
+  final _ComposerDensity density;
+  final ValueChanged<_ComposerDensity> onDensityChanged;
   final bool workspaceSelected;
   final bool busy;
   final VoidCallback onSend;
@@ -2307,6 +2700,7 @@ class _ComposerState extends State<_Composer> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final compactDensity = widget.density == _ComposerDensity.compact;
     final statusButtonStyle = TextButton.styleFrom(
       minimumSize: const Size(0, 24),
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -2323,7 +2717,12 @@ class _ComposerState extends State<_Composer> {
       child: AnimatedContainer(
         duration: _fastMotion,
         curve: _motionCurve,
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+        padding: EdgeInsets.fromLTRB(
+          compactDensity ? 16 : 20,
+          0,
+          compactDensity ? 16 : 20,
+          compactDensity ? 2 : 4,
+        ),
         decoration: BoxDecoration(
           color: colors.surface,
           boxShadow: _focused || _dragging
@@ -2551,14 +2950,19 @@ class _ComposerState extends State<_Composer> {
                     controller: widget.controller,
                     focusNode: widget.focusNode,
                     minLines: 1,
-                    maxLines: 4,
+                    maxLines: compactDensity ? 3 : 5,
                     enabled: !widget.busy,
                     keyboardType: TextInputType.multiline,
                     textInputAction: TextInputAction.newline,
                     style: const TextStyle(fontSize: 14, height: 1.35),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Describe a task or type / for commands...',
-                      contentPadding: EdgeInsets.fromLTRB(12, 6, 48, 8),
+                      contentPadding: EdgeInsets.fromLTRB(
+                        12,
+                        compactDensity ? 4 : 7,
+                        48,
+                        compactDensity ? 6 : 10,
+                      ),
                       filled: false,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -2610,6 +3014,23 @@ class _ComposerState extends State<_Composer> {
                   onPressed: widget.busy ? null : widget.onAttachContext,
                   icon: const Icon(Icons.attach_file, size: 14),
                   label: Text('${widget.contextFiles.length} FILES'),
+                  style: statusButtonStyle,
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  key: const ValueKey('composer-density-toggle'),
+                  onPressed: widget.busy
+                      ? null
+                      : () => widget.onDensityChanged(
+                          widget.density == _ComposerDensity.compact
+                              ? _ComposerDensity.comfortable
+                              : _ComposerDensity.compact,
+                        ),
+                  icon: Icon(
+                    compactDensity ? Icons.density_small : Icons.density_large,
+                    size: 14,
+                  ),
+                  label: Text(compactDensity ? 'LEGA' : 'RINGKAS'),
                   style: statusButtonStyle,
                 ),
                 const SizedBox(width: 8),
@@ -2670,6 +3091,174 @@ class _ComposerShortcut extends StatelessWidget {
         padding: EdgeInsets.zero,
         side: BorderSide(color: colors.onSurface.withValues(alpha: 0.1)),
         backgroundColor: colors.onSurface.withValues(alpha: 0.035),
+      ),
+    );
+  }
+}
+
+class _ComposerActionBar extends StatefulWidget {
+  const _ComposerActionBar({
+    required this.busy,
+    required this.onAddContext,
+    required this.onPlugins,
+    required this.onSubagent,
+  });
+
+  final bool busy;
+  final VoidCallback onAddContext;
+  final VoidCallback onPlugins;
+  final VoidCallback onSubagent;
+
+  @override
+  State<_ComposerActionBar> createState() => _ComposerActionBarState();
+}
+
+class _ComposerActionBarState extends State<_ComposerActionBar> {
+  bool _expanded = false;
+
+  void _runAction(String value) {
+    if (value == 'add') widget.onAddContext();
+    if (value == 'plugins') widget.onPlugins();
+    if (value == 'subagent') widget.onSubagent();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final short = MediaQuery.sizeOf(context).height < 760;
+    final expanded = short == false || _expanded;
+    final actionStyle = TextButton.styleFrom(
+      minimumSize: const Size(0, 30),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
+    final actions = Row(
+      key: const ValueKey('composer-tools-expanded'),
+      children: [
+        TextButton.icon(
+          key: const ValueKey('classic-add-context'),
+          onPressed: widget.busy ? null : widget.onAddContext,
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('ADD'),
+          style: actionStyle,
+        ),
+        const SizedBox(width: 6),
+        TextButton.icon(
+          key: const ValueKey('classic-plugins'),
+          onPressed: widget.busy ? null : widget.onPlugins,
+          icon: const Icon(Icons.extension_outlined, size: 16),
+          label: const Text('PLUGINS'),
+          style: actionStyle,
+        ),
+        const SizedBox(width: 6),
+        TextButton.icon(
+          key: const ValueKey('classic-subagent'),
+          onPressed: widget.busy ? null : widget.onSubagent,
+          icon: const Icon(Icons.account_tree_outlined, size: 16),
+          label: const Text('SUBAGENT'),
+          style: actionStyle,
+        ),
+      ],
+    );
+    if (short == false) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
+        child: actions,
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, size: 15, color: colors.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Text(
+                'TOOLS',
+                style: TextStyle(
+                  fontFamily: 'Consolas',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .8,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                key: const ValueKey('composer-tools-toggle'),
+                onPressed: () => setState(() => _expanded = expanded == false),
+                icon: Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  size: 16,
+                ),
+                label: Text(expanded ? 'SEMBUNYIKAN' : 'TAMPILKAN'),
+                style: actionStyle,
+              ),
+              PopupMenuButton<String>(
+                key: const ValueKey('composer-tools-menu'),
+                tooltip: 'Aksi composer',
+                enabled: widget.busy == false,
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.more_horiz, size: 18),
+                onSelected: _runAction,
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'add', child: Text('ADD CONTEXT')),
+                  PopupMenuItem(value: 'plugins', child: Text('PLUGINS')),
+                  PopupMenuItem(value: 'subagent', child: Text('SUBAGENT')),
+                ],
+              ),
+            ],
+          ),
+          AnimatedSize(
+            duration: _fastMotion,
+            curve: _motionCurve,
+            child: expanded
+                ? Align(alignment: Alignment.centerLeft, child: actions)
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickStartChip extends StatelessWidget {
+  const _QuickStartChip({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: ActionChip(
+        avatar: Icon(icon, size: 14, color: colors.primary),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Consolas',
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        onPressed: onTap,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        side: BorderSide(color: colors.primary.withValues(alpha: 0.22)),
+        backgroundColor: colors.primary.withValues(alpha: 0.06),
       ),
     );
   }

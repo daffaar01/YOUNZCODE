@@ -11,6 +11,8 @@ class ChatSession {
     this.agentMessages = const [],
     this.goal,
     this.taskGraph,
+    this.customTitle,
+    this.pinned = false,
   });
 
   factory ChatSession.fromJson(Map<String, dynamic> json) => ChatSession(
@@ -30,6 +32,8 @@ class ChatSession {
         .toList(),
     goal: _parseGoal(json['goal']),
     taskGraph: _parseTaskGraph(json['taskGraph']),
+    customTitle: json['customTitle'] as String?,
+    pinned: json['pinned'] as bool? ?? false,
   );
 
   final String id;
@@ -39,8 +43,12 @@ class ChatSession {
   final List<Map<String, dynamic>> agentMessages;
   final AgentGoal? goal;
   final TaskGraph? taskGraph;
+  final String? customTitle;
+  final bool pinned;
 
   String get title {
+    final override = customTitle?.trim();
+    if (override != null && override.isNotEmpty) return override;
     final firstUser = entries.where((entry) => entry.role == ChatRole.user);
     if (firstUser.isEmpty) return 'Chat baru';
     final value = firstUser.first.content
@@ -48,6 +56,18 @@ class ChatSession {
         .trim();
     return value.length <= 42 ? value : '${value.substring(0, 42)}...';
   }
+
+  ChatSession copyWith({String? customTitle, bool? pinned}) => ChatSession(
+    id: id,
+    workspace: workspace,
+    updatedAt: updatedAt,
+    entries: entries,
+    agentMessages: agentMessages,
+    goal: goal,
+    taskGraph: taskGraph,
+    customTitle: customTitle ?? this.customTitle,
+    pinned: pinned ?? this.pinned,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -57,6 +77,8 @@ class ChatSession {
     if (agentMessages.isNotEmpty) 'agentMessages': agentMessages,
     if (goal != null) 'goal': goal!.toJson(),
     if (taskGraph != null) 'taskGraph': taskGraph!.toJson(),
+    if (customTitle != null) 'customTitle': customTitle,
+    if (pinned) 'pinned': true,
   };
 }
 

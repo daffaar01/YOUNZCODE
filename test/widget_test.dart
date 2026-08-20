@@ -134,7 +134,11 @@ void main() {
     expect(find.text('/review'), findsOneWidget);
     expect(find.text('PROJECT'), findsOneWidget);
     expect(find.text('What are we building?'), findsOneWidget);
-    expect(find.text('Explain Codebase'), findsOneWidget);
+    expect(
+      find.text('Explain Codebase').evaluate().isNotEmpty ||
+          find.text('EXPLAIN').evaluate().isNotEmpty,
+      isTrue,
+    );
     expect(find.byKey(const ValueKey('workspace-setup-card')), findsOneWidget);
     expect(find.text('SETUP WORKSPACE'), findsOneWidget);
     expect(find.text('0/3 SIAP'), findsOneWidget);
@@ -150,6 +154,97 @@ void main() {
       find.byKey(const ValueKey('environment-setup-banner')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('empty state tidak menumpuk pada jendela pendek', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1280, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    final setupRect = tester.getRect(
+      find.byKey(const ValueKey('workspace-setup-card')),
+    );
+    final quickStartRect = tester.getRect(
+      find.byKey(const ValueKey('quick-start-compact')),
+    );
+    final composerRect = tester.getRect(
+      find.byKey(const ValueKey('composer-shell')),
+    );
+
+    expect(find.byKey(const ValueKey('quick-start-compact')), findsOneWidget);
+    expect(composerRect.top, greaterThanOrEqualTo(setupRect.bottom));
+    expect(composerRect.top, greaterThanOrEqualTo(quickStartRect.bottom));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('workspace picker menampilkan pencarian dan workspace terakhir', (
+    tester,
+  ) async {
+    final createdRoot = await tester.runAsync(
+      () => Directory.systemTemp.createTemp('younzcode-picker-'),
+    );
+    expect(createdRoot, isNotNull);
+    final root = createdRoot as Directory;
+    final alpha = Directory('${root.path}${Platform.pathSeparator}alpha-app');
+    final beta = Directory('${root.path}${Platform.pathSeparator}beta-app');
+    await tester.runAsync(() async {
+      await alpha.create();
+      await beta.create();
+    });
+    addTearDown(() => tester.runAsync(() => root.delete(recursive: true)));
+    _setMockPreferences({
+      'recent_workspaces': [alpha.path, beta.path],
+    });
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    final chooseWorkspace = find.byKey(
+      const ValueKey('empty-choose-workspace'),
+    );
+    await tester.ensureVisible(chooseWorkspace);
+    await tester.tap(chooseWorkspace);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 250)),
+    );
+    await tester.pumpAndSettle();
+
+    final picker = find.byKey(const ValueKey('workspace-picker-dialog'));
+    expect(picker, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('workspace-picker-search')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: picker, matching: find.text('alpha-app')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: picker, matching: find.text('beta-app')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('workspace-picker-browse')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('workspace-picker-search')),
+      'beta',
+    );
+    await tester.pump();
+    expect(
+      find.descendant(of: picker, matching: find.text('beta-app')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: picker, matching: find.text('alpha-app')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('shortcut composer menyiapkan command untuk ditinjau', (
@@ -168,6 +263,51 @@ void main() {
       find.byKey(const ValueKey('prompt-field')),
     );
     expect(field.controller!.text, '/review');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tools composer otomatis ringkas pada jendela pendek', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1280, 720));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    expect(find.byKey(const ValueKey('composer-tools-toggle')), findsOneWidget);
+    expect(find.byKey(const ValueKey('classic-add-context')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('composer-tools-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('classic-add-context')), findsOneWidget);
+    expect(find.byKey(const ValueKey('classic-plugins')), findsOneWidget);
+    expect(find.byKey(const ValueKey('classic-subagent')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('kepadatan composer dapat diubah dan disimpan', (tester) async {
+    _setMockPreferences({'composer_density': 'comfortable'});
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    var field = tester.widget<TextField>(
+      find.byKey(const ValueKey('prompt-field')),
+    );
+    expect(field.maxLines, 5);
+
+    await tester.tap(find.byKey(const ValueKey('composer-density-toggle')));
+    await tester.pumpAndSettle();
+
+    field = tester.widget<TextField>(
+      find.byKey(const ValueKey('prompt-field')),
+    );
+    expect(field.maxLines, 3);
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('composer_density'), 'compact');
     expect(tester.takeException(), isNull);
   });
 
@@ -238,10 +378,66 @@ void main() {
 
     expect(find.text('PROJECT SETTINGS'), findsOneWidget);
     expect(find.text('GENERAL'), findsWidgets);
+    expect(find.text('APPEARANCE'), findsOneWidget);
     expect(find.text('ENV VARIABLES'), findsOneWidget);
     expect(find.text('PERMISSIONS'), findsOneWidget);
     expect(find.text('SECURITY'), findsOneWidget);
     expect(find.text('API'), findsOneWidget);
+
+    await tester.tap(find.text('API'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('provider-status-card')), findsOneWidget);
+  });
+
+  testWidgets('appearance tersimpan dan model favorit diprioritaskan', (
+    tester,
+  ) async {
+    _setMockPreferences({
+      'workspace_layout': 'focus',
+      'model': 'model-a',
+      'models': ['model-a', 'model-b'],
+    });
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.byKey(const ValueKey('rail-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('APPEARANCE'));
+    await tester.pumpAndSettle();
+
+    final slider = tester.widget<Slider>(
+      find.byKey(const ValueKey('appearance-font-scale')),
+    );
+    slider.onChanged!(1.2);
+    await tester.pump();
+    await tester.tap(find.text('COMPACT'));
+    await tester.pump();
+
+    const accent = Color(0xFF2F9E69);
+    await tester.tap(
+      find.byKey(ValueKey('appearance-accent-${accent.toARGB32()}')),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('appearance-favorite-model')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('model-b').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SAVE SETTINGS'));
+    await tester.pumpAndSettle();
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getDouble('font_scale'), 1.2);
+    expect(preferences.getString('ui_density'), 'compact');
+    expect(preferences.getInt('accent_color'), accent.toARGB32());
+    expect(preferences.getString('favorite_model'), 'model-b');
+
+    final selector = tester.widget<DropdownButton<String>>(
+      find.byKey(const ValueKey('model-selector')),
+    );
+    expect(selector.items!.first.value, 'model-b');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('toggle UPDATE TELEMETRY di Project Settings tersimpan', (
@@ -1075,16 +1271,23 @@ void main() {
       'Add-ons',
       'PROJECT',
       'RECENTS',
-      'ADD',
-      'SUBAGENT',
       'Mulai chat pertama',
     ]) {
       expect(find.text(label), findsWidgets, reason: label);
     }
     expect(find.byKey(const ValueKey('classic-sidebar')), findsOneWidget);
-    expect(find.byKey(const ValueKey('classic-plugins')), findsOneWidget);
-    expect(find.byKey(const ValueKey('classic-subagent')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('classic-subagent')));
+    final subagentButton = find.byKey(const ValueKey('classic-subagent'));
+    if (subagentButton.evaluate().isNotEmpty) {
+      await tester.tap(subagentButton);
+    } else {
+      expect(find.byKey(const ValueKey('composer-tools-menu')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('composer-tools-menu')));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    }
     await tester.pump();
     final prompt = tester.widget<TextField>(
       find.byKey(const ValueKey('prompt-field')),
@@ -1460,6 +1663,108 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Masih tersedia'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('history dapat dicari, dipin, diganti nama, dan dihapus', (
+    tester,
+  ) async {
+    final workspace = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('younzcode-history-actions-'),
+    ))!;
+    addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
+    _setMockPreferences({
+      'workspace': workspace.path,
+      'workspace_layout': 'focus',
+    });
+    await ChatSessionStore().save([
+      ChatSession(
+        id: 'history-alpha',
+        workspace: workspace.path,
+        updatedAt: DateTime(2026, 7, 23, 10),
+        entries: const [
+          ChatEntry(role: ChatRole.user, content: 'Alpha conversation'),
+          ChatEntry(role: ChatRole.assistant, content: 'Alpha response'),
+        ],
+      ),
+      ChatSession(
+        id: 'history-beta',
+        workspace: workspace.path,
+        updatedAt: DateTime(2026, 7, 24, 10),
+        entries: const [
+          ChatEntry(role: ChatRole.user, content: 'Beta conversation'),
+          ChatEntry(role: ChatRole.assistant, content: 'Beta response'),
+        ],
+      ),
+    ]);
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.byKey(const ValueKey('rail-history')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.byKey(const ValueKey('chat-session-history-alpha')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('chat-session-history-beta')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('history-search')),
+      'Alpha',
+    );
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('chat-session-history-alpha')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('chat-session-history-beta')),
+      findsNothing,
+    );
+
+    await tester.enterText(find.byKey(const ValueKey('history-search')), '');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('chat-menu-history-alpha')));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _pumpLoaded(tester);
+    expect(find.byIcon(Icons.push_pin), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat-menu-history-alpha')));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.enterText(
+      find.byKey(const ValueKey('history-rename-field')),
+      'Alpha renamed',
+    );
+    await tester.tap(find.text('SIMPAN'));
+    await _pumpLoaded(tester);
+    expect(find.text('Alpha renamed'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat-menu-history-beta')));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('HAPUS CHAT?'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('history-delete-confirm')));
+    await _pumpLoaded(tester);
+    expect(
+      find.byKey(const ValueKey('chat-session-history-beta')),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
   });
 

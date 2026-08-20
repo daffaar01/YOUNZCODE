@@ -861,7 +861,11 @@ class _WorkspaceTab extends StatelessWidget {
 class _ProjectPanel extends StatefulWidget {
   const _ProjectPanel({
     required this.workspace,
+    required this.activeFile,
+    required this.dirtyFiles,
+    required this.recentWorkspaces,
     required this.onOpenFile,
+    required this.onOpenRecent,
     required this.onChoose,
     required this.onNewChat,
     required this.onChat,
@@ -874,7 +878,11 @@ class _ProjectPanel extends StatefulWidget {
   });
 
   final String workspace;
+  final String? activeFile;
+  final Set<String> dirtyFiles;
+  final List<String> recentWorkspaces;
   final ValueChanged<String> onOpenFile;
+  final ValueChanged<String> onOpenRecent;
   final VoidCallback onChoose;
   final VoidCallback onNewChat;
   final VoidCallback onChat;
@@ -912,6 +920,18 @@ class _ProjectPanelState extends State<_ProjectPanel> {
     final folderName = widget.workspace.isEmpty
         ? 'Belum dipilih'
         : widget.workspace.replaceAll('\\', '/').split('/').last;
+    final activeRelativePath = widget.activeFile == null
+        ? null
+        : widget.workspace.isEmpty
+        ? widget.activeFile!
+        : path.relative(widget.activeFile!, from: widget.workspace);
+    final activeFileDirty =
+        widget.activeFile != null &&
+        widget.dirtyFiles.contains(widget.activeFile);
+    final recent = widget.recentWorkspaces
+        .where((workspace) => workspace != widget.workspace)
+        .take(3)
+        .toList();
     return Container(
       key: const ValueKey('workspace-explorer'),
       color: colors.surface,
@@ -976,6 +996,56 @@ class _ProjectPanelState extends State<_ProjectPanel> {
               ),
             ),
           ),
+          if (activeRelativePath != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: Container(
+                key: const ValueKey('explorer-active-file'),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.onSurface.withValues(alpha: 0.035),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.description_outlined,
+                      size: 14,
+                      color: colors.primary,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        activeRelativePath.replaceAll('\\', ' / '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                    if (activeFileDirty)
+                      Tooltip(
+                        message: 'Perubahan belum disimpan',
+                        child: Container(
+                          key: const ValueKey('explorer-unsaved-indicator'),
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: colors.tertiary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
             child: SizedBox(
@@ -1082,16 +1152,57 @@ class _ProjectPanelState extends State<_ProjectPanel> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  widget.workspace.isEmpty
-                      ? 'No workspace history'
-                      : 'History is available from the command rail',
-                  style: TextStyle(
-                    fontFamily: 'Consolas',
-                    fontSize: 11,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
+                if (recent.isEmpty)
+                  Text(
+                    'No workspace history',
+                    style: TextStyle(
+                      fontFamily: 'Consolas',
+                      fontSize: 11,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  for (final workspace in recent)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          key: ValueKey(
+                            'explorer-recent-${workspace.replaceAll('\\', '/')}',
+                          ),
+                          borderRadius: BorderRadius.circular(7),
+                          onTap: () => widget.onOpenRecent(workspace),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 6,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.folder_outlined,
+                                  size: 14,
+                                  color: colors.primary,
+                                ),
+                                const SizedBox(width: 7),
+                                Expanded(
+                                  child: Text(
+                                    path.basename(workspace),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontFamily: 'Consolas',
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
               ],
             ),
           ),

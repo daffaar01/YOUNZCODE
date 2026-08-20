@@ -512,14 +512,36 @@ class _WorkspaceEditorState extends State<_WorkspaceEditor> {
                 builder: (context, constraints) => Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        document.path,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Consolas',
-                          fontSize: 10,
-                          color: colors.onSurfaceVariant,
-                        ),
+                      child: Row(
+                        children: [
+                          if (document.dirty)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: Tooltip(
+                                message: 'Perubahan belum disimpan',
+                                child: Container(
+                                  key: const ValueKey('editor-unsaved-dot'),
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: colors.tertiary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Expanded(
+                            child: Text(
+                              document.path,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Consolas',
+                                fontSize: 10,
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     if (document.sensitive)

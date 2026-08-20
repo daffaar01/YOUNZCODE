@@ -516,10 +516,13 @@ extension _AgentConfiguration on _AgentHomePageState {
         environment: _environment,
         baseUrl: _baseUrl,
         model: _model,
+        models: List.unmodifiable(_models),
         apiKey: _apiKey,
         timeoutMs: _timeoutMs,
         dapTimeoutMs: _dapTimeoutMs,
         headers: _apiHeaders,
+        appearance: widget.appearance,
+        onAppearanceChanged: widget.onAppearanceChanged,
         onSave:
             (
               write,

@@ -41,6 +41,16 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
       agentMessages: List.unmodifiable(_copyCheckpoint(_agentCheckpoint)),
       goal: _goal,
       taskGraph: _taskGraph,
+      customTitle: _chatSessions
+          .where((item) => item.id == chatId)
+          .map((item) => item.customTitle)
+          .firstOrNull,
+      pinned:
+          _chatSessions
+              .where((item) => item.id == chatId)
+              .map((item) => item.pinned)
+              .firstOrNull ??
+          false,
     );
     final index = _chatSessions.indexWhere((item) => item.id == chatId);
     if (index == -1) {
@@ -100,7 +110,16 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
             }
           });
           await _chatSessionStore.save(_chatSessions);
-          if (context.mounted) Navigator.pop(context);
+        },
+        onUpdate: (session) async {
+          final index = _chatSessions.indexWhere(
+            (item) => item.id == session.id,
+          );
+          if (index >= 0) {
+            _chatSessions[index] = session;
+            await _chatSessionStore.save(_chatSessions);
+            if (mounted) _updateState(() {});
+          }
         },
       ),
     );
@@ -165,13 +184,14 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
     });
   }
 
-  void _showMessage(String message) {
+  void _showMessage(String message, {SnackBarAction? action}) {
     final messenger = ScaffoldMessenger.of(context);
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(message),
+          action: action,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),

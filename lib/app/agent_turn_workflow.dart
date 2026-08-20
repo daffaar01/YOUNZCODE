@@ -84,6 +84,21 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
           _providerVerified = true;
           _turnState = _AgentTurnState.success;
         });
+        _notify(
+          'Tugas selesai',
+          'Agent menyelesaikan task dalam ${_elapsedSinceTurn().inSeconds}s.',
+        );
+        _showMessage(
+          'Tugas selesai. Hasil dan perubahan siap ditinjau.',
+          action: SnackBarAction(
+            label: 'DETAIL',
+            onPressed: () {
+              if (mounted) {
+                _updateState(() => _executionSummaryVisible = true);
+              }
+            },
+          ),
+        );
       }
     } catch (error) {
       if (!mounted) return;
@@ -250,6 +265,10 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
     AgentGoalStatus.stopped => 'Goal dihentikan',
     null => 'Siap menerima tugas',
   };
+
+  Duration _elapsedSinceTurn() => _turnStartedAt == null
+      ? Duration.zero
+      : DateTime.now().difference(_turnStartedAt!);
 
   void _notify(String title, String body, {bool error = false}) {
     if (!mounted) return;

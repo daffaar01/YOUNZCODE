@@ -41,12 +41,34 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
         .load(workspace)
         .catchError((_) => <String, ToolPermissionPolicy>{});
     var workspaceLayout = _WorkspaceLayout.classic;
+    var composerDensity = _ComposerDensity.comfortable;
+    var recentWorkspaces = <String>[];
     try {
       final preferences = await SharedPreferences.getInstance();
       workspaceLayout = preferences.getString('workspace_layout') == 'focus'
           ? _WorkspaceLayout.focus
           : _WorkspaceLayout.classic;
+      composerDensity = preferences.getString(_composerDensityKey) == 'compact'
+          ? _ComposerDensity.compact
+          : _ComposerDensity.comfortable;
+      recentWorkspaces = preferences.getStringList(_recentWorkspacesKey) ?? [];
     } catch (_) {}
+    final knownWorkspaces =
+        <String>{
+              if (workspace.isNotEmpty) workspace,
+              ...recentWorkspaces,
+              for (final session in sessions)
+                if (session.workspace.isNotEmpty) session.workspace,
+            }
+            .where((path) {
+              try {
+                return Directory(path).existsSync();
+              } catch (_) {
+                return false;
+              }
+            })
+            .take(8)
+            .toList();
     if (!mounted) return;
     final workspaceSessions = sessions
         .where((session) => session.workspace == workspace)
@@ -70,9 +92,13 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _timeoutMs = settings.timeoutMs;
       _dapTimeoutMs = settings.dapTimeoutMs;
       _workspaceLayout = workspaceLayout;
+      _composerDensity = composerDensity;
       _chatSessions
         ..clear()
         ..addAll(sessions);
+      _recentWorkspaces
+        ..clear()
+        ..addAll(knownWorkspaces);
       _addons
         ..clear()
         ..addAll(addons);
@@ -94,6 +120,10 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _workspaceTrusted = trusted;
     });
     if (workspace != settings.workspace) unawaited(_saveSettings());
+    if (knownWorkspaces.length != recentWorkspaces.length ||
+        !knownWorkspaces.every(recentWorkspaces.contains)) {
+      unawaited(_saveRecentWorkspaces());
+    }
     if (_entries.isNotEmpty) _scrollToBottom();
     unawaited(_refreshGit());
     unawaited(_loadCheckpointHistory(workspace));
@@ -113,34 +143,104 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _showMessage('Tunggu agent selesai sebelum mengganti workspace.');
       return;
     }
+    final candidates =
+        <String>{
+              if (_workspace.isNotEmpty) _workspace,
+              ..._recentWorkspaces,
+              for (final session in _chatSessions)
+                if (session.workspace.isNotEmpty) session.workspace,
+            }
+            .where((path) {
+              try {
+                return Directory(path).existsSync();
+              } catch (_) {
+                return false;
+              }
+            })
+            .take(8)
+            .toList();
+    final trustEntries = await Future.wait(
+      candidates.map((path) async {
+        final trusted = await _trustService
+            .isTrusted(path)
+            .catchError((_) => false);
+        final sessionCount = _chatSessions
+            .where((session) => session.workspace == path)
+            .length;
+        final latest = _chatSessions
+            .where((session) => session.workspace == path)
+            .map((session) => session.updatedAt)
+            .fold<DateTime?>(
+              null,
+              (current, value) =>
+                  current == null || value.isAfter(current) ? value : current,
+            );
+        return _WorkspacePickerEntry(
+          path: path,
+          trusted: trusted,
+          sessionCount: sessionCount,
+          lastOpenedAt: latest,
+          active: path == _workspace,
+        );
+      }),
+    );
+    if (!mounted) return;
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => _WorkspacePickerDialog(entries: trustEntries),
+    );
+    if (selected == null) return;
+    if (selected == _WorkspacePickerDialog.browseValue) {
+      await _browseWorkspace();
+      return;
+    }
+    await _activateWorkspace(selected);
+  }
+
+  Future<void> _browseWorkspace() async {
     final selected = await FilePicker.platform.getDirectoryPath(
       dialogTitle: 'Pilih workspace proyek',
       initialDirectory: _workspace.isEmpty ? null : _workspace,
     );
     if (selected == null) return;
+    await _activateWorkspace(selected);
+  }
+
+  Future<void> _activateWorkspace(String selected) async {
+    if (_busy) {
+      _showMessage('Tunggu agent selesai sebelum mengganti workspace.');
+      return;
+    }
     if (!mounted) return;
-    final trust = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.shield_outlined),
-        title: const Text('Trust Workspace?'),
-        content: Text(
-          '$selected\n\nRestricted Mode menonaktifkan write, terminal, add-on, dan MCP lokal.',
+    var trusted = await _trustService
+        .isTrusted(selected)
+        .catchError((_) => false);
+    if (!mounted) return;
+    if (!trusted) {
+      final trust = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.shield_outlined),
+          title: const Text('Trust Workspace?'),
+          content: Text(
+            '$selected\n\nRestricted Mode menonaktifkan write, terminal, add-on, dan MCP lokal.',
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('RESTRICTED MODE'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('TRUST WORKSPACE'),
+            ),
+          ],
         ),
-        actions: [
-          OutlinedButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('RESTRICTED MODE'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('TRUST WORKSPACE'),
-          ),
-        ],
-      ),
-    );
-    await _trustService.setTrusted(selected, trust == true);
+      );
+      trusted = trust == true;
+      await _trustService.setTrusted(selected, trusted);
+    }
     final toolPolicies = await _toolPermissionStore
         .load(selected)
         .catchError((_) => <String, ToolPermissionPolicy>{});
@@ -156,7 +256,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _contextFiles.clear();
       _terminalOutput.clear();
       _workspace = selected;
-      _workspaceTrusted = trust == true;
+      _workspaceTrusted = trusted;
       _browserMode = false;
       _browserInitialUrl = null;
       _budgetWarningShown = false;
@@ -188,11 +288,33 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _searchBusy = false;
       _searchController.clear();
     });
+    await _rememberWorkspace(selected);
     await _saveSettings();
     await _refreshGit();
     await _loadCheckpointHistory(selected);
     await _initializeCodeIntelligence(selected);
     if (_entries.isNotEmpty) _scrollToBottom();
+  }
+
+  Future<void> _rememberWorkspace(String workspace) async {
+    if (workspace.isEmpty) return;
+    _updateState(() {
+      _recentWorkspaces
+        ..remove(workspace)
+        ..insert(0, workspace);
+      if (_recentWorkspaces.length > 8) {
+        _recentWorkspaces.removeRange(8, _recentWorkspaces.length);
+      }
+    });
+    await _saveRecentWorkspaces();
+  }
+
+  Future<void> _saveRecentWorkspaces() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _recentWorkspacesKey,
+      List.unmodifiable(_recentWorkspaces),
+    );
   }
 
   Future<void> _loadCheckpointHistory(String workspace) async {

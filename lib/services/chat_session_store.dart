@@ -52,6 +52,8 @@ class ChatSessionStore {
     'id': session.id,
     'workspace': session.workspace,
     'updatedAt': session.updatedAt.toIso8601String(),
+    if (session.customTitle != null) 'customTitle': session.customTitle,
+    if (session.pinned) 'pinned': true,
     'entries': session.entries
         .where((entry) => entry.role.name != 'tool')
         .map(
