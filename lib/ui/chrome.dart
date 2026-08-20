@@ -423,12 +423,31 @@ class _ClassicSidebarState extends State<_ClassicSidebar> {
                 if (recent.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
-                    child: Text(
-                      'Belum ada chat sebelumnya',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.onSurfaceVariant,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Belum ada chat sebelumnya',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextButton.icon(
+                          key: const ValueKey('classic-first-chat'),
+                          onPressed: widget.onNewChat,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: const Icon(
+                            Icons.add_comment_outlined,
+                            size: 15,
+                          ),
+                          label: const Text('Mulai chat pertama'),
+                        ),
+                      ],
                     ),
                   )
                 else

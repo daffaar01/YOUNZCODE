@@ -292,22 +292,42 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          textStyle: const TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-          ),
-          elevation: 0,
+        style: ButtonStyle(
           animationDuration: _fastMotion,
+          elevation: const WidgetStatePropertyAll(0),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.focused)) {
+              return scheme.onPrimary.withValues(alpha: 0.18);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return scheme.onPrimary.withValues(alpha: 0.1);
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return scheme.onPrimary.withValues(alpha: 0.22);
+            }
+            return null;
+          }),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: ButtonStyle(
           animationDuration: _fastMotion,
           overlayColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.pressed)
+            (states) => states.contains(WidgetState.focused)
+                ? scheme.primary.withValues(alpha: 0.14)
+                : states.contains(WidgetState.hovered)
+                ? scheme.secondary.withValues(alpha: 0.12)
+                : states.contains(WidgetState.pressed)
                 ? scheme.secondary.withValues(alpha: 0.2)
                 : null,
           ),
@@ -317,7 +337,11 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
         style: ButtonStyle(
           animationDuration: _fastMotion,
           overlayColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.pressed)
+            (states) => states.contains(WidgetState.focused)
+                ? scheme.primary.withValues(alpha: 0.12)
+                : states.contains(WidgetState.hovered)
+                ? scheme.secondary.withValues(alpha: 0.1)
+                : states.contains(WidgetState.pressed)
                 ? scheme.secondary.withValues(alpha: 0.2)
                 : null,
           ),
@@ -327,12 +351,17 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
         style: ButtonStyle(
           animationDuration: _fastMotion,
           overlayColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.pressed)
+            (states) => states.contains(WidgetState.focused)
+                ? scheme.primary.withValues(alpha: 0.16)
+                : states.contains(WidgetState.hovered)
+                ? scheme.secondary.withValues(alpha: 0.12)
+                : states.contains(WidgetState.pressed)
                 ? scheme.secondary.withValues(alpha: 0.25)
                 : null,
           ),
         ),
       ),
+      focusColor: scheme.primary.withValues(alpha: 0.14),
       hoverColor: scheme.secondary.withValues(alpha: 0.08),
       splashFactory: InkRipple.splashFactory,
       tooltipTheme: TooltipThemeData(
@@ -836,11 +865,21 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                         child: Align(
                                           alignment: Alignment.topCenter,
                                           child: _ClassicEnvironmentPanel(
+                                            workspaceSelected:
+                                                _workspace.isNotEmpty,
+                                            workspaceTrusted: _workspaceTrusted,
+                                            providerConfigured:
+                                                _apiKey.isNotEmpty,
                                             gitStatus: _gitStatus,
                                             changes: _pendingChanges,
                                             activities: _activities,
                                             terminalBusy: _terminalBusy,
                                             sources: _contextFiles,
+                                            onChooseWorkspace: _chooseWorkspace,
+                                            onTrustWorkspace: () => unawaited(
+                                              _trustCurrentWorkspace(),
+                                            ),
+                                            onConfigureProvider: _openSettings,
                                             onAddSource: _attachContext,
                                             onChanges: _reviewChanges,
                                             onGit: _showGitDetails,
@@ -858,6 +897,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                           status: _agentStatus,
                           gitStatus: _gitStatus,
                           onGit: _showGitDetails,
+                          onStatus: _showWorkspaceStatus,
                           workspaceTrusted: _workspaceTrusted,
                           onTrustWorkspace: _trustCurrentWorkspace,
                         ),
@@ -1091,7 +1131,12 @@ class _AgentHomePageState extends State<AgentHomePage> {
           child: _entries.isEmpty && !_busy
               ? _EmptyState(
                   workspaceSelected: _workspace.isNotEmpty,
+                  workspaceTrusted: _workspaceTrusted,
+                  providerConfigured: _apiKey.isNotEmpty,
                   onChooseWorkspace: _chooseWorkspace,
+                  onTrustWorkspace: () => unawaited(_trustCurrentWorkspace()),
+                  onConfigureProvider: _openSettings,
+                  onFocusComposer: _promptFocusNode.requestFocus,
                   onSuggestion: _useSuggestion,
                 )
               : SilkyScroll.fromConfig(
@@ -1254,6 +1299,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                   _Composer(
                     controller: _promptController,
                     focusNode: _promptFocusNode,
+                    workspaceSelected: _workspace.isNotEmpty,
                     busy: _busy,
                     onSend: _send,
                     onStop: () => unawaited(_cancelAgent()),
@@ -1281,6 +1327,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
                     },
                     slashCommands: _slashCommands,
                     onSlashCommand: _runSlashCommand,
+                    onOpenCommandPalette: _openCommandPalette,
                   ),
                 ],
               ),

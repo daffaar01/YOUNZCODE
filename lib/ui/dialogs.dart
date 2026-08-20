@@ -3271,6 +3271,7 @@ class _GitDialogState extends State<_GitDialog> {
   String _history = '';
   String? _branchError;
   String? _operationError;
+  String? _operationNotice;
   bool _loading = true;
   bool _mutating = false;
 
@@ -3320,17 +3321,22 @@ class _GitDialogState extends State<_GitDialog> {
   Future<void> _run(
     Future<void> Function() action, {
     bool clearCommit = false,
+    String? successMessage,
   }) async {
     if (_mutating) return;
     setState(() {
       _mutating = true;
       _operationError = null;
+      _operationNotice = null;
     });
     try {
       await action();
       if (clearCommit) _commitController.clear();
       await widget.onChanged();
       await _refresh();
+      if (mounted && successMessage != null) {
+        setState(() => _operationNotice = successMessage);
+      }
     } catch (error) {
       if (mounted) setState(() => _operationError = '$error');
     } finally {
@@ -3387,7 +3393,10 @@ class _GitDialogState extends State<_GitDialog> {
       ),
     );
     if (approved == true) {
-      await _run(() => widget.service.pushCurrent(widget.workspace));
+      await _run(
+        () => widget.service.pushCurrent(widget.workspace),
+        successMessage: 'Branch berhasil di-push ke origin.',
+      );
     }
   }
 
@@ -3420,10 +3429,17 @@ class _GitDialogState extends State<_GitDialog> {
                   ),
                 ),
                 title: Text(_status.branch.isEmpty ? 'Git' : _status.branch),
-                subtitle: Text(
-                  _status.dirty
-                      ? 'Review, stage, dan commit perubahan workspace.'
-                      : 'Workspace sinkron dengan commit terakhir.',
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _status.dirty
+                          ? 'Review, stage, dan commit perubahan workspace.'
+                          : 'Workspace sinkron dengan commit terakhir.',
+                    ),
+                    const SizedBox(height: 5),
+                    _GitStateBadge(status: _status),
+                  ],
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -3518,6 +3534,29 @@ class _GitDialogState extends State<_GitDialog> {
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: colors.error),
+                  ),
+                ),
+              if (_operationNotice != null)
+                Container(
+                  key: const ValueKey('git-operation-success'),
+                  width: double.infinity,
+                  color: const Color(0xFF2F9E69).withValues(alpha: 0.12),
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle_outline,
+                        size: 17,
+                        color: Color(0xFF2F9E69),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _operationNotice!,
+                          style: const TextStyle(color: Color(0xFF2F9E69)),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               const TabBar(
@@ -3700,6 +3739,7 @@ class _GitDialogState extends State<_GitDialog> {
                           _commitController.text,
                         ),
                         clearCommit: true,
+                        successMessage: 'Commit berhasil dibuat.',
                       ),
                 icon: const Icon(Icons.commit),
                 label: const Text('COMMIT'),
@@ -3901,6 +3941,61 @@ class _GitSummaryMetric extends StatelessWidget {
               fontSize: 9,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.7,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GitStateBadge extends StatelessWidget {
+  const _GitStateBadge({required this.status});
+
+  final GitStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final conflict = status.conflicts.isNotEmpty;
+    final dirty = status.dirty;
+    final color = conflict
+        ? colors.error
+        : dirty
+        ? colors.tertiary
+        : const Color(0xFF2F9E69);
+    final label = conflict
+        ? '${status.conflicts.length} CONFLICT'
+        : dirty
+        ? '${status.entries.length} FILE BERUBAH'
+        : 'WORKING TREE CLEAN';
+    return Container(
+      key: const ValueKey('git-state-badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            conflict
+                ? Icons.warning_amber_rounded
+                : dirty
+                ? Icons.edit_note_outlined
+                : Icons.check_circle_outline,
+            size: 13,
+            color: color,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Consolas',
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: color,
             ),
           ),
         ],

@@ -373,6 +373,23 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
     return true;
   }
 
+  void _showWorkspaceStatus() {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => _WorkspaceStatusDialog(
+        workspace: _workspace,
+        connected: _providerVerified,
+        configured: _apiKey.isNotEmpty,
+        busy: _busy,
+        workspaceTrusted: _workspaceTrusted,
+        onChooseWorkspace: _chooseWorkspace,
+        onTrustWorkspace: () => unawaited(_trustCurrentWorkspace()),
+        onConfigureProvider: _openSettings,
+      ),
+    );
+  }
+
   Future<void> _toggleTerminal() async {
     if (_workspace.isEmpty) {
       _showMessage('Pilih workspace sebelum membuka terminal.');

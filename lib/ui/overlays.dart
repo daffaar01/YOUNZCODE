@@ -569,6 +569,7 @@ class _AgentWorkingCardState extends State<_AgentWorkingCard>
   @override
   Widget build(BuildContext context) {
     final palette = AgentWorkingPalette.fromTheme(Theme.of(context));
+    final activeStep = _activeProgressStep(widget.status, widget.activities);
     return TweenAnimationBuilder<double>(
       duration: _mediumMotion,
       curve: _motionCurve,
@@ -600,6 +601,8 @@ class _AgentWorkingCardState extends State<_AgentWorkingCard>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _AgentProgressTimeline(activeStep: activeStep),
+              const SizedBox(height: 14),
               if (widget.activities.isNotEmpty)
                 Align(
                   alignment: Alignment.centerRight,
@@ -766,6 +769,172 @@ class _AgentWorkingCardState extends State<_AgentWorkingCard>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  int _activeProgressStep(String status, List<_AgentActivity> activities) {
+    final normalized = status.toLowerCase();
+    if (normalized.contains('review') ||
+        normalized.contains('quality') ||
+        normalized.contains('diff') ||
+        normalized.contains('checkpoint')) {
+      return 4;
+    }
+    if (activities.any(
+      (activity) =>
+          activity.name == 'write_file' ||
+          activity.name == 'replace_text' ||
+          activity.name == 'apply_patch' ||
+          activity.name == 'commit',
+    )) {
+      return 3;
+    }
+    if (activities.isNotEmpty) return 2;
+    if (normalized.contains('anal') ||
+        normalized.contains('mencari') ||
+        normalized.contains('memeriksa')) {
+      return 1;
+    }
+    return 0;
+  }
+}
+
+class _AgentProgressTimeline extends StatelessWidget {
+  const _AgentProgressTimeline({required this.activeStep});
+
+  final int activeStep;
+
+  static const _steps = <(String, IconData)>[
+    ('Konteks', Icons.layers_outlined),
+    ('Analisis', Icons.manage_search_outlined),
+    ('Tool', Icons.build_outlined),
+    ('Perubahan', Icons.edit_note_outlined),
+    ('Review', Icons.rate_review_outlined),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AgentWorkingPalette.fromTheme(Theme.of(context));
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            key: const ValueKey('agent-progress-timeline'),
+            children: [
+              for (var index = 0; index < _steps.length; index++)
+                _buildCompactStep(context, palette, index),
+            ],
+          );
+        }
+        return Row(
+          key: const ValueKey('agent-progress-timeline'),
+          children: [
+            for (var index = 0; index < _steps.length; index++) ...[
+              Expanded(child: _buildStep(context, palette, index)),
+              if (index < _steps.length - 1)
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    color: index < activeStep
+                        ? palette.accent.withValues(alpha: 0.7)
+                        : palette.border,
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStep(
+    BuildContext context,
+    AgentWorkingPalette palette,
+    int index,
+  ) {
+    final complete = index < activeStep;
+    final current = index == activeStep;
+    final color = complete || current ? palette.accent : palette.mutedText;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: _fastMotion,
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: current
+                ? palette.accent.withValues(alpha: 0.16)
+                : complete
+                ? palette.accent.withValues(alpha: 0.1)
+                : Colors.transparent,
+            border: Border.all(color: color.withValues(alpha: 0.7)),
+          ),
+          child: Icon(
+            complete ? Icons.check : _steps[index].$2,
+            size: 15,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          _steps[index].$1,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: 'Consolas',
+            fontSize: 9,
+            fontWeight: current || complete ? FontWeight.w800 : FontWeight.w500,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactStep(
+    BuildContext context,
+    AgentWorkingPalette palette,
+    int index,
+  ) {
+    final complete = index < activeStep;
+    final current = index == activeStep;
+    final color = complete || current ? palette.accent : palette.mutedText;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Icon(
+            complete ? Icons.check : _steps[index].$2,
+            size: 15,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _steps[index].$1,
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 10,
+                fontWeight: current || complete
+                    ? FontWeight.w800
+                    : FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ),
+          Text(
+            complete
+                ? 'SELESAI'
+                : current
+                ? 'AKTIF'
+                : 'MENUNGGU',
+            style: TextStyle(fontFamily: 'Consolas', fontSize: 9, color: color),
+          ),
+        ],
       ),
     );
   }

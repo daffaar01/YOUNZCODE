@@ -28,10 +28,11 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 - **Classic workspace** — sidebar polos tanpa pembatas garis, berisi New Chat, Projects, Recents, Browser, Images, Terminal, History, Plugins, dan Add-ons; sidebar dapat diciutkan menjadi icon rail dengan indikator pilihan, tooltip, dan badge perubahan
 - **Focus workspace** — Explorer, editor, terminal, dan Agent tampil berdampingan untuk pekerjaan coding yang lebih intensif
 - **Environment card** — status workspace, Git, proses, dan source diringkas dalam card; klik card membuka popup detail agar panel utama tetap ringkas
-- **Onboarding workspace** — empty state menampilkan status workspace, quick start, dan aksi yang paling relevan saat belum ada percakapan
+- **Onboarding workspace** — empty state menampilkan status workspace, progress setup `0/3`, quick start, CTA memilih/trust workspace, dan konfigurasi provider/model
+- **Status interaktif** — chip `OFFLINE`, `RESTRICTED MODE`, atau `SYNCED` dapat dibuka untuk melihat penyebab dan tindakan berikutnya
 - **UI responsif** — sidebar Classic dapat di-scroll pada jendela pendek; model bar, toolbar editor, indikator file sensitif, terminal, dan status bar menyesuaikan panel sempit tanpa overflow
-- **Respons agent bertahap** — sebelum menjalankan tool agent menjelaskan langkahnya, menampilkan hasil sebagai Progress, lalu melanjutkan sampai rangkuman akhir
-- **Composer terintegrasi** — tambahkan context dengan tombol atau drag-and-drop file, buka Plugins, siapkan Subagent, dan gunakan command palette (`Ctrl+K`)
+- **Respons agent bertahap** — sebelum menjalankan tool agent menjelaskan langkahnya, menampilkan timeline Konteks → Analisis → Tool → Perubahan → Review, lalu melanjutkan sampai rangkuman akhir
+- **Composer terintegrasi** — tambahkan context dengan tombol atau drag-and-drop file, overlay drop yang jelas, chip attachment, shortcut `/review`, `/retry`, `/continue`, dan command palette (`Ctrl+K`)
 - **Respons mudah ditinjau** — pesan agent memiliki avatar, fenced code block dengan label bahasa, dan tombol salin; `Retry` serta `Continue` hanya menyiapkan draf di composer sebelum dikirim
 - Dialog **About YOUNZCODE** di header sidebar menjelaskan mode workspace, provider AI, progress agent, plugin/subagent, dan panel Environment
 
@@ -82,7 +83,8 @@ dan quality gate otomatis. Semua tindakan yang mengubah sistem **selalu meminta 
 
 ### 💾 Workspace & Git
 - **Git Center** — ringkasan file staged/added/removed/conflict, stage/unstage, discard, commit, branch, merge/abort, push, dan pengelolaan worktree
-- **Diff yang mudah dibaca** — preview perubahan berwarna, statistik penambahan/penghapusan, empty state saat tidak ada diff, dan tombol salin diff
+- **Diff yang mudah dibaca** — preview perubahan berwarna, statistik penambahan/penghapusan, empty state saat tidak ada diff, tombol salin diff, CTA `REVIEW CHANGES`, dan badge status working tree
+- **Feedback Git** — commit dan push menampilkan pesan sukses yang terlihat langsung di Git Center
 - **Terminal persisten** untuk menjalankan perintah shell
 - **Percakapan otomatis tersimpan** per workspace — `NEW CHAT` membuat sesi baru, menu `HISTORY` membuka/melanjutkan/menghapus (maks. 50 sesi terbaru)
 - Narasi aktivitas tool tetap terlihat selama sesi aktif, tetapi tidak ikut dipersistenkan ke riwayat chat lokal untuk mengurangi penyimpanan path, cuplikan source, atau output shell yang tidak diperlukan

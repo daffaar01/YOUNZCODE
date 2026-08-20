@@ -129,13 +129,46 @@ void main() {
     expect(find.text('YOUNZCODE DESKTOP'), findsNothing);
     expect(find.byKey(const ValueKey('model-selector')), findsOneWidget);
     expect(find.text('MANAGE MODELS'), findsOneWidget);
+    expect(find.byKey(const ValueKey('composer-shortcuts')), findsOneWidget);
+    expect(find.text('Ctrl+K'), findsOneWidget);
+    expect(find.text('/review'), findsOneWidget);
     expect(find.text('PROJECT'), findsOneWidget);
     expect(find.text('What are we building?'), findsOneWidget);
     expect(find.text('Explain Codebase'), findsOneWidget);
+    expect(find.byKey(const ValueKey('workspace-setup-card')), findsOneWidget);
+    expect(find.text('SETUP WORKSPACE'), findsOneWidget);
+    expect(find.text('0/3 SIAP'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('empty-choose-workspace')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('classic-environment-panel')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('environment-setup-banner')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shortcut composer menyiapkan command untuk ditinjau', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.text('/review'));
+    await tester.pump();
+
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('prompt-field')),
+    );
+    expect(field.controller!.text, '/review');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('membuka playground Image Generation dari command rail', (
@@ -320,12 +353,14 @@ void main() {
 
     expect(promptRect.width, lessThanOrEqualTo(860.5));
     expect(promptRect.contains(sendRect.center), isTrue);
-    expect(sendRect.height, closeTo(30, 0.5));
+    expect(sendRect.height, closeTo(38, 0.5));
     expect(shellDecoration.border, isNotNull);
     expect((shellDecoration.border! as Border).top.width, 1);
     expect(shellDecoration.borderRadius, BorderRadius.circular(12));
     expect(
-      find.text('Enter to send · Shift+Enter for new line'),
+      find.text(
+        'Enter kirim · Shift+Enter baris baru · Drop file untuk context',
+      ),
       findsOneWidget,
     );
   });
@@ -351,7 +386,14 @@ void main() {
       '/open',
       '/skill',
     ]) {
-      expect(find.text(command), findsOneWidget);
+      if (command == '/review') {
+        expect(
+          find.byKey(const ValueKey('slash-command-review')),
+          findsOneWidget,
+        );
+      } else {
+        expect(find.text(command), findsOneWidget);
+      }
     }
     expect(find.text('/help'), findsOneWidget);
     expect(find.text('/terminal'), findsOneWidget);
@@ -1035,6 +1077,7 @@ void main() {
       'RECENTS',
       'ADD',
       'SUBAGENT',
+      'Mulai chat pertama',
     ]) {
       expect(find.text(label), findsWidgets, reason: label);
     }
@@ -1050,7 +1093,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('classic sidebar dapat diciutkan menjadi icon rail', (tester) async {
+  testWidgets('classic sidebar dapat diciutkan menjadi icon rail', (
+    tester,
+  ) async {
     _setMockPreferences({});
     await tester.binding.setSurfaceSize(const Size(1500, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1069,7 +1114,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('classic-sidebar-toggle')));
     await tester.pumpAndSettle();
     expect(tester.getSize(sidebar).width, closeTo(266, 0.5));
-    expect(find.byKey(const ValueKey('workspace-layout-picker')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('workspace-layout-picker')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -1095,7 +1143,10 @@ void main() {
     expect(find.text('Open File'), findsNothing);
     await tester.tap(find.text('Prepare Retry Prompt'));
     await tester.pumpAndSettle();
-    expect(find.text('Belum ada prompt pengguna yang bisa diulang.'), findsOneWidget);
+    expect(
+      find.text('Belum ada prompt pengguna yang bisa diulang.'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -1111,12 +1162,19 @@ void main() {
     final field = find.byKey(const ValueKey('prompt-field'));
     await tester.enterText(field, '/');
     await tester.pump();
-    expect(find.text('/retry'), findsOneWidget);
-    expect(find.text('/continue'), findsOneWidget);
+    expect(find.byKey(const ValueKey('slash-command-retry')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('slash-command-continue')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('slash-command-retry')));
     await tester.pump();
-    expect(find.text('Belum ada prompt pengguna yang bisa diulang.'), findsOneWidget);
+    expect(
+      find.text('Belum ada prompt pengguna yang bisa diulang.'),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('send-agent')), findsOneWidget);
+    expect(find.byKey(const ValueKey('composer-shortcuts')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1129,7 +1187,36 @@ void main() {
 
     expect(find.byKey(const ValueKey('classic-sidebar')), findsNothing);
     expect(find.byKey(const ValueKey('status-bar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('status-summary-chip')), findsOneWidget);
     expect(tester.getSize(find.byKey(const ValueKey('status-bar'))).width, 580);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('status chip membuka penjelasan dan tindakan setup', (
+    tester,
+  ) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.byKey(const ValueKey('status-summary-chip')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('workspace-status-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('Provider belum dikonfigurasi'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('status-choose-workspace')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('status-configure-provider')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
