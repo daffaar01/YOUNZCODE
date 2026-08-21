@@ -914,9 +914,8 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                                       key: const ValueKey(
                                                         'conversation',
                                                       ),
-                                                      child: _buildConversation(
-                                                        !showExplorer,
-                                                      ),
+                                                      child:
+                                                          _buildConversation(),
                                                     ),
                                             ),
                                           ),
@@ -1170,7 +1169,7 @@ class _AgentHomePageState extends State<AgentHomePage> {
               Expanded(
                 child: KeyedSubtree(
                   key: const ValueKey('focus-agent-panel'),
-                  child: _buildConversation(false),
+                  child: _buildConversation(),
                 ),
               ),
             ],
@@ -1180,49 +1179,10 @@ class _AgentHomePageState extends State<AgentHomePage> {
     );
   }
 
-  Widget _buildConversation(bool compact) {
+  Widget _buildConversation() {
     final colors = Theme.of(context).colorScheme;
     return Column(
       children: [
-        if (compact)
-          Material(
-            color: Theme.of(context).colorScheme.surface,
-            child: ListTile(
-              dense: true,
-              leading: const Icon(Icons.folder_open_outlined),
-              title: Text(
-                _workspace.isEmpty ? 'Pilih workspace' : _workspace,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              onTap: _chooseWorkspace,
-              trailing: PopupMenuButton<String>(
-                tooltip: 'Menu workspace',
-                onSelected: (value) {
-                  if (value == 'search') _openSearch();
-                  if (value == 'settings') _openProjectSettings();
-                  if (value == 'new') _clearChat();
-                  if (value == 'history') _openChatHistory();
-                  if (value == 'addons') _openAddonManager();
-                  if (value == 'terminal') _toggleTerminal();
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'search',
-                    child: Text('Search workspace'),
-                  ),
-                  PopupMenuItem(
-                    value: 'settings',
-                    child: Text('Project settings'),
-                  ),
-                  PopupMenuItem(value: 'new', child: Text('New chat')),
-                  PopupMenuItem(value: 'history', child: Text('Chat history')),
-                  PopupMenuItem(value: 'addons', child: Text('Add-ons')),
-                  PopupMenuItem(value: 'terminal', child: Text('Terminal')),
-                ],
-              ),
-            ),
-          ),
         if (_busy || _turnState != _AgentTurnState.idle)
           _AgentStickyStatus(
             busy: _busy,

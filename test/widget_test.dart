@@ -1276,6 +1276,7 @@ void main() {
       expect(find.text(label), findsWidgets, reason: label);
     }
     expect(find.byKey(const ValueKey('classic-sidebar')), findsOneWidget);
+    expect(find.byTooltip('Menu workspace'), findsNothing);
     final subagentButton = find.byKey(const ValueKey('classic-subagent'));
     if (subagentButton.evaluate().isNotEmpty) {
       await tester.tap(subagentButton);
