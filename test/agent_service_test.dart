@@ -10,6 +10,22 @@ import 'package:kode_agent_desktop/services/agent_service.dart';
 import 'package:kode_agent_desktop/services/workspace_tools.dart';
 
 void main() {
+  test('durasi timeout adaptif naik lima menit setiap lanjutan', () {
+    expect(defaultAgentTurnDuration, const Duration(minutes: 10));
+    expect(
+      nextAgentTurnDuration(defaultAgentTurnDuration),
+      const Duration(minutes: 15),
+    );
+    expect(
+      nextAgentTurnDuration(const Duration(minutes: 15)),
+      const Duration(minutes: 20),
+    );
+    expect(
+      nextAgentTurnDuration(const Duration(minutes: 20)),
+      const Duration(minutes: 25),
+    );
+  });
+
   test('HTTP HTML diringkas menjadi petunjuk Base URL', () {
     final error = AgentHttpException.fromParts(
       404,

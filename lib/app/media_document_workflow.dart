@@ -95,7 +95,11 @@ extension _MediaDocumentWorkflow on _AgentHomePageState {
           ),
         );
       });
-      _notify('Media downloaded', location);
+      _notify(
+        'Media downloaded',
+        location,
+        category: _NotificationCategory.files,
+      );
       await _persistActiveChat();
     } on MediaDownloadCancelledException catch (error) {
       if (!mounted) return;
@@ -113,7 +117,12 @@ extension _MediaDocumentWorkflow on _AgentHomePageState {
         _turnState = _AgentTurnState.failed;
         _entries.add(ChatEntry(role: ChatRole.error, content: message));
       });
-      _notify('Media download failed', message, error: true);
+      _notify(
+        'Media download failed',
+        message,
+        error: true,
+        category: _NotificationCategory.files,
+      );
       await _persistActiveChat();
     } finally {
       if (mounted) {

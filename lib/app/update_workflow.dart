@@ -57,7 +57,12 @@ extension _UpdateWorkflow on _AgentHomePageState {
         });
         _showMessage('Gagal memeriksa pembaruan: $error');
       }
-      _notify('Update check gagal', '$error', error: true);
+      _notify(
+        'Update check gagal',
+        '$error',
+        error: true,
+        category: _NotificationCategory.update,
+      );
     } finally {
       if (mounted) _updateState(() => _updateChecking = false);
       // Fleet adoption telemetry: report the installed version after every
@@ -89,7 +94,12 @@ extension _UpdateWorkflow on _AgentHomePageState {
       if (mounted) {
         Navigator.of(context, rootNavigator: true).maybePop();
         _showMessage('Gagal mengunduh pembaruan: $error');
-        _notify('Update gagal diunduh', '$error', error: true);
+        _notify(
+          'Update gagal diunduh',
+          '$error',
+          error: true,
+          category: _NotificationCategory.update,
+        );
       }
       return;
     }
@@ -125,7 +135,11 @@ extension _UpdateWorkflow on _AgentHomePageState {
       unawaited(process.stderr.drain<void>());
       _showMessage('Installer ${update.version} diluncurkan.');
     }
-    _notify('Update ${update.version} siap', installer.path);
+    _notify(
+      'Update ${update.version} siap',
+      installer.path,
+      category: _NotificationCategory.update,
+    );
   }
 
   /// Sends the installed-version ping for fleet adoption telemetry, if

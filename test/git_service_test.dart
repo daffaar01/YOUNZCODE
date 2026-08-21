@@ -38,6 +38,39 @@ void main() {
     await service.createBranch(root.path, 'codex/test-branch');
     expect((await service.status(root.path)).branch, 'codex/test-branch');
     expect(await service.branches(root.path), contains('codex/test-branch'));
+    expect((await service.syncStatus(root.path)).hasUpstream, isFalse);
+  });
+
+  test('sync status menampilkan commit ahead dari upstream', () async {
+    final root = await Directory.systemTemp.createTemp('younz-git-sync-');
+    final remote = await Directory.systemTemp.createTemp('younz-git-remote-');
+    addTearDown(() async {
+      await root.delete(recursive: true);
+      await remote.delete(recursive: true);
+    });
+    await _git(remote.path, ['init', '--bare']);
+    await _git(root.path, ['init']);
+    await _git(root.path, ['config', 'user.email', 'test@example.com']);
+    await _git(root.path, ['config', 'user.name', 'YOUNZ Test']);
+    await File(
+      '${root.path}${Platform.pathSeparator}sample.txt',
+    ).writeAsString('one\n');
+    await _git(root.path, ['add', 'sample.txt']);
+    await _git(root.path, ['commit', '-m', 'initial']);
+    await _git(root.path, ['remote', 'add', 'origin', remote.path]);
+    await _git(root.path, ['push', '-u', 'origin', 'HEAD']);
+
+    final service = const GitService();
+    expect((await service.syncStatus(root.path)).synced, isTrue);
+
+    await File(
+      '${root.path}${Platform.pathSeparator}sample.txt',
+    ).writeAsString('two\n');
+    await _git(root.path, ['add', 'sample.txt']);
+    await _git(root.path, ['commit', '-m', 'ahead']);
+    final sync = await service.syncStatus(root.path);
+    expect(sync.ahead, 1);
+    expect(sync.behind, 0);
   });
 
   test('diff mengabaikan untracked malformed UTF-8 tanpa gagal', () async {

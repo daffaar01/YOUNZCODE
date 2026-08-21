@@ -862,9 +862,15 @@ class _ProjectPanel extends StatefulWidget {
   const _ProjectPanel({
     required this.workspace,
     required this.activeFile,
+    required this.openFiles,
+    required this.recentFiles,
     required this.dirtyFiles,
     required this.recentWorkspaces,
     required this.onOpenFile,
+    required this.onCloseFile,
+    required this.onCopyPath,
+    required this.onRenameEntry,
+    required this.onDeleteEntry,
     required this.onOpenRecent,
     required this.onChoose,
     required this.onNewChat,
@@ -879,9 +885,15 @@ class _ProjectPanel extends StatefulWidget {
 
   final String workspace;
   final String? activeFile;
+  final List<String> openFiles;
+  final List<String> recentFiles;
   final Set<String> dirtyFiles;
   final List<String> recentWorkspaces;
   final ValueChanged<String> onOpenFile;
+  final ValueChanged<String> onCloseFile;
+  final ValueChanged<String> onCopyPath;
+  final Future<void> Function(String path) onRenameEntry;
+  final Future<void> Function(String path) onDeleteEntry;
   final ValueChanged<String> onOpenRecent;
   final VoidCallback onChoose;
   final VoidCallback onNewChat;
@@ -931,6 +943,10 @@ class _ProjectPanelState extends State<_ProjectPanel> {
     final recent = widget.recentWorkspaces
         .where((workspace) => workspace != widget.workspace)
         .take(3)
+        .toList();
+    final recentFiles = widget.recentFiles
+        .where((file) => !widget.openFiles.contains(file))
+        .take(4)
         .toList();
     return Container(
       key: const ValueKey('workspace-explorer'),
@@ -1063,6 +1079,25 @@ class _ProjectPanelState extends State<_ProjectPanel> {
               ),
             ),
           ),
+          if (widget.openFiles.isNotEmpty)
+            _ExplorerFileSection(
+              key: const ValueKey('explorer-open-files'),
+              title: 'OPEN FILES',
+              files: widget.openFiles,
+              activeFile: widget.activeFile,
+              dirtyFiles: widget.dirtyFiles,
+              onOpenFile: widget.onOpenFile,
+              onCloseFile: widget.onCloseFile,
+            ),
+          if (recentFiles.isNotEmpty)
+            _ExplorerFileSection(
+              key: const ValueKey('explorer-recent-files'),
+              title: 'RECENT FILES',
+              files: recentFiles,
+              activeFile: widget.activeFile,
+              dirtyFiles: widget.dirtyFiles,
+              onOpenFile: widget.onOpenFile,
+            ),
           if (widget.workspace.isNotEmpty) ...[
             Material(
               color: Colors.transparent,
@@ -1120,6 +1155,15 @@ class _ProjectPanelState extends State<_ProjectPanel> {
                   root: widget.workspace,
                   filter: _filterController.text,
                   onOpenFile: widget.onOpenFile,
+                  onCopyPath: widget.onCopyPath,
+                  onRenameEntry: (target) async {
+                    await widget.onRenameEntry(target);
+                    if (mounted) setState(() => _treeRevision++);
+                  },
+                  onDeleteEntry: (target) async {
+                    await widget.onDeleteEntry(target);
+                    if (mounted) setState(() => _treeRevision++);
+                  },
                 ),
               )
             else
@@ -1212,17 +1256,128 @@ class _ProjectPanelState extends State<_ProjectPanel> {
   }
 }
 
+class _ExplorerFileSection extends StatelessWidget {
+  const _ExplorerFileSection({
+    super.key,
+    required this.title,
+    required this.files,
+    required this.activeFile,
+    required this.dirtyFiles,
+    required this.onOpenFile,
+    this.onCloseFile,
+  });
+
+  final String title;
+  final List<String> files;
+  final String? activeFile;
+  final Set<String> dirtyFiles;
+  final ValueChanged<String> onOpenFile;
+  final ValueChanged<String>? onCloseFile;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 5, 12, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          for (final file in files.take(5))
+            Material(
+              color: file == activeFile
+                  ? colors.primary.withValues(alpha: 0.10)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              child: InkWell(
+                key: ValueKey('explorer-file-${title.toLowerCase()}-$file'),
+                borderRadius: BorderRadius.circular(6),
+                onTap: () => onOpenFile(file),
+                child: SizedBox(
+                  height: 28,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.insert_drive_file_outlined,
+                        size: 14,
+                        color: file == activeFile
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          path.basename(file),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 10,
+                            color: file == activeFile
+                                ? colors.onSurface
+                                : colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      if (dirtyFiles.contains(file))
+                        Container(
+                          key: ValueKey('explorer-dirty-$file'),
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(right: 3),
+                          decoration: BoxDecoration(
+                            color: colors.tertiary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      if (onCloseFile != null)
+                        IconButton(
+                          onPressed: () => onCloseFile!(file),
+                          tooltip: 'Close file',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.close, size: 14),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _WorkspaceTree extends StatefulWidget {
   const _WorkspaceTree({
     super.key,
     required this.root,
     this.filter = '',
     required this.onOpenFile,
+    required this.onCopyPath,
+    required this.onRenameEntry,
+    required this.onDeleteEntry,
   });
 
   final String root;
   final String filter;
   final ValueChanged<String> onOpenFile;
+  final ValueChanged<String> onCopyPath;
+  final Future<void> Function(String path) onRenameEntry;
+  final Future<void> Function(String path) onDeleteEntry;
 
   @override
   State<_WorkspaceTree> createState() => _WorkspaceTreeState();
@@ -1294,6 +1449,9 @@ class _WorkspaceTreeState extends State<_WorkspaceTree> {
             entity: entries[index],
             depth: 0,
             onOpenFile: widget.onOpenFile,
+            onCopyPath: widget.onCopyPath,
+            onRenameEntry: widget.onRenameEntry,
+            onDeleteEntry: widget.onDeleteEntry,
           ),
         );
       },
@@ -1307,11 +1465,17 @@ class _FileTreeEntry extends StatefulWidget {
     required this.entity,
     required this.depth,
     required this.onOpenFile,
+    required this.onCopyPath,
+    required this.onRenameEntry,
+    required this.onDeleteEntry,
   });
 
   final FileSystemEntity entity;
   final int depth;
   final ValueChanged<String> onOpenFile;
+  final ValueChanged<String> onCopyPath;
+  final Future<void> Function(String path) onRenameEntry;
+  final Future<void> Function(String path) onDeleteEntry;
 
   @override
   State<_FileTreeEntry> createState() => _FileTreeEntryState();
@@ -1398,6 +1562,43 @@ class _FileTreeEntryState extends State<_FileTreeEntry> {
                           ),
                         ),
                       ),
+                      if (!_isDirectory)
+                        PopupMenuButton<String>(
+                          key: ValueKey(
+                            'explorer-actions-${widget.entity.path}',
+                          ),
+                          tooltip: 'File actions',
+                          padding: EdgeInsets.zero,
+                          iconSize: 15,
+                          onSelected: (action) {
+                            switch (action) {
+                              case 'copy':
+                                widget.onCopyPath(widget.entity.path);
+                              case 'rename':
+                                unawaited(
+                                  widget.onRenameEntry(widget.entity.path),
+                                );
+                              case 'delete':
+                                unawaited(
+                                  widget.onDeleteEntry(widget.entity.path),
+                                );
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'copy',
+                              child: Text('Copy path'),
+                            ),
+                            PopupMenuItem(
+                              value: 'rename',
+                              child: Text('Rename'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -1449,6 +1650,9 @@ class _FileTreeEntryState extends State<_FileTreeEntry> {
                       entity: child,
                       depth: widget.depth + 1,
                       onOpenFile: widget.onOpenFile,
+                      onCopyPath: widget.onCopyPath,
+                      onRenameEntry: widget.onRenameEntry,
+                      onDeleteEntry: widget.onDeleteEntry,
                     ),
                 ],
               );

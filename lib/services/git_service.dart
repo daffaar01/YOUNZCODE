@@ -76,6 +76,23 @@ class GitStatus {
   bool get mainBranch => {'main', 'master'}.contains(branch.toLowerCase());
 }
 
+class GitSyncStatus {
+  const GitSyncStatus({
+    this.upstream = '',
+    this.ahead = 0,
+    this.behind = 0,
+    this.hasUpstream = false,
+  });
+
+  final String upstream;
+  final int ahead;
+  final int behind;
+  final bool hasUpstream;
+
+  bool get synced => hasUpstream && ahead == 0 && behind == 0;
+  bool get diverged => ahead > 0 && behind > 0;
+}
+
 class GitService {
   const GitService();
 
@@ -298,6 +315,37 @@ class GitService {
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList();
+  }
+
+  Future<GitSyncStatus> syncStatus(String workspace) async {
+    if (workspace.isEmpty) return const GitSyncStatus();
+    final upstreamResult = await Process.run('git', [
+      'rev-parse',
+      '--abbrev-ref',
+      '--symbolic-full-name',
+      '@{upstream}',
+    ], workingDirectory: workspace);
+    if (upstreamResult.exitCode != 0) return const GitSyncStatus();
+    final upstream = '${upstreamResult.stdout}'.trim();
+    if (upstream.isEmpty) return const GitSyncStatus();
+    final countResult = await Process.run('git', [
+      'rev-list',
+      '--left-right',
+      '--count',
+      'HEAD...$upstream',
+    ], workingDirectory: workspace);
+    if (countResult.exitCode != 0) {
+      return GitSyncStatus(upstream: upstream, hasUpstream: true);
+    }
+    final values = '${countResult.stdout}'.trim().split(RegExp(r'\s+'));
+    final ahead = values.isNotEmpty ? int.tryParse(values[0]) ?? 0 : 0;
+    final behind = values.length > 1 ? int.tryParse(values[1]) ?? 0 : 0;
+    return GitSyncStatus(
+      upstream: upstream,
+      ahead: ahead,
+      behind: behind,
+      hasUpstream: true,
+    );
   }
 
   Future<List<GitWorktree>> worktrees(String workspace) async {

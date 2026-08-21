@@ -83,10 +83,13 @@ const _mediumMotion = Duration(milliseconds: 240);
 const _motionCurve = Curves.easeOutCubic;
 const _appVersion = '2.0.0';
 const _recentWorkspacesKey = 'recent_workspaces';
+const _pinnedWorkspacesKey = 'pinned_workspaces';
+const _promptHistoryKey = 'prompt_history';
 const _composerDensityKey = 'composer_density';
 const _accentColorKey = 'accent_color';
 const _fontScaleKey = 'font_scale';
 const _uiDensityKey = 'ui_density';
+const _uiPresetKey = 'ui_preset';
 const _favoriteModelKey = 'favorite_model';
 const _silkyScrollConfig = SilkyScrollConfig(
   silkyScrollDuration: Duration(milliseconds: 700),
@@ -116,18 +119,36 @@ enum _ComposerDensity { compact, comfortable }
 
 enum UiDensity { compact, comfortable }
 
+enum UiPreset { minimal, coding, focus, custom }
+
 class AppearanceSettings {
   const AppearanceSettings({
     required this.accentColor,
     required this.fontScale,
     required this.uiDensity,
+    required this.preset,
     required this.favoriteModel,
   });
 
   final Color accentColor;
   final double fontScale;
   final UiDensity uiDensity;
+  final UiPreset preset;
   final String favoriteModel;
+
+  AppearanceSettings copyWith({
+    Color? accentColor,
+    double? fontScale,
+    UiDensity? uiDensity,
+    UiPreset? preset,
+    String? favoriteModel,
+  }) => AppearanceSettings(
+    accentColor: accentColor ?? this.accentColor,
+    fontScale: fontScale ?? this.fontScale,
+    uiDensity: uiDensity ?? this.uiDensity,
+    preset: preset ?? this.preset,
+    favoriteModel: favoriteModel ?? this.favoriteModel,
+  );
 }
 
 enum _InspectorSection { activity, plan, files }
@@ -229,6 +250,7 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
   Color _accentColor = const Color(0xFF5B9DFF);
   double _fontScale = 1;
   UiDensity _uiDensity = UiDensity.comfortable;
+  UiPreset _uiPreset = UiPreset.custom;
   String _favoriteModel = '';
 
   @override
@@ -248,6 +270,12 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
           _uiDensity = preferences.getString(_uiDensityKey) == 'compact'
               ? UiDensity.compact
               : UiDensity.comfortable;
+          _uiPreset = switch (preferences.getString(_uiPresetKey)) {
+            'minimal' => UiPreset.minimal,
+            'coding' => UiPreset.coding,
+            'focus' => UiPreset.focus,
+            _ => UiPreset.custom,
+          };
           _favoriteModel = preferences.getString(_favoriteModelKey) ?? '';
         });
       }
@@ -266,6 +294,7 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
       _accentColor = settings.accentColor;
       _fontScale = settings.fontScale;
       _uiDensity = settings.uiDensity;
+      _uiPreset = settings.preset;
       _favoriteModel = settings.favoriteModel;
     });
     final preferences = await SharedPreferences.getInstance();
@@ -273,6 +302,7 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
       preferences.setInt(_accentColorKey, settings.accentColor.toARGB32()),
       preferences.setDouble(_fontScaleKey, settings.fontScale),
       preferences.setString(_uiDensityKey, settings.uiDensity.name),
+      preferences.setString(_uiPresetKey, settings.preset.name),
       preferences.setString(_favoriteModelKey, settings.favoriteModel),
     ]);
   }
@@ -292,6 +322,7 @@ class _KodeAgentAppState extends State<KodeAgentApp> {
           accentColor: _accentColor,
           fontScale: _fontScale,
           uiDensity: _uiDensity,
+          preset: _uiPreset,
           favoriteModel: _favoriteModel,
         ),
         onAppearanceChanged: _updateAppearance,
@@ -506,16 +537,19 @@ class _AgentHomePageState extends State<AgentHomePage> {
   final _entries = <ChatEntry>[];
   final _chatSessions = <ChatSession>[];
   final _recentWorkspaces = <String>[];
+  final _pinnedWorkspaces = <String>{};
   final _addons = <Addon>[];
   final _activities = <_AgentActivity>[];
   final _agentCheckpoint = <Map<String, dynamic>>[];
   String? _preparedCheckpointPrompt;
   final _models = <String>['gpt-4.1-mini'];
   final _documents = <_OpenDocument>[];
+  final _recentFiles = <String>[];
   final _terminalController = TextEditingController();
   final _terminalScrollController = ScrollController();
   final _terminalOutput = <String>[];
   final _contextFiles = <String>[];
+  final _promptHistory = <String>[];
   final _changeHistory = <WorkspaceTurnChanges>[];
   final _notifications = <_AppNotification>[];
   final _toolPermissionPolicies = <String, ToolPermissionPolicy>{};
@@ -576,9 +610,11 @@ class _AgentHomePageState extends State<AgentHomePage> {
   _InspectorSection _inspectorSection = _InspectorSection.activity;
   WorkspaceTurnChanges? _pendingChanges;
   WorkspaceTurnChanges? _lastAppliedTurn;
+  QualityGateResult? _lastQualityGateResult;
 
   DateTime? _turnStartedAt;
   Duration _lastTurnDuration = Duration.zero;
+  bool _timeoutContinuationCancelled = false;
   GitStatus _gitStatus = const GitStatus(isRepository: false);
   bool _workspaceTrusted = false;
   bool _budgetWarningShown = false;
@@ -594,9 +630,19 @@ class _AgentHomePageState extends State<AgentHomePage> {
     _loadSettings();
   }
 
+  @override
+  void didUpdateWidget(covariant AgentHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.appearance.preset != widget.appearance.preset &&
+        widget.appearance.preset != UiPreset.custom) {
+      unawaited(_applyUiPreset(widget.appearance.preset));
+    }
+  }
+
   void _updateState(VoidCallback update) => setState(update);
 
   Future<void> _setWorkspaceLayout(_WorkspaceLayout layout) async {
+    _markPresetCustom();
     setState(() {
       _workspaceLayout = layout;
       if (layout == _WorkspaceLayout.focus) _explorerPanelVisible = true;
@@ -606,9 +652,63 @@ class _AgentHomePageState extends State<AgentHomePage> {
   }
 
   Future<void> _setComposerDensity(_ComposerDensity density) async {
+    _markPresetCustom();
     setState(() => _composerDensity = density);
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_composerDensityKey, density.name);
+  }
+
+  void _markPresetCustom() {
+    if (widget.appearance.preset == UiPreset.custom) return;
+    unawaited(
+      widget.onAppearanceChanged(
+        widget.appearance.copyWith(preset: UiPreset.custom),
+      ),
+    );
+  }
+
+  Future<void> _applyUiPreset(UiPreset preset) async {
+    if (!mounted || preset == UiPreset.custom) return;
+    final (layout, density, showInspector) = switch (preset) {
+      UiPreset.minimal => (
+        _WorkspaceLayout.classic,
+        _ComposerDensity.compact,
+        false,
+      ),
+      UiPreset.coding => (
+        _WorkspaceLayout.classic,
+        _ComposerDensity.comfortable,
+        true,
+      ),
+      UiPreset.focus => (
+        _WorkspaceLayout.focus,
+        _ComposerDensity.compact,
+        true,
+      ),
+      UiPreset.custom => (
+        _workspaceLayout,
+        _composerDensity,
+        _activityPanelVisible,
+      ),
+    };
+    _updateState(() {
+      _workspaceLayout = layout;
+      _composerDensity = density;
+      _activityPanelVisible = showInspector;
+      if (layout == _WorkspaceLayout.focus) _explorerPanelVisible = true;
+    });
+    final preferences = await SharedPreferences.getInstance();
+    await Future.wait([
+      preferences.setString('workspace_layout', layout.name),
+      preferences.setString(_composerDensityKey, density.name),
+    ]);
+  }
+
+  Future<void> _openEnvironmentPanel() async {
+    if (_workspaceLayout != _WorkspaceLayout.classic) {
+      await _setWorkspaceLayout(_WorkspaceLayout.classic);
+    }
+    if (mounted) _updateState(() => _activityPanelVisible = true);
   }
 
   void _showAbout() {
@@ -773,7 +873,9 @@ class _AgentHomePageState extends State<AgentHomePage> {
                             ),
                             onToggleTheme: widget.onToggleTheme,
                             onNotifications: _showNotifications,
-                            notificationCount: _notifications.length,
+                            notificationCount: _notifications
+                                .where((notification) => !notification.read)
+                                .length,
                             workspaceLayout: _workspaceLayout,
                             onLayoutChanged: (layout) =>
                                 unawaited(_setWorkspaceLayout(layout)),
@@ -799,6 +901,13 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                         child: _ProjectPanel(
                                           workspace: _workspace,
                                           activeFile: _activeFile,
+                                          openFiles: [
+                                            for (final document in _documents)
+                                              document.path,
+                                          ],
+                                          recentFiles: List.unmodifiable(
+                                            _recentFiles,
+                                          ),
                                           dirtyFiles: {
                                             for (final document in _documents)
                                               if (document.dirty) document.path,
@@ -807,6 +916,22 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                             _recentWorkspaces,
                                           ),
                                           onOpenFile: _openFile,
+                                          onCloseFile: (filePath) {
+                                            final document = _documents
+                                                .where(
+                                                  (item) =>
+                                                      item.path == filePath,
+                                                )
+                                                .firstOrNull;
+                                            if (document != null) {
+                                              unawaited(
+                                                _closeDocument(document),
+                                              );
+                                            }
+                                          },
+                                          onCopyPath: _copyWorkspacePath,
+                                          onRenameEntry: _renameWorkspaceEntry,
+                                          onDeleteEntry: _deleteWorkspaceEntry,
                                           onOpenRecent: (workspace) =>
                                               unawaited(
                                                 _activateWorkspace(workspace),
@@ -1022,12 +1147,23 @@ class _AgentHomePageState extends State<AgentHomePage> {
             child: _ProjectPanel(
               workspace: _workspace,
               activeFile: _activeFile,
+              openFiles: [for (final document in _documents) document.path],
+              recentFiles: List.unmodifiable(_recentFiles),
               dirtyFiles: {
                 for (final document in _documents)
                   if (document.dirty) document.path,
               },
               recentWorkspaces: List.unmodifiable(_recentWorkspaces),
               onOpenFile: _openFile,
+              onCloseFile: (filePath) {
+                final document = _documents
+                    .where((item) => item.path == filePath)
+                    .firstOrNull;
+                if (document != null) unawaited(_closeDocument(document));
+              },
+              onCopyPath: _copyWorkspacePath,
+              onRenameEntry: _renameWorkspaceEntry,
+              onDeleteEntry: _deleteWorkspaceEntry,
               onOpenRecent: (workspace) =>
                   unawaited(_activateWorkspace(workspace)),
               onChoose: _chooseWorkspace,
@@ -1197,9 +1333,17 @@ class _AgentHomePageState extends State<AgentHomePage> {
         Expanded(
           child: _entries.isEmpty && !_busy
               ? _EmptyState(
+                  workspace: _workspace,
                   workspaceSelected: _workspace.isNotEmpty,
                   workspaceTrusted: _workspaceTrusted,
                   providerConfigured: _apiKey.isNotEmpty,
+                  gitStatus: _gitStatus,
+                  pendingChanges: _pendingChanges,
+                  lastChange:
+                      _lastAppliedTurn ??
+                      (_changeHistory.isEmpty ? null : _changeHistory.first),
+                  qualityGateResult: _lastQualityGateResult,
+                  recentFiles: List.unmodifiable(_recentFiles),
                   recentWorkspaces: List.unmodifiable(_recentWorkspaces),
                   onChooseWorkspace: _chooseWorkspace,
                   onOpenWorkspace: (workspace) =>
@@ -1209,6 +1353,10 @@ class _AgentHomePageState extends State<AgentHomePage> {
                   onOpenHistory: _openChatHistory,
                   onFocusComposer: _promptFocusNode.requestFocus,
                   onSuggestion: _useSuggestion,
+                  onOpenFile: _openFile,
+                  onOpenEditor: _showEditor,
+                  onGit: _showGitDetails,
+                  onReviewChanges: _reviewChanges,
                 )
               : SilkyScroll.fromConfig(
                   config: _silkyScrollConfig,
@@ -1251,10 +1399,14 @@ class _AgentHomePageState extends State<AgentHomePage> {
                                           : _prepareCheckpointContinuation,
                                       duration: _lastTurnDuration,
                                       pendingChanges: _pendingChanges,
+                                      lastAppliedChanges: _lastAppliedTurn,
+                                      gitStatus: _gitStatus,
+                                      qualityGateResult: _lastQualityGateResult,
                                       canRevert: _lastAppliedTurn != null,
                                       onReviewChanges: _pendingChanges == null
                                           ? null
                                           : _reviewChanges,
+                                      onOpenDiff: _showGitDetails,
                                       onRevert: _lastAppliedTurn == null
                                           ? null
                                           : _revertTurn,
@@ -1347,10 +1499,21 @@ class _AgentHomePageState extends State<AgentHomePage> {
                     planMode: _planMode,
                     onPlanModeChanged: _setPlanMode,
                     contextFiles: _contextFiles,
+                    fileSuggestions: [
+                      ...{
+                        ..._recentFiles,
+                        ..._documents.map((document) => document.path),
+                        ..._contextFiles,
+                      },
+                    ],
                     onAttachContext: _attachContext,
                     onRemoveContext: (file) =>
                         setState(() => _contextFiles.remove(file)),
                     onClearContext: () => setState(() => _contextFiles.clear()),
+                    onPromptTemplates: _openPromptTemplates,
+                    onPromptHistory: _openPromptHistory,
+                    onPasteCode: _pasteCodeFromClipboard,
+                    onSelectFileSuggestion: _insertFileMention,
                     onDropFiles: (files) {
                       if (_workspace.isEmpty) {
                         _showMessage(

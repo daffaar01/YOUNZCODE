@@ -21,7 +21,11 @@ extension _AgentConfiguration on _AgentHomePageState {
     ),
   );
 
-  AgentService _createAgent({String? baseUrl, String? model}) {
+  AgentService _createAgent({
+    String? baseUrl,
+    String? model,
+    Duration? maxTurnDuration,
+  }) {
     final ownerChatId = _activeChatId;
     final ownerWorkspace = _workspace;
     final providerBaseUrl = baseUrl ?? _baseUrl;
@@ -38,6 +42,7 @@ extension _AgentConfiguration on _AgentHomePageState {
       timeoutMs: _timeoutMs,
       headers: _apiHeaders,
       planMode: _planMode,
+      maxTurnDuration: maxTurnDuration ?? defaultAgentTurnDuration,
       addonInstructions: _enabledAddonInstructions(),
       mcpClients: _enabledMcpClients(),
       browser: _workspaceTrusted && !_planMode ? _browserService : null,
@@ -103,6 +108,7 @@ extension _AgentConfiguration on _AgentHomePageState {
         _notify(
           'Agent finished',
           'Task completed in ${_lastTurnDuration.inSeconds}s.',
+          category: _NotificationCategory.files,
         );
       },
       onInsight: ({reasoning, promptTokens, completionTokens, totalTokens}) {
@@ -204,6 +210,7 @@ extension _AgentConfiguration on _AgentHomePageState {
         'Token budget warning',
         '${summary.totalTokens} dari $_monthlyTokenBudget token bulan ini '
             'telah digunakan.',
+        category: _NotificationCategory.system,
       );
     }
   }

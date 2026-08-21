@@ -5,6 +5,7 @@ extension _CommandWorkflow on _AgentHomePageState {
     final rawInput = _promptController.text;
     final prompt = rawInput.trim();
     if (_busy || prompt.isEmpty) return;
+    await _rememberPrompt(prompt);
     if (prompt.startsWith('/')) {
       _preparedCheckpointPrompt = null;
       _promptController.clear();
@@ -52,6 +53,80 @@ extension _CommandWorkflow on _AgentHomePageState {
       }
       return agent.send(promptWithContext.prompt);
     }, userEntry: ChatEntry(role: ChatRole.user, content: prompt));
+  }
+
+  Future<void> _rememberPrompt(String prompt) async {
+    final value = prompt.trim();
+    if (value.isEmpty) return;
+    _updateState(() {
+      _promptHistory
+        ..remove(value)
+        ..insert(0, value);
+      if (_promptHistory.length > 30) {
+        _promptHistory.removeRange(30, _promptHistory.length);
+      }
+    });
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(_promptHistoryKey, _promptHistory);
+  }
+
+  Future<void> _openPromptTemplates() async {
+    if (_busy || !mounted) return;
+    final prompt = await showDialog<String>(
+      context: context,
+      builder: (context) => const _PromptTemplatesDialog(),
+    );
+    if (prompt != null) _useSuggestion(prompt);
+  }
+
+  Future<void> _openPromptHistory() async {
+    if (_busy || !mounted) return;
+    final prompt = await showDialog<String>(
+      context: context,
+      builder: (context) =>
+          _PromptHistoryDialog(prompts: List.unmodifiable(_promptHistory)),
+    );
+    if (prompt != null) _useSuggestion(prompt);
+  }
+
+  Future<void> _pasteCodeFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final value = data?.text?.trim();
+    if (value == null || value.isEmpty) {
+      _showMessage('Clipboard tidak berisi teks.');
+      return;
+    }
+    final selection = _promptController.selection;
+    final start = selection.isValid
+        ? selection.start
+        : _promptController.text.length;
+    final end = selection.isValid ? selection.end : start;
+    final code = '\n```\n$value\n```\n';
+    final current = _promptController.text;
+    _promptController.value = _promptController.value.copyWith(
+      text: current.replaceRange(start, end, code),
+      selection: TextSelection.collapsed(offset: start + code.length),
+    );
+    _promptFocusNode.requestFocus();
+  }
+
+  void _insertFileMention(String filePath) {
+    final relative = _workspace.isEmpty
+        ? filePath
+        : path.relative(filePath, from: _workspace).replaceAll('\\', '/');
+    final text = _promptController.text;
+    final cursor = _promptController.selection.isValid
+        ? _promptController.selection.baseOffset
+        : text.length;
+    final prefix = text.substring(0, cursor);
+    final match = RegExp(r'@([^\s]*)$').firstMatch(prefix);
+    final start = match?.start ?? cursor;
+    final replacement = '@$relative ';
+    _promptController.value = _promptController.value.copyWith(
+      text: text.replaceRange(start, cursor, replacement),
+      selection: TextSelection.collapsed(offset: start + replacement.length),
+    );
+    _promptFocusNode.requestFocus();
   }
 
   Future<bool> _confirmMainBranchWork() async {
@@ -901,24 +976,18 @@ extension _CommandWorkflow on _AgentHomePageState {
         onChanged: _refreshGit,
         onOpenFile: (relativePath) =>
             _openFile('$_workspace${Platform.pathSeparator}$relativePath'),
+        onNotice: (message) => _notify(
+          'Git operation selesai',
+          message,
+          category: _NotificationCategory.git,
+        ),
       ),
     );
   }
 
   Future<void> _openFileSearch() async {
-    if (_workspace.isEmpty) return;
-    final result = await Process.run('rg', [
-      '--files',
-      '--glob',
-      '!.git/**',
-      '--glob',
-      '!build/**',
-    ], workingDirectory: _workspace);
-    if (!mounted || result.exitCode != 0) return;
-    final files = '${result.stdout}'
-        .split(RegExp(r'\r?\n'))
-        .where((line) => line.isNotEmpty)
-        .toList();
+    final files = await _workspaceFileCandidates();
+    if (!mounted) return;
     final selected = await showDialog<String>(
       context: context,
       builder: (context) => _QuickFileDialog(files: files),
@@ -929,10 +998,67 @@ extension _CommandWorkflow on _AgentHomePageState {
   }
 
   Future<void> _openCommandPalette() async {
+    await _persistActiveChat();
+    final files = await _workspaceFileCandidates();
+    if (!mounted) return;
+    final items = <_QuickSwitcherItem>[
+      ..._CommandPaletteDialog.commands,
+      ...files
+          .take(120)
+          .map(
+            (file) => _QuickSwitcherItem(
+              id: 'file::$file',
+              title: file,
+              subtitle: 'Buka file workspace',
+              category: 'FILE',
+              icon: Icons.insert_drive_file_outlined,
+            ),
+          ),
+      ..._chatSessions
+          .take(40)
+          .map(
+            (session) => _QuickSwitcherItem(
+              id: 'chat::${session.id}',
+              title: session.title,
+              subtitle: path.basename(session.workspace),
+              category: 'CHAT',
+              icon: session.pinned ? Icons.push_pin : Icons.chat_bubble_outline,
+            ),
+          ),
+      ..._workspaceCandidates().map(
+        (workspace) => _QuickSwitcherItem(
+          id: 'workspace::$workspace',
+          title: path.basename(workspace),
+          subtitle: workspace,
+          category: 'WORKSPACE',
+          icon: _pinnedWorkspaces.contains(workspace)
+              ? Icons.push_pin
+              : Icons.folder_outlined,
+        ),
+      ),
+    ];
     final action = await showDialog<String>(
       context: context,
-      builder: (context) => const _CommandPaletteDialog(),
+      builder: (context) => _CommandPaletteDialog(items: items),
     );
+    if (!mounted || action == null) return;
+    if (action.startsWith('file::')) {
+      await _openFile(
+        '$_workspace${Platform.pathSeparator}${action.substring(6)}',
+      );
+      return;
+    }
+    if (action.startsWith('chat::')) {
+      final session = _chatSessions
+          .where((item) => item.id == action.substring(6))
+          .firstOrNull;
+      if (session != null) _restoreChatSession(session);
+      return;
+    }
+    if (action.startsWith('workspace::')) {
+      await _activateWorkspace(action.substring(11));
+      return;
+    }
     switch (action) {
       case 'file':
         await _openFileSearch();
@@ -957,6 +1083,41 @@ extension _CommandWorkflow on _AgentHomePageState {
       case 'continue':
         _prepareCheckpointContinuation();
     }
+  }
+
+  List<String> _workspaceCandidates() {
+    final candidates = <String>{
+      ..._pinnedWorkspaces,
+      ..._recentWorkspaces,
+      if (_workspace.isNotEmpty) _workspace,
+    };
+    return candidates.take(40).toList();
+  }
+
+  Future<List<String>> _workspaceFileCandidates() async {
+    if (_workspace.isEmpty) return const [];
+    final result = await Process.run('rg', [
+      '--files',
+      '--glob',
+      '!.git/**',
+      '--glob',
+      '!build/**',
+      '--glob',
+      '!.env',
+      '--glob',
+      '!.env.*',
+      '--glob',
+      '!.ssh/**',
+      '--glob',
+      '!**/id_rsa',
+      '--glob',
+      '!**/id_ed25519',
+    ], workingDirectory: _workspace);
+    if (result.exitCode != 0) return const [];
+    return '${result.stdout}'
+        .split(RegExp(r'\r?\n'))
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
   }
 
   Future<ContextBoundPrompt?> _buildPromptWithContext(String prompt) async {

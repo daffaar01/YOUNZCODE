@@ -3,18 +3,41 @@ part of '../main.dart';
 // Transient overlays: notifications, onboarding, execution summary, and the
 // animated agent-working card.
 
+enum _NotificationCategory { agent, files, git, update, system }
+
+extension on _NotificationCategory {
+  String get label => switch (this) {
+    _NotificationCategory.agent => 'AGENT',
+    _NotificationCategory.files => 'FILES',
+    _NotificationCategory.git => 'GIT',
+    _NotificationCategory.update => 'UPDATE',
+    _NotificationCategory.system => 'SYSTEM',
+  };
+
+  IconData get icon => switch (this) {
+    _NotificationCategory.agent => Icons.smart_toy_outlined,
+    _NotificationCategory.files => Icons.difference_outlined,
+    _NotificationCategory.git => Icons.account_tree_outlined,
+    _NotificationCategory.update => Icons.system_update_alt,
+    _NotificationCategory.system => Icons.info_outline,
+  };
+}
+
 class _AppNotification {
-  const _AppNotification({
+  _AppNotification({
     required this.title,
     required this.body,
     required this.createdAt,
     required this.error,
+    required this.category,
   });
 
   final String title;
   final String body;
   final DateTime createdAt;
   final bool error;
+  final _NotificationCategory category;
+  bool read = false;
 }
 
 class _NotificationDialog extends StatefulWidget {
@@ -23,12 +46,16 @@ class _NotificationDialog extends StatefulWidget {
     required this.revision,
     required this.onDelete,
     required this.onClear,
+    required this.onRead,
+    required this.onMarkAllRead,
   });
 
   final List<_AppNotification> notifications;
   final Listenable revision;
   final ValueChanged<_AppNotification> onDelete;
   final VoidCallback onClear;
+  final ValueChanged<_AppNotification> onRead;
+  final VoidCallback onMarkAllRead;
 
   @override
   State<_NotificationDialog> createState() => _NotificationDialogState();
@@ -36,6 +63,7 @@ class _NotificationDialog extends StatefulWidget {
 
 class _NotificationDialogState extends State<_NotificationDialog> {
   _AppNotification? _selected;
+  _NotificationCategory? _category;
 
   void _delete(_AppNotification notification) {
     widget.onDelete(notification);
@@ -49,200 +77,473 @@ class _NotificationDialogState extends State<_NotificationDialog> {
     setState(() => _selected = null);
   }
 
+  void _select(_AppNotification notification) {
+    widget.onRead(notification);
+    setState(() => _selected = notification);
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.revision,
-    builder: (context, _) => AlertDialog(
-      title: Row(
-        children: [
-          const Expanded(child: Text('Notifications')),
-          if (widget.notifications.isNotEmpty)
-            TextButton(
-              key: const ValueKey('clear-all-notifications'),
-              onPressed: _clear,
-              child: const Text('CLEAR ALL'),
-            ),
-        ],
-      ),
-      content: SizedBox(
-        width: 520,
-        height: 420,
-        child: widget.notifications.isEmpty
-            ? const Center(child: Text('No notifications.'))
-            : Column(
-                children: [
-                  if (_selected != null)
-                    Container(
-                      key: const ValueKey('notification-detail'),
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Theme.of(context).dividerColor,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+    builder: (context, _) {
+      final visible = widget.notifications
+          .where(
+            (notification) =>
+                _category == null || notification.category == _category,
+          )
+          .toList();
+      final unread = widget.notifications.where((item) => !item.read).length;
+      return AlertDialog(
+        title: Row(
+          children: [
+            Expanded(child: Text('Notifications · $unread unread')),
+            if (unread > 0)
+              TextButton(
+                key: const ValueKey('mark-all-notifications-read'),
+                onPressed: widget.onMarkAllRead,
+                child: const Text('MARK ALL READ'),
+              ),
+            if (widget.notifications.isNotEmpty)
+              TextButton(
+                key: const ValueKey('clear-all-notifications'),
+                onPressed: _clear,
+                child: const Text('CLEAR ALL'),
+              ),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          height: 420,
+          child: widget.notifications.isEmpty
+              ? const Center(child: Text('No notifications.'))
+              : Column(
+                  children: [
+                    SizedBox(
+                      height: 38,
+                      child: SilkyListView(
+                        silkyConfig: _silkyHorizontalScrollConfig,
+                        scrollDirection: Axis.horizontal,
                         children: [
-                          Text(
-                            _selected!.title,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ChoiceChip(
+                            key: const ValueKey('notification-filter-all'),
+                            label: const Text('ALL'),
+                            selected: _category == null,
+                            onSelected: (_) => setState(() => _category = null),
                           ),
-                          const SizedBox(height: 8),
-                          SelectableText(_selected!.body),
+                          const SizedBox(width: 6),
+                          for (final category
+                              in _NotificationCategory.values) ...[
+                            ChoiceChip(
+                              key: ValueKey(
+                                'notification-filter-${category.name}',
+                              ),
+                              avatar: Icon(category.icon, size: 14),
+                              label: Text(category.label),
+                              selected: _category == category,
+                              onSelected: (_) => setState(() {
+                                _category = category;
+                                _selected = null;
+                              }),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                         ],
                       ),
                     ),
-                  Expanded(
-                    child: SilkyListView.builder(
-                      silkyConfig: _silkyScrollConfig,
-                      itemCount: widget.notifications.length,
-                      itemBuilder: (context, index) {
-                        final item = widget.notifications[index];
-                        return ListTile(
-                          key: ValueKey('notification-item-$index'),
-                          selected: identical(_selected, item),
-                          onTap: () => setState(() => _selected = item),
-                          leading: Icon(
-                            item.error
-                                ? Icons.error_outline
-                                : Icons.check_circle_outline,
-                            color: item.error
-                                ? Theme.of(context).colorScheme.error
-                                : (Theme.of(context).brightness ==
-                                          Brightness.light
-                                      ? const Color(0xFF2F9E69)
-                                      : const Color(0xFF57C08A)),
+                    const SizedBox(height: 8),
+                    if (_selected != null)
+                      Container(
+                        key: const ValueKey('notification-detail'),
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor,
                           ),
-                          title: Text(item.title),
-                          subtitle: Text(
-                            item.body,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${item.createdAt.hour.toString().padLeft(2, '0')}:${item.createdAt.minute.toString().padLeft(2, '0')}',
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selected!.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
                               ),
-                              IconButton(
-                                key: ValueKey('delete-notification-$index'),
-                                tooltip: 'Delete notification',
-                                onPressed: () => _delete(item),
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  size: 18,
-                                ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${_selected!.category.label} · '
+                              '${_selected!.createdAt.hour.toString().padLeft(2, '0')}:'
+                              '${_selected!.createdAt.minute.toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontFamily: 'Consolas',
+                                fontSize: 9,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
-                            ],
-                          ),
-                        );
-                      },
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(_selected!.body),
+                          ],
+                        ),
+                      ),
+                    Expanded(
+                      child: visible.isEmpty
+                          ? const Center(
+                              child: Text('No notifications in this category.'),
+                            )
+                          : SilkyListView.builder(
+                              silkyConfig: _silkyScrollConfig,
+                              itemCount: visible.length,
+                              itemBuilder: (context, index) {
+                                final item = visible[index];
+                                return ListTile(
+                                  key: ValueKey('notification-item-$index'),
+                                  selected: identical(_selected, item),
+                                  onTap: () => _select(item),
+                                  leading: Icon(
+                                    item.error
+                                        ? Icons.error_outline
+                                        : item.category.icon,
+                                    color: item.error
+                                        ? Theme.of(context).colorScheme.error
+                                        : (Theme.of(context).brightness ==
+                                                  Brightness.light
+                                              ? const Color(0xFF2F9E69)
+                                              : const Color(0xFF57C08A)),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      if (!item.read)
+                                        Container(
+                                          key: ValueKey(
+                                            'notification-unread-$index',
+                                          ),
+                                          width: 7,
+                                          height: 7,
+                                          margin: const EdgeInsets.only(
+                                            right: 7,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      Expanded(child: Text(item.title)),
+                                    ],
+                                  ),
+                                  subtitle: Text(
+                                    '${item.category.label} · ${item.body}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${item.createdAt.hour.toString().padLeft(2, '0')}:${item.createdAt.minute.toString().padLeft(2, '0')}',
+                                      ),
+                                      IconButton(
+                                        key: ValueKey(
+                                          'delete-notification-$index',
+                                        ),
+                                        tooltip: 'Delete notification',
+                                        onPressed: () => _delete(item),
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                     ),
-                  ),
-                ],
-              ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('CLOSE'),
+                  ],
+                ),
         ),
-      ],
-    ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CLOSE'),
+          ),
+        ],
+      );
+    },
   );
 }
 
-class _OnboardingDialog extends StatelessWidget {
+class _OnboardingDialog extends StatefulWidget {
   const _OnboardingDialog({
     required this.workspaceConfigured,
     required this.providerConfigured,
     required this.model,
     required this.onWorkspace,
     required this.onProvider,
+    required this.onEnvironment,
+    required this.onComposer,
   });
 
   final bool workspaceConfigured;
   final bool providerConfigured;
   final String model;
-  final Future<void> Function() onWorkspace;
-  final Future<void> Function() onProvider;
+  final Future<bool> Function() onWorkspace;
+  final Future<bool> Function() onProvider;
+  final Future<void> Function() onEnvironment;
+  final Future<void> Function() onComposer;
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    icon: const Icon(Icons.rocket_launch_outlined),
-    title: const Text('Set Up YOUNZCODE'),
-    content: SizedBox(
-      width: 540,
-      child: SilkySingleChildScrollView(
-        silkyConfig: _silkyScrollConfig,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _OnboardingStep(
-              number: 1,
-              title: 'Choose workspace',
-              complete: workspaceConfigured,
-              onTap: onWorkspace,
-            ),
-            _OnboardingStep(
-              number: 2,
-              title: 'Configure provider and test connection',
-              complete: providerConfigured,
-              onTap: onProvider,
-            ),
-            _OnboardingStep(
-              number: 3,
-              title: 'Selected model: $model',
-              complete: true,
-              onTap: onProvider,
-            ),
-            const _OnboardingStep(
-              number: 4,
-              title: 'Send your first prompt',
-              complete: false,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Compatible templates: OpenAI, Ollama, LM Studio, and 9router through MODEL SETTINGS.',
-            ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      FilledButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('START CODING'),
-      ),
-    ],
-  );
+  State<_OnboardingDialog> createState() => _OnboardingDialogState();
 }
 
-class _OnboardingStep extends StatelessWidget {
-  const _OnboardingStep({
-    required this.number,
-    required this.title,
-    required this.complete,
-    this.onTap,
-  });
+class _OnboardingDialogState extends State<_OnboardingDialog> {
+  late bool _workspaceConfigured = widget.workspaceConfigured;
+  late bool _providerConfigured = widget.providerConfigured;
+  int _step = 0;
 
-  final int number;
-  final String title;
-  final bool complete;
-  final VoidCallback? onTap;
+  Future<void> _chooseWorkspace() async {
+    final configured = await widget.onWorkspace();
+    if (!mounted) return;
+    setState(() {
+      _workspaceConfigured = configured;
+      if (configured) _step = 1;
+    });
+  }
+
+  Future<void> _configureProvider() async {
+    final configured = await widget.onProvider();
+    if (!mounted) return;
+    setState(() {
+      _providerConfigured = configured;
+      if (configured) _step = 2;
+    });
+  }
+
+  Future<void> _startTask() async {
+    Navigator.pop(context);
+    await Future<void>.delayed(Duration.zero);
+    await widget.onComposer();
+  }
+
+  Widget _page({
+    required IconData icon,
+    required String eyebrow,
+    required String title,
+    required String description,
+    required List<Widget> actions,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      key: ValueKey('onboarding-step-$_step'),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.13),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: colors.primary, size: 27),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            eyebrow,
+            style: TextStyle(
+              fontFamily: 'Consolas',
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1,
+              color: colors.primary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              height: 1.45,
+              color: colors.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: actions,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep() => switch (_step) {
+    0 => _page(
+      icon: Icons.folder_open_outlined,
+      eyebrow: _workspaceConfigured ? 'STEP 1 · READY' : 'STEP 1 · WORKSPACE',
+      title: 'Pilih proyek untuk mulai',
+      description:
+          'Workspace memberi agent konteks file, Git, dan tools yang relevan. '
+          'Kamu bisa menggantinya kapan saja dari sidebar.',
+      actions: [
+        FilledButton.icon(
+          key: const ValueKey('onboarding-choose-workspace'),
+          onPressed: _chooseWorkspace,
+          icon: const Icon(Icons.folder_open_outlined, size: 17),
+          label: Text(
+            _workspaceConfigured ? 'GANTI WORKSPACE' : 'PILIH WORKSPACE',
+          ),
+        ),
+      ],
+    ),
+    1 => _page(
+      icon: Icons.tune_outlined,
+      eyebrow: _providerConfigured ? 'STEP 2 · READY' : 'STEP 2 · SETUP',
+      title: 'Hubungkan model dan tools',
+      description:
+          'Atur provider/model untuk menjalankan agent. Environment membantu '
+          'kamu melihat Git, proses, dan sumber konteks secara ringkas.',
+      actions: [
+        FilledButton.icon(
+          key: const ValueKey('onboarding-configure-provider'),
+          onPressed: _configureProvider,
+          icon: const Icon(Icons.psychology_outlined, size: 17),
+          label: Text(
+            _providerConfigured ? 'BUKA MODEL SETTINGS' : 'ATUR PROVIDER',
+          ),
+        ),
+        OutlinedButton.icon(
+          key: const ValueKey('onboarding-open-environment'),
+          onPressed: () async => widget.onEnvironment(),
+          icon: const Icon(Icons.dashboard_outlined, size: 17),
+          label: const Text('LIHAT ENVIRONMENT'),
+        ),
+      ],
+    ),
+    _ => _page(
+      icon: Icons.auto_awesome_outlined,
+      eyebrow: 'STEP 3 · READY',
+      title: 'Kirim task pertamamu',
+      description:
+          'Jelaskan hasil yang kamu inginkan. Gunakan prompt singkat, pilih file '
+          'dengan @, atau mulai dari template Quick Start.',
+      actions: [
+        FilledButton.icon(
+          key: const ValueKey('onboarding-start-task'),
+          onPressed: _startTask,
+          icon: const Icon(Icons.edit_outlined, size: 17),
+          label: const Text('MULAI MENULIS TASK'),
+        ),
+      ],
+    ),
+  };
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    leading: CircleAvatar(
-      child: complete ? const Icon(Icons.check, size: 17) : Text('$number'),
-    ),
-    title: Text(title),
-    trailing: onTap == null ? null : const Icon(Icons.chevron_right),
-    onTap: onTap,
-  );
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return AlertDialog(
+      key: const ValueKey('onboarding-dialog'),
+      icon: const Icon(Icons.rocket_launch_outlined),
+      title: Column(
+        children: [
+          const Text('Selamat datang di YOUNZCODE'),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    key: const ValueKey('onboarding-progress'),
+                    value: (_step + 1) / 3,
+                    minHeight: 5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'STEP \${_step + 1}/3',
+                style: TextStyle(
+                  fontFamily: 'Consolas',
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 560,
+        child: AnimatedSwitcher(
+          duration: _fastMotion,
+          switchInCurve: _motionCurve,
+          switchOutCurve: _motionCurve,
+          child: _buildStep(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          key: const ValueKey('onboarding-skip'),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('NANTI SAJA'),
+        ),
+        if (_step > 0)
+          TextButton(
+            key: const ValueKey('onboarding-back'),
+            onPressed: () => setState(() => _step--),
+            child: const Text('KEMBALI'),
+          ),
+        if (_step < 2)
+          FilledButton(
+            key: const ValueKey('onboarding-next'),
+            onPressed: () {
+              if (_step == 0) {
+                if (_workspaceConfigured) {
+                  setState(() => _step = 1);
+                } else {
+                  _chooseWorkspace();
+                }
+              } else if (_providerConfigured) {
+                setState(() => _step = 2);
+              } else {
+                _configureProvider();
+              }
+            },
+            child: const Text('LANJUT'),
+          ),
+        if (_step == 2)
+          FilledButton(
+            key: const ValueKey('onboarding-finish'),
+            onPressed: _startTask,
+            child: const Text('MULAI CODING'),
+          ),
+      ],
+    );
+  }
 }
 
 class _AgentStickyStatus extends StatefulWidget {
@@ -387,8 +688,12 @@ class _ExecutionSummary extends StatelessWidget {
     this.onContinue,
     required this.duration,
     required this.pendingChanges,
+    this.lastAppliedChanges,
+    required this.gitStatus,
+    this.qualityGateResult,
     required this.canRevert,
     this.onReviewChanges,
+    this.onOpenDiff,
     this.onRevert,
     required this.onHide,
   });
@@ -399,8 +704,12 @@ class _ExecutionSummary extends StatelessWidget {
   final VoidCallback? onContinue;
   final Duration duration;
   final WorkspaceTurnChanges? pendingChanges;
+  final WorkspaceTurnChanges? lastAppliedChanges;
+  final GitStatus gitStatus;
+  final QualityGateResult? qualityGateResult;
   final bool canRevert;
   final VoidCallback? onReviewChanges;
+  final VoidCallback? onOpenDiff;
   final VoidCallback? onRevert;
   final VoidCallback onHide;
 
@@ -417,6 +726,7 @@ class _ExecutionSummary extends StatelessWidget {
     final failedTools = activities.where((item) => item.failed).length;
     final warningTools = activities.where((item) => item.warning).length;
     final toolIssues = failedTools + warningTools;
+    final changeSet = pendingChanges ?? lastAppliedChanges;
     final activityOutcome = turnState == _AgentTurnState.success
         ? toolIssues == 0
               ? ''
@@ -451,6 +761,24 @@ class _ExecutionSummary extends StatelessWidget {
           _AgentTurnState.paused,
           _AgentTurnState.failed,
         }.contains(turnState);
+    final gitLabel = !gitStatus.isRepository
+        ? 'NO GIT'
+        : gitStatus.dirty
+        ? '${gitStatus.branch.isEmpty ? 'DETACHED' : gitStatus.branch} · '
+              '${gitStatus.entries.length} changes'
+        : '${gitStatus.branch.isEmpty ? 'DETACHED' : gitStatus.branch} · CLEAN';
+    final qualityLabel = qualityGateResult == null
+        ? 'NOT RUN'
+        : qualityGateResult!.skipped
+        ? 'SKIPPED'
+        : qualityGateResult!.passed
+        ? '${qualityGateResult!.checks.length} PASSED'
+        : '${qualityGateResult!.checks.where((check) => !check.passed).length} FAILED';
+    final qualityColor = qualityGateResult == null || qualityGateResult!.skipped
+        ? cs.onSurfaceVariant
+        : qualityGateResult!.passed
+        ? good
+        : bad;
     return Container(
       constraints: const BoxConstraints(maxWidth: 760),
       margin: const EdgeInsets.only(bottom: 18),
@@ -540,6 +868,169 @@ class _ExecutionSummary extends StatelessWidget {
               color: cs.onSurfaceVariant,
             ),
           ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ExecutionSummaryStat(
+                key: const ValueKey('summary-tools-stat'),
+                icon: Icons.build_outlined,
+                label: 'TOOLS',
+                value: '${activities.length}',
+              ),
+              _ExecutionSummaryStat(
+                key: const ValueKey('summary-git-stat'),
+                icon: Icons.account_tree_outlined,
+                label: 'GIT',
+                value: gitLabel,
+              ),
+              _ExecutionSummaryStat(
+                key: const ValueKey('summary-quality-stat'),
+                icon: qualityGateResult?.passed == true
+                    ? Icons.verified_outlined
+                    : Icons.rule_folder_outlined,
+                label: 'QUALITY',
+                value: qualityLabel,
+                color: qualityColor,
+              ),
+            ],
+          ),
+          if (changeSet != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              key: const ValueKey('execution-change-summary'),
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cs.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: cs.primary.withValues(alpha: 0.18)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.edit_note_outlined,
+                        size: 17,
+                        color: cs.primary,
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        pendingChanges == null
+                            ? 'PERUBAHAN DITERAPKAN'
+                            : 'PERUBAHAN MENUNGGU REVIEW',
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.7,
+                          color: cs.primary,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${changeSet.files.length} file',
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 10,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
+                    children: [
+                      Text(
+                        '+${changeSet.additions}',
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: good,
+                        ),
+                      ),
+                      Text(
+                        '-${changeSet.deletions}',
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: bad,
+                        ),
+                      ),
+                      Text(
+                        '${changeSet.addedFiles} added · '
+                        '${changeSet.modifiedFiles} modified · '
+                        '${changeSet.deletedFiles} deleted',
+                        style: TextStyle(
+                          fontFamily: 'Consolas',
+                          fontSize: 10,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  for (final file in changeSet.files.take(6))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 5),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            child: Text(
+                              file.status,
+                              style: TextStyle(
+                                fontFamily: 'Consolas',
+                                fontWeight: FontWeight.w800,
+                                color: file.kind == WorkspaceChangeKind.deleted
+                                    ? bad
+                                    : good,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              file.path,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Consolas',
+                                fontSize: 10,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '+${file.additions} -${file.deletions}',
+                            style: TextStyle(
+                              fontFamily: 'Consolas',
+                              fontSize: 9,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (changeSet.files.length > 6)
+                    Text(
+                      '+ ${changeSet.files.length - 6} file lainnya',
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           if (activities.isNotEmpty) ...[
             const SizedBox(height: 14),
             for (final activity in activities)
@@ -596,7 +1087,9 @@ class _ExecutionSummary extends StatelessWidget {
                 ),
               ),
           ],
-          if (pendingChanges != null || canRevert) ...[
+          if (pendingChanges != null ||
+              lastAppliedChanges != null ||
+              canRevert) ...[
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -608,6 +1101,15 @@ class _ExecutionSummary extends StatelessWidget {
                     onPressed: onReviewChanges,
                     icon: const Icon(Icons.difference_outlined, size: 16),
                     label: Text('REVIEW ${pendingChanges!.files.length} FILES'),
+                  ),
+                if (pendingChanges == null &&
+                    lastAppliedChanges != null &&
+                    onOpenDiff != null)
+                  FilledButton.icon(
+                    key: const ValueKey('summary-open-diff'),
+                    onPressed: onOpenDiff,
+                    icon: const Icon(Icons.difference_outlined, size: 16),
+                    label: const Text('OPEN DIFF'),
                   ),
                 if (canRevert)
                   OutlinedButton.icon(
@@ -642,6 +1144,69 @@ class _ExecutionSummary extends StatelessWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ExecutionSummaryStat extends StatelessWidget {
+  const _ExecutionSummaryStat({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = color ?? colors.onSurface;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 138),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.onSurface.withValues(alpha: 0.035),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: accent),
+          const SizedBox(width: 7),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Consolas',
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Consolas',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

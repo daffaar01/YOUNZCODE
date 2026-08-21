@@ -59,17 +59,19 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
     _updateState(() {
       _browserTurnNavigation.beginTurn();
       _busy = true;
+      _timeoutContinuationCancelled = false;
       _executionSummaryVisible = false;
       _turnState = _AgentTurnState.running;
       _agentStatus = 'Menyiapkan konteks';
       _activities.clear();
+      _lastQualityGateResult = null;
       _turnStartedAt = DateTime.now();
       if (userEntry != null) _entries.add(userEntry);
     });
     await _persistActiveChat();
     _scrollToBottom();
     try {
-      final answer = await _executeWithFallback(agent, () => operation(agent));
+      final answer = await _executeWithAdaptiveTimeout(agent, operation);
       if (!mounted) return;
       if (driveGoal && _goal?.status == AgentGoalStatus.active) {
         await _consumeGoalAnswers(answer);
@@ -87,6 +89,7 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
         _notify(
           'Tugas selesai',
           'Agent menyelesaikan task dalam ${_elapsedSinceTurn().inSeconds}s.',
+          category: _NotificationCategory.agent,
         );
         _showMessage(
           'Tugas selesai. Hasil dan perubahan siap ditinjau.',
@@ -159,6 +162,59 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
     }
   }
 
+  Future<String> _executeWithAdaptiveTimeout(
+    AgentService initialAgent,
+    Future<String> Function(AgentService agent) operation,
+  ) async {
+    var currentAgent = initialAgent;
+    var firstAttempt = true;
+    var timeoutContinuations = 0;
+    while (true) {
+      try {
+        return await _executeWithFallback(
+          currentAgent,
+          () => firstAttempt
+              ? operation(currentAgent)
+              : currentAgent.continueFromCheckpoint(),
+        );
+      } catch (error) {
+        if (error is! AgentTurnTimeoutException) rethrow;
+
+        final nextDuration = nextAgentTurnDuration(error.limit);
+        final activeAgent = _agent ?? currentAgent;
+        if (identical(_agent, activeAgent)) _agent = null;
+        await activeAgent.dispose();
+        if (!mounted || _timeoutContinuationCancelled || !_busy) {
+          throw const AgentCancelledException();
+        }
+        if (_agentCheckpoint.isEmpty) rethrow;
+
+        timeoutContinuations++;
+        _updateState(() {
+          _agentStatus =
+              'Batas ${error.limit.inMinutes} menit tercapai; '
+              'melanjutkan otomatis dengan ${nextDuration.inMinutes} menit '
+              '(percobaan $timeoutContinuations)';
+        });
+        _notify(
+          'Timeout ditangani otomatis',
+          'Checkpoint tersimpan. Melanjutkan dengan batas '
+              '${nextDuration.inMinutes} menit.',
+          category: _NotificationCategory.agent,
+        );
+
+        currentAgent = _createAgent(
+          baseUrl: activeAgent.baseUrl,
+          model: activeAgent.model,
+          maxTurnDuration: nextDuration,
+        );
+        currentAgent.restoreMessages(_agentCheckpoint);
+        _agent = currentAgent;
+        firstAttempt = false;
+      }
+    }
+  }
+
   Future<String> _executeWithFallback(
     AgentService agent,
     Future<String> Function() operation,
@@ -209,13 +265,18 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
       await _persistActiveChat();
       _scrollToBottom();
       if (result.decision == GoalTurnDecision.complete) {
-        _notify('Goal selesai', goal.objective);
+        _notify(
+          'Goal selesai',
+          goal.objective,
+          category: _NotificationCategory.agent,
+        );
         return;
       }
       if (result.decision == GoalTurnDecision.blocked) {
         _notify(
           'Goal membutuhkan bantuan',
           'Buka chat dan periksa pertanyaan agent.',
+          category: _NotificationCategory.agent,
         );
         return;
       }
@@ -237,6 +298,7 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
         _notify(
           'Goal dijeda',
           'Batas kelanjutan otomatis tercapai; progres tetap tersimpan.',
+          category: _NotificationCategory.agent,
         );
         return;
       }
@@ -248,9 +310,9 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
             'Goal turn ${activeGoal.turnCount + 1} · melanjutkan otomatis';
       });
       final currentAgent = _ensureAgent();
-      answer = await _executeWithFallback(
+      answer = await _executeWithAdaptiveTimeout(
         currentAgent,
-        () => currentAgent.continueWithPrompt(
+        (agent) => agent.continueWithPrompt(
           _goalCoordinator.continuationPrompt(activeGoal),
         ),
       );
@@ -270,7 +332,12 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
       ? Duration.zero
       : DateTime.now().difference(_turnStartedAt!);
 
-  void _notify(String title, String body, {bool error = false}) {
+  void _notify(
+    String title,
+    String body, {
+    bool error = false,
+    _NotificationCategory category = _NotificationCategory.system,
+  }) {
     if (!mounted) return;
     _updateState(() {
       _notifications.insert(
@@ -280,6 +347,7 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
           body: body,
           createdAt: DateTime.now(),
           error: error,
+          category: category,
         ),
       );
     });
@@ -299,6 +367,21 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
         if (mounted) _updateState(_notifications.clear);
         _notificationRevision.value++;
       },
+      onRead: (notification) {
+        if (notification.read) return;
+        if (mounted) _updateState(() => notification.read = true);
+        _notificationRevision.value++;
+      },
+      onMarkAllRead: () {
+        if (mounted) {
+          _updateState(() {
+            for (final notification in _notifications) {
+              notification.read = true;
+            }
+          });
+        }
+        _notificationRevision.value++;
+      },
     ),
   );
 
@@ -312,8 +395,16 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
         workspaceConfigured: _workspace.isNotEmpty,
         providerConfigured: _apiKey.isNotEmpty,
         model: _model,
-        onWorkspace: _chooseWorkspace,
-        onProvider: _openSettings,
+        onWorkspace: () async {
+          await _chooseWorkspace();
+          return _workspace.isNotEmpty;
+        },
+        onProvider: () async {
+          await _openSettings();
+          return _apiKey.isNotEmpty;
+        },
+        onEnvironment: _openEnvironmentPanel,
+        onComposer: () async => _promptFocusNode.requestFocus(),
       ),
     );
     final preferences = await SharedPreferences.getInstance();
@@ -342,9 +433,11 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
       _lastAppliedTurn = applied;
       _changeHistory.insert(0, applied);
       _pendingChanges = null;
+      _lastQualityGateResult = null;
     });
     await _checkpointStore.save(_workspace, applied);
     await _reloadChangedDocuments(applied.files);
+    await _refreshGit();
     _showMessage('${applied.files.length} file diterapkan.');
     if (_qualityGateEnabled) await _runQualityGate(applied);
   }
@@ -372,6 +465,9 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
         });
       }
     }
+    if (!mounted) return;
+    _updateState(() => _lastQualityGateResult = result);
+    await _refreshGit();
     if (!mounted) return;
     if (result.skipped) {
       _showMessage('Perubahan diterapkan; tidak ada quality check yang cocok.');
@@ -402,6 +498,7 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
       _lastAppliedTurn = null;
     });
     await _reloadChangedDocuments(turn.files);
+    await _refreshGit();
     _showMessage('Turn dikembalikan karena quality gate gagal.');
   }
 
@@ -438,6 +535,7 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
       _lastAppliedTurn = null;
     });
     await _reloadChangedDocuments(turn.files);
+    await _refreshGit();
     _showMessage('Perubahan turn dipulihkan.');
   }
 
@@ -561,6 +659,7 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
       _notify(
         'Provider fallback',
         'Task dilanjutkan melalui ${route.baseUrl}.',
+        category: _NotificationCategory.agent,
       );
       final recoveredAgent = _createAgent(
         baseUrl: route.baseUrl,
@@ -579,6 +678,7 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
 
   Future<void> _cancelAgent() async {
     if (!_busy) return;
+    _timeoutContinuationCancelled = true;
     final goal = _goal;
     if (goal != null && goal.status == AgentGoalStatus.active) {
       _updateState(() {
@@ -627,7 +727,8 @@ extension _AgentTurnWorkflow on _AgentHomePageState {
     if (error is AgentTurnTimeoutException) {
       return '${error.message} Proses yang masih aktif telah dihentikan. '
           'Checkpoint dan hasil tool yang sudah selesai tetap tersimpan; '
-          'gunakan CONTINUE FROM CHECKPOINT bila ingin melanjutkan.';
+          'aplikasi akan melanjutkan otomatis dengan batas waktu bertahap. '
+          'Gunakan BATAL bila ingin menghentikan proses.';
     }
     if (error is TimeoutException) {
       final detail = error.message?.trim();

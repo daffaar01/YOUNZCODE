@@ -207,6 +207,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
       (item) => item.path == filePath,
     );
     if (existingIndex != -1) {
+      _rememberRecentFile(filePath);
       _updateState(() {
         _activeFile = filePath;
         _searchMode = false;
@@ -272,6 +273,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
       });
       _updateState(() {
         _documents.add(document);
+        _rememberRecentFile(filePath);
         _activeFile = filePath;
         _searchMode = false;
         _imageGenerationMode = false;
@@ -330,6 +332,121 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
     document.dispose();
   }
 
+  void _rememberRecentFile(String filePath) {
+    _recentFiles
+      ..remove(filePath)
+      ..insert(0, filePath);
+    if (_recentFiles.length > 12) {
+      _recentFiles.removeRange(12, _recentFiles.length);
+    }
+  }
+
+  Future<void> _copyWorkspacePath(String filePath) async {
+    await Clipboard.setData(ClipboardData(text: filePath));
+    if (mounted) _showMessage('Path file disalin.');
+  }
+
+  bool _isInsideWorkspace(String targetPath) {
+    if (_workspace.isEmpty) return false;
+    final root = path.normalize(path.absolute(_workspace));
+    final candidate = path.normalize(path.absolute(targetPath));
+    return candidate != root && path.isWithin(root, candidate);
+  }
+
+  Future<void> _renameWorkspaceEntry(String targetPath) async {
+    if (!_isInsideWorkspace(targetPath)) {
+      _showMessage('Aksi file di luar workspace ditolak.');
+      return;
+    }
+    if (_documents.any((document) => document.path == targetPath)) {
+      _showMessage('Tutup file terlebih dahulu sebelum mengganti namanya.');
+      return;
+    }
+    final controller = TextEditingController(text: path.basename(targetPath));
+    final nextName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename entry'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nama baru'),
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('BATAL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('RENAME'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || nextName == null || nextName.isEmpty) return;
+    if (nextName.contains(RegExp(r'[\\/]')) ||
+        nextName == '.' ||
+        nextName == '..') {
+      _showMessage('Nama file tidak valid.');
+      return;
+    }
+    final nextPath = path.join(path.dirname(targetPath), nextName);
+    if (!_isInsideWorkspace(nextPath)) return;
+    try {
+      await File(targetPath).rename(nextPath);
+      _recentFiles
+        ..remove(targetPath)
+        ..remove(nextPath);
+      if (mounted) _showMessage('Entry diganti menjadi $nextName.');
+    } on FileSystemException catch (error) {
+      if (mounted) _showMessage('Gagal rename: ${error.message}');
+    }
+  }
+
+  Future<void> _deleteWorkspaceEntry(String targetPath) async {
+    if (!_isInsideWorkspace(targetPath)) {
+      _showMessage('Aksi file di luar workspace ditolak.');
+      return;
+    }
+    if (_documents.any((document) => document.path == targetPath)) {
+      _showMessage('Tutup file terlebih dahulu sebelum menghapusnya.');
+      return;
+    }
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus entry?'),
+        content: Text(path.basename(targetPath)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('BATAL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('HAPUS'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true) return;
+    try {
+      final type = await FileSystemEntity.type(targetPath, followLinks: false);
+      if (type == FileSystemEntityType.directory) {
+        _showMessage('Hapus folder melalui File Explorer Windows.');
+        return;
+      }
+      await File(targetPath).delete();
+      _recentFiles.remove(targetPath);
+      if (mounted) _showMessage('Entry dihapus.');
+    } on FileSystemException catch (error) {
+      if (mounted) _showMessage('Gagal menghapus: ${error.message}');
+    }
+  }
+
   void _showChat() => _updateState(() {
     _activeFile = null;
     _searchMode = false;
@@ -385,6 +502,7 @@ extension _SessionWorkspaceWorkflow on _AgentHomePageState {
       'Workspace trusted',
       'Terminal, file changes, Agent Browser, local add-ons, and MCP tools '
           'are enabled.',
+      category: _NotificationCategory.system,
     );
     _showMessage(
       'Workspace dipercaya. Terminal, browser agent, dan tool lokal '

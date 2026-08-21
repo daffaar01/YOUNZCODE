@@ -15,6 +15,15 @@ void main() {
     final hunks = UnifiedDiff.build(original, proposed, 'sample.txt');
 
     expect(hunks, hasLength(2));
+    final change = WorkspaceFileChange(
+      path: 'sample.txt',
+      originalContent: original,
+      proposedContent: proposed,
+      originallyExisted: true,
+      hunks: hunks,
+    );
+    expect(change.additions, 2);
+    expect(change.deletions, 2);
     final partiallyApplied = UnifiedDiff.applyHunks(original, [hunks.first]);
     expect(partiallyApplied, contains('line two'));
     expect(partiallyApplied, contains('line 11'));

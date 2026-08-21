@@ -63,6 +63,7 @@ class ProviderRoutingService {
 
   static bool shouldFailover(Object error) {
     if (error is AgentEmptyResponseException) return true;
+    if (error is AgentTurnTimeoutException) return false;
     if (error is TimeoutException || error is http.ClientException) return true;
     if (error is AgentHttpException) {
       final status = error.statusCode;

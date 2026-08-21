@@ -42,7 +42,9 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
         .catchError((_) => <String, ToolPermissionPolicy>{});
     var workspaceLayout = _WorkspaceLayout.classic;
     var composerDensity = _ComposerDensity.comfortable;
+    var uiPreset = UiPreset.custom;
     var recentWorkspaces = <String>[];
+    var pinnedWorkspaces = <String>[];
     try {
       final preferences = await SharedPreferences.getInstance();
       workspaceLayout = preferences.getString('workspace_layout') == 'focus'
@@ -51,11 +53,36 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       composerDensity = preferences.getString(_composerDensityKey) == 'compact'
           ? _ComposerDensity.compact
           : _ComposerDensity.comfortable;
+      uiPreset = switch (preferences.getString(_uiPresetKey)) {
+        'minimal' => UiPreset.minimal,
+        'coding' => UiPreset.coding,
+        'focus' => UiPreset.focus,
+        _ => UiPreset.custom,
+      };
+      switch (uiPreset) {
+        case UiPreset.minimal:
+          workspaceLayout = _WorkspaceLayout.classic;
+          composerDensity = _ComposerDensity.compact;
+        case UiPreset.coding:
+          workspaceLayout = _WorkspaceLayout.classic;
+          composerDensity = _ComposerDensity.comfortable;
+        case UiPreset.focus:
+          workspaceLayout = _WorkspaceLayout.focus;
+          composerDensity = _ComposerDensity.compact;
+        case UiPreset.custom:
+          break;
+      }
       recentWorkspaces = preferences.getStringList(_recentWorkspacesKey) ?? [];
+      pinnedWorkspaces = preferences.getStringList(_pinnedWorkspacesKey) ?? [];
+      final promptHistory = preferences.getStringList(_promptHistoryKey) ?? [];
+      _promptHistory
+        ..clear()
+        ..addAll(promptHistory.take(30));
     } catch (_) {}
     final knownWorkspaces =
         <String>{
               if (workspace.isNotEmpty) workspace,
+              ...pinnedWorkspaces,
               ...recentWorkspaces,
               for (final session in sessions)
                 if (session.workspace.isNotEmpty) session.workspace,
@@ -93,12 +120,16 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _dapTimeoutMs = settings.dapTimeoutMs;
       _workspaceLayout = workspaceLayout;
       _composerDensity = composerDensity;
+      if (uiPreset == UiPreset.focus) _explorerPanelVisible = true;
       _chatSessions
         ..clear()
         ..addAll(sessions);
       _recentWorkspaces
         ..clear()
         ..addAll(knownWorkspaces);
+      _pinnedWorkspaces
+        ..clear()
+        ..addAll(pinnedWorkspaces);
       _addons
         ..clear()
         ..addAll(addons);
@@ -143,22 +174,25 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       _showMessage('Tunggu agent selesai sebelum mengganti workspace.');
       return;
     }
-    final candidates =
-        <String>{
-              if (_workspace.isNotEmpty) _workspace,
-              ..._recentWorkspaces,
-              for (final session in _chatSessions)
-                if (session.workspace.isNotEmpty) session.workspace,
-            }
-            .where((path) {
-              try {
-                return Directory(path).existsSync();
-              } catch (_) {
-                return false;
-              }
-            })
-            .take(8)
-            .toList();
+    final candidates = <String>[];
+    void addCandidate(String candidate) {
+      if (candidate.isEmpty || candidates.contains(candidate)) return;
+      try {
+        if (Directory(candidate).existsSync()) candidates.add(candidate);
+      } catch (_) {}
+    }
+
+    for (final workspace in _pinnedWorkspaces) {
+      addCandidate(workspace);
+    }
+    addCandidate(_workspace);
+    for (final workspace in _recentWorkspaces) {
+      addCandidate(workspace);
+    }
+    for (final session in _chatSessions) {
+      addCandidate(session.workspace);
+    }
+    if (candidates.length > 12) candidates.removeRange(12, candidates.length);
     final trustEntries = await Future.wait(
       candidates.map((path) async {
         final trusted = await _trustService
@@ -181,13 +215,20 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
           sessionCount: sessionCount,
           lastOpenedAt: latest,
           active: path == _workspace,
+          pinned: _pinnedWorkspaces.contains(path),
         );
       }),
     );
     if (!mounted) return;
     final selected = await showDialog<String>(
       context: context,
-      builder: (context) => _WorkspacePickerDialog(entries: trustEntries),
+      builder: (context) => _WorkspacePickerDialog(
+        entries: trustEntries,
+        onTogglePinned: _toggleWorkspacePinned,
+        loadGitStatus: (workspace) => _gitService
+            .status(workspace)
+            .catchError((_) => const GitStatus(isRepository: false)),
+      ),
     );
     if (selected == null) return;
     if (selected == _WorkspacePickerDialog.browseValue) {
@@ -252,6 +293,7 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
         document.dispose();
       }
       _documents.clear();
+      _recentFiles.clear();
       _activeFile = null;
       _contextFiles.clear();
       _terminalOutput.clear();
@@ -307,6 +349,19 @@ extension _WorkspaceLifecycle on _AgentHomePageState {
       }
     });
     await _saveRecentWorkspaces();
+  }
+
+  Future<void> _toggleWorkspacePinned(String workspace) async {
+    _updateState(() {
+      if (!_pinnedWorkspaces.add(workspace)) {
+        _pinnedWorkspaces.remove(workspace);
+      }
+    });
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _pinnedWorkspacesKey,
+      _pinnedWorkspaces.toList(growable: false),
+    );
   }
 
   Future<void> _saveRecentWorkspaces() async {

@@ -3,6 +3,15 @@ import 'package:kode_agent_desktop/services/agent_service.dart';
 import 'package:kode_agent_desktop/services/provider_routing_service.dart';
 
 void main() {
+  test('deadline total dilanjutkan dari checkpoint tanpa pindah provider', () {
+    expect(
+      ProviderRoutingService.shouldFailover(
+        AgentTurnTimeoutException(const Duration(minutes: 10)),
+      ),
+      isFalse,
+    );
+  });
+
   test('memilih fallback sehat setelah provider utama gagal', () async {
     final probed = <String>[];
     final router = ProviderRoutingService(

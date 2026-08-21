@@ -139,6 +139,8 @@ void main() {
           find.text('EXPLAIN').evaluate().isNotEmpty,
       isTrue,
     );
+    expect(find.text('RECOMMENDED'), findsOneWidget);
+    expect(find.text('Ctrl+Enter'), findsOneWidget);
     expect(find.byKey(const ValueKey('workspace-setup-card')), findsOneWidget);
     expect(find.text('SETUP WORKSPACE'), findsOneWidget);
     expect(find.text('0/3 SIAP'), findsOneWidget);
@@ -154,6 +156,11 @@ void main() {
       find.byKey(const ValueKey('environment-setup-banner')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('environment-setup-action')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('environment-add-source')), findsNothing);
   });
 
   testWidgets('empty state tidak menumpuk pada jendela pendek', (tester) async {
@@ -176,6 +183,94 @@ void main() {
     expect(find.byKey(const ValueKey('quick-start-compact')), findsOneWidget);
     expect(composerRect.top, greaterThanOrEqualTo(setupRect.bottom));
     expect(composerRect.top, greaterThanOrEqualTo(quickStartRect.bottom));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dashboard workspace aktif menampilkan ringkasan proyek', (
+    tester,
+  ) async {
+    final workspace = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('younzcode-dashboard-'),
+    ))!;
+    addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
+    _setMockPreferences({'workspace': workspace.path});
+    await tester.binding.setSurfaceSize(const Size(1400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    expect(find.byKey(const ValueKey('workspace-dashboard')), findsOneWidget);
+    expect(find.text('PERUBAHAN GIT'), findsOneWidget);
+    expect(find.text('QUALITY GATE'), findsOneWidget);
+    expect(find.text('TASK AGENT'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-open-git')), findsOneWidget);
+    expect(find.text('TULIS TASK'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('preset Focus mengubah layout dan kepadatan workspace', (
+    tester,
+  ) async {
+    _setMockPreferences({'workspace_layout': 'focus'});
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.byKey(const ValueKey('rail-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('APPEARANCE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('appearance-preset')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('FOCUS').last);
+    await tester.pump();
+    await tester.tap(find.text('SAVE SETTINGS'));
+    await tester.pumpAndSettle();
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('ui_preset'), 'focus');
+    expect(preferences.getString('workspace_layout'), 'focus');
+    expect(preferences.getString('composer_density'), 'compact');
+    expect(
+      find.byKey(const ValueKey('focus-workspace-layout')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('onboarding memiliki progress dan navigasi tiga langkah', (
+    tester,
+  ) async {
+    final workspace = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('younzcode-onboarding-'),
+    ))!;
+    addTearDown(() => tester.runAsync(() => workspace.delete(recursive: true)));
+    SharedPreferences.setMockInitialValues({
+      'workspace': workspace.path,
+      'onboarding_complete': false,
+    });
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const ValueKey('onboarding-dialog')),
+    );
+
+    expect(find.byKey(const ValueKey('onboarding-dialog')), findsOneWidget);
+    expect(find.byKey(const ValueKey('onboarding-progress')), findsOneWidget);
+    expect(find.byKey(const ValueKey('onboarding-step-0')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('onboarding-next')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('onboarding-step-1')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('onboarding-back')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('onboarding-step-0')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('onboarding-skip')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('onboarding-dialog')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -230,6 +325,10 @@ void main() {
       find.byKey(const ValueKey('workspace-picker-browse')),
       findsOneWidget,
     );
+    expect(find.byTooltip('Pin workspace'), findsWidgets);
+    await tester.tap(find.byTooltip('Pin workspace').first);
+    await tester.pump();
+    expect(find.byTooltip('Unpin workspace'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const ValueKey('workspace-picker-search')),
@@ -263,6 +362,34 @@ void main() {
       find.byKey(const ValueKey('prompt-field')),
     );
     expect(field.controller!.text, '/review');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('composer menyediakan template dan paste code', (tester) async {
+    _setMockPreferences({});
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const KodeAgentApp());
+    await _pumpLoaded(tester);
+
+    await tester.tap(find.byKey(const ValueKey('composer-templates')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('prompt-templates-dialog')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('prompt-template-Fix Bug')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('prompt-field')))
+          .controller!
+          .text,
+      contains('Investigasi bug'),
+    );
+
+    expect(find.byKey(const ValueKey('composer-history')), findsOneWidget);
+    expect(find.byKey(const ValueKey('composer-paste-code')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1437,10 +1564,7 @@ void main() {
     expect(find.text('Changes'), findsOneWidget);
     expect(find.text('Processes'), findsOneWidget);
     expect(find.text('Sources'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('environment-add-source')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('environment-add-source')), findsNothing);
     final environmentCard = tester.widget<Material>(
       find.byKey(const ValueKey('classic-environment-panel')),
     );

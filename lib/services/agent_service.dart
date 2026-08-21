@@ -40,6 +40,16 @@ typedef AgentInsight =
       int? totalTokens,
     });
 
+const defaultAgentTurnDuration = Duration(minutes: 10);
+const adaptiveAgentTurnIncrement = Duration(minutes: 5);
+
+Duration nextAgentTurnDuration(Duration current) {
+  final baseline = current > Duration.zero
+      ? current
+      : defaultAgentTurnDuration;
+  return baseline + adaptiveAgentTurnIncrement;
+}
+
 class _AgentFinalizationException implements Exception {
   const _AgentFinalizationException(this.reason);
 
@@ -65,7 +75,7 @@ class AgentService {
     this.planMode = false,
     this.maxSteps = 40,
     this.maxToolCalls = 24,
-    this.maxTurnDuration = const Duration(minutes: 10),
+    this.maxTurnDuration = defaultAgentTurnDuration,
     this.maxRequestAttempts = 4,
     this.retryBaseDelay = const Duration(milliseconds: 750),
     this.addonInstructions = const [],
@@ -237,7 +247,7 @@ class AgentService {
   Future<String> _runLoop() async {
     final effectiveTurnDuration = maxTurnDuration > Duration.zero
         ? maxTurnDuration
-        : const Duration(minutes: 10);
+        : defaultAgentTurnDuration;
     final deadline = DateTime.now().add(effectiveTurnDuration);
     final reserveMilliseconds = (effectiveTurnDuration.inMilliseconds ~/ 5)
         .clamp(1, const Duration(minutes: 2).inMilliseconds)

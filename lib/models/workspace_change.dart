@@ -86,6 +86,18 @@ class WorkspaceFileChange {
     ...hunks.map((hunk) => hunk.unified),
   ].join('\n');
 
+  int get additions => hunks.fold(
+    0,
+    (total, hunk) =>
+        total + hunk.lines.where((line) => line.startsWith('+')).length,
+  );
+
+  int get deletions => hunks.fold(
+    0,
+    (total, hunk) =>
+        total + hunk.lines.where((line) => line.startsWith('-')).length,
+  );
+
   Map<String, dynamic> toJson() => {
     'path': path,
     'originalContent': originalContent,
@@ -111,6 +123,15 @@ class WorkspaceTurnChanges {
   final bool applied;
 
   String get unifiedDiff => files.map((file) => file.unifiedDiff).join('\n\n');
+
+  int get additions => files.fold(0, (total, file) => total + file.additions);
+  int get deletions => files.fold(0, (total, file) => total + file.deletions);
+  int get addedFiles =>
+      files.where((file) => file.kind == WorkspaceChangeKind.added).length;
+  int get modifiedFiles =>
+      files.where((file) => file.kind == WorkspaceChangeKind.modified).length;
+  int get deletedFiles =>
+      files.where((file) => file.kind == WorkspaceChangeKind.deleted).length;
 
   factory WorkspaceTurnChanges.fromJson(Map<String, dynamic> json) =>
       WorkspaceTurnChanges(

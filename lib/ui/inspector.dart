@@ -332,17 +332,14 @@ class _ClassicEnvironmentPanel extends StatelessWidget {
                         ),
                       ),
                     ),
-                    IconButton(
-                      key: const ValueKey('environment-add-source'),
-                      tooltip: workspaceSelected
-                          ? 'Tambah source'
-                          : 'Pilih workspace',
-                      onPressed: workspaceSelected
-                          ? onAddSource
-                          : onChooseWorkspace,
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.add, size: 18),
-                    ),
+                    if (workspaceSelected)
+                      IconButton(
+                        key: const ValueKey('environment-add-source'),
+                        tooltip: 'Tambah source',
+                        onPressed: onAddSource,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.add, size: 18),
+                      ),
                     const Icon(Icons.open_in_new, size: 15),
                   ],
                 ),
@@ -354,7 +351,6 @@ class _ClassicEnvironmentPanel extends StatelessWidget {
                     workspaceSelected: workspaceSelected,
                     workspaceTrusted: workspaceTrusted,
                     providerConfigured: providerConfigured,
-                    onChooseWorkspace: onChooseWorkspace,
                     onTrustWorkspace: onTrustWorkspace,
                     onConfigureProvider: onConfigureProvider,
                   ),
@@ -483,7 +479,6 @@ class _EnvironmentSetupBanner extends StatelessWidget {
     required this.workspaceSelected,
     required this.workspaceTrusted,
     required this.providerConfigured,
-    required this.onChooseWorkspace,
     required this.onTrustWorkspace,
     required this.onConfigureProvider,
   });
@@ -491,7 +486,6 @@ class _EnvironmentSetupBanner extends StatelessWidget {
   final bool workspaceSelected;
   final bool workspaceTrusted;
   final bool providerConfigured;
-  final VoidCallback onChooseWorkspace;
   final VoidCallback onTrustWorkspace;
   final VoidCallback onConfigureProvider;
 
@@ -501,10 +495,10 @@ class _EnvironmentSetupBanner extends StatelessWidget {
     final (icon, title, detail, action, onPressed) = !workspaceSelected
         ? (
             Icons.folder_open_outlined,
-            'Pilih workspace',
-            'Hubungkan folder proyek untuk melihat Git, proses, dan source.',
-            'PILIH',
-            onChooseWorkspace,
+            'Workspace belum dipilih',
+            'Gunakan tombol utama di tengah atau sidebar untuk membuka proyek.',
+            null,
+            null,
           )
         : !workspaceTrusted
         ? (
@@ -556,19 +550,21 @@ class _EnvironmentSetupBanner extends StatelessWidget {
               color: colors.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonal(
-              key: const ValueKey('environment-setup-action'),
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(34),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          if (action != null && onPressed != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonal(
+                key: const ValueKey('environment-setup-action'),
+                onPressed: onPressed,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(34),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(action),
               ),
-              child: Text(action),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -1247,9 +1243,15 @@ class _LoadBar extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
+    required this.workspace,
     required this.workspaceSelected,
     required this.workspaceTrusted,
     required this.providerConfigured,
+    required this.gitStatus,
+    required this.pendingChanges,
+    required this.lastChange,
+    required this.qualityGateResult,
+    required this.recentFiles,
     required this.recentWorkspaces,
     required this.onChooseWorkspace,
     required this.onOpenWorkspace,
@@ -1258,11 +1260,21 @@ class _EmptyState extends StatelessWidget {
     required this.onOpenHistory,
     required this.onFocusComposer,
     required this.onSuggestion,
+    required this.onOpenFile,
+    required this.onOpenEditor,
+    required this.onGit,
+    required this.onReviewChanges,
   });
 
+  final String workspace;
   final bool workspaceSelected;
   final bool workspaceTrusted;
   final bool providerConfigured;
+  final GitStatus gitStatus;
+  final WorkspaceTurnChanges? pendingChanges;
+  final WorkspaceTurnChanges? lastChange;
+  final QualityGateResult? qualityGateResult;
+  final List<String> recentFiles;
   final List<String> recentWorkspaces;
   final VoidCallback onChooseWorkspace;
   final ValueChanged<String> onOpenWorkspace;
@@ -1271,6 +1283,10 @@ class _EmptyState extends StatelessWidget {
   final VoidCallback onOpenHistory;
   final VoidCallback onFocusComposer;
   final ValueChanged<String> onSuggestion;
+  final ValueChanged<String> onOpenFile;
+  final VoidCallback onOpenEditor;
+  final VoidCallback onGit;
+  final VoidCallback onReviewChanges;
 
   @override
   Widget build(BuildContext context) {
@@ -1304,7 +1320,7 @@ class _EmptyState extends StatelessWidget {
                     : MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!short) ...[
+                  if (!short && !workspaceSelected) ...[
                     Opacity(
                       opacity: 0.18,
                       child: Container(
@@ -1322,7 +1338,9 @@ class _EmptyState extends StatelessWidget {
                     SizedBox(height: compact ? 20 : 28),
                   ],
                   Text(
-                    'What are we building?',
+                    workspaceSelected
+                        ? 'Workspace overview'
+                        : 'What are we building?',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: short
@@ -1336,8 +1354,11 @@ class _EmptyState extends StatelessWidget {
                   ),
                   SizedBox(height: short ? 6 : 12),
                   Text(
-                    'Select a workspace or describe a task to begin. I can help '
-                    'with architecture, debugging, or test automation.',
+                    workspaceSelected
+                        ? 'Pantau kondisi proyek, buka file terakhir, atau lanjutkan '
+                              'pekerjaan dari satu tempat.'
+                        : 'Select a workspace or describe a task to begin. I can help '
+                              'with architecture, debugging, or test automation.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1393,23 +1414,43 @@ class _EmptyState extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: short ? 6 : 10),
-                  _WorkspaceSetupCard(
-                    workspaceSelected: workspaceSelected,
-                    workspaceTrusted: workspaceTrusted,
-                    providerConfigured: providerConfigured,
-                    onChooseWorkspace: onChooseWorkspace,
-                    onTrustWorkspace: onTrustWorkspace,
-                    onConfigureProvider: onConfigureProvider,
-                    onFocusComposer: onFocusComposer,
-                  ),
-                  if (recentWorkspaces.isNotEmpty) ...[
+                  if (workspaceSelected)
+                    _WorkspaceDashboard(
+                      workspace: workspace,
+                      gitStatus: gitStatus,
+                      pendingChanges: pendingChanges,
+                      lastChange: lastChange,
+                      qualityGateResult: qualityGateResult,
+                      recentFiles: recentFiles,
+                      onOpenFile: onOpenFile,
+                      onOpenEditor: onOpenEditor,
+                      onGit: onGit,
+                      onHistory: onOpenHistory,
+                      onFocusComposer: onFocusComposer,
+                      onReviewChanges: onReviewChanges,
+                    ),
+                  if (!workspaceSelected ||
+                      !workspaceTrusted ||
+                      !providerConfigured) ...[
+                    if (workspaceSelected) SizedBox(height: short ? 6 : 12),
+                    _WorkspaceSetupCard(
+                      workspaceSelected: workspaceSelected,
+                      workspaceTrusted: workspaceTrusted,
+                      providerConfigured: providerConfigured,
+                      onChooseWorkspace: onChooseWorkspace,
+                      onTrustWorkspace: onTrustWorkspace,
+                      onConfigureProvider: onConfigureProvider,
+                      onFocusComposer: onFocusComposer,
+                    ),
+                  ],
+                  if (!workspaceSelected && recentWorkspaces.isNotEmpty) ...[
                     SizedBox(height: short ? 6 : 24),
                     _RecentWorkspaceStrip(
                       workspaces: recentWorkspaces,
                       onOpen: onOpenWorkspace,
                       onChoose: onChooseWorkspace,
                     ),
-                  ] else if (!short) ...[
+                  ] else if (!workspaceSelected && !short) ...[
                     const SizedBox(height: 24),
                     _DashboardActionStrip(
                       onChooseWorkspace: onChooseWorkspace,
@@ -1515,6 +1556,8 @@ class _EmptyState extends StatelessWidget {
                           icon: Icons.bolt_outlined,
                           title: 'Generate Feature',
                           subtitle: 'Bootstrap new module',
+                          badge: 'RECOMMENDED',
+                          shortcut: 'Ctrl+Enter',
                           onTap: () => onSuggestion(
                             'Buat fitur baru dengan mengikuti pola kode yang sudah ada.',
                           ),
@@ -1523,6 +1566,7 @@ class _EmptyState extends StatelessWidget {
                           icon: Icons.bug_report_outlined,
                           title: 'Fix Logic Bug',
                           subtitle: 'Trace and repair errors',
+                          shortcut: 'Ctrl+B',
                           onTap: () => onSuggestion(
                             'Bantu saya menganalisis dan memperbaiki bug pada proyek ini.',
                           ),
@@ -1531,6 +1575,7 @@ class _EmptyState extends StatelessWidget {
                           icon: Icons.checklist_rtl_outlined,
                           title: 'Write Test Suite',
                           subtitle: 'Unit & integration coverage',
+                          shortcut: 'Ctrl+T',
                           onTap: () => onSuggestion(
                             'Jalankan semua test dan perbaiki kegagalan yang ditemukan.',
                           ),
@@ -1539,6 +1584,7 @@ class _EmptyState extends StatelessWidget {
                           icon: Icons.menu_book_outlined,
                           title: 'Explain Codebase',
                           subtitle: 'Analyze relationships',
+                          shortcut: 'Ctrl+E',
                           onTap: () => onSuggestion(
                             'Jelaskan arsitektur proyek ini dan modul-modul utamanya.',
                           ),
@@ -1555,6 +1601,454 @@ class _EmptyState extends StatelessWidget {
       },
     );
   }
+}
+
+class _WorkspaceDashboard extends StatelessWidget {
+  const _WorkspaceDashboard({
+    required this.workspace,
+    required this.gitStatus,
+    required this.pendingChanges,
+    required this.lastChange,
+    required this.qualityGateResult,
+    required this.recentFiles,
+    required this.onOpenFile,
+    required this.onOpenEditor,
+    required this.onGit,
+    required this.onHistory,
+    required this.onFocusComposer,
+    required this.onReviewChanges,
+  });
+
+  final String workspace;
+  final GitStatus gitStatus;
+  final WorkspaceTurnChanges? pendingChanges;
+  final WorkspaceTurnChanges? lastChange;
+  final QualityGateResult? qualityGateResult;
+  final List<String> recentFiles;
+  final ValueChanged<String> onOpenFile;
+  final VoidCallback onOpenEditor;
+  final VoidCallback onGit;
+  final VoidCallback onHistory;
+  final VoidCallback onFocusComposer;
+  final VoidCallback onReviewChanges;
+
+  String _relativePath(String filePath) {
+    final normalizedWorkspace = workspace.replaceAll('\\', '/');
+    final normalizedFile = filePath.replaceAll('\\', '/');
+    if (normalizedFile.startsWith('$normalizedWorkspace/')) {
+      return normalizedFile.substring(normalizedWorkspace.length + 1);
+    }
+    return normalizedFile.split('/').last;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final folder = workspace.replaceAll('\\', '/').split('/').last;
+    final changedFiles = gitStatus.entries.length;
+    final quality = qualityGateResult == null
+        ? (
+            'Belum diuji',
+            Icons.hourglass_empty_outlined,
+            colors.onSurfaceVariant,
+          )
+        : qualityGateResult!.skipped
+        ? (
+            'Tidak ada check',
+            Icons.remove_circle_outline,
+            colors.onSurfaceVariant,
+          )
+        : qualityGateResult!.passed
+        ? (
+            '${qualityGateResult!.checks.length} lulus',
+            Icons.check_circle_outline,
+            colors.primary,
+          )
+        : (
+            '${qualityGateResult!.checks.where((check) => !check.passed).length} gagal',
+            Icons.error_outline,
+            colors.error,
+          );
+    final latestChange = pendingChanges ?? lastChange;
+    final latestChangeLabel = pendingChanges != null
+        ? 'MENUNGGU REVIEW'
+        : lastChange == null
+        ? 'BELUM ADA PERUBAHAN AGENT'
+        : 'TERAKHIR DITERAPKAN';
+
+    return Container(
+      key: const ValueKey('workspace-dashboard'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.055),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.18)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  Icons.folder_special_outlined,
+                  color: colors.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      folder.isEmpty ? 'Workspace aktif' : folder,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      workspace,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 9,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _WorkspaceStatusPill(
+                label: gitStatus.isRepository
+                    ? (gitStatus.branch.isEmpty ? 'DETACHED' : gitStatus.branch)
+                    : 'NO GIT',
+                icon: Icons.account_tree_outlined,
+                color: gitStatus.isRepository
+                    ? colors.primary
+                    : colors.tertiary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 560 ? 1 : 3;
+              final tileWidth = columns == 1
+                  ? constraints.maxWidth
+                  : (constraints.maxWidth - 16) / 3;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  SizedBox(
+                    width: tileWidth,
+                    child: _WorkspaceMetric(
+                      icon: Icons.difference_outlined,
+                      label: 'PERUBAHAN GIT',
+                      value: changedFiles == 0
+                          ? 'Bersih'
+                          : '$changedFiles file',
+                      color: changedFiles == 0
+                          ? colors.primary
+                          : colors.tertiary,
+                    ),
+                  ),
+                  SizedBox(
+                    width: tileWidth,
+                    child: _WorkspaceMetric(
+                      icon: quality.$2,
+                      label: 'QUALITY GATE',
+                      value: quality.$1,
+                      color: quality.$3,
+                    ),
+                  ),
+                  SizedBox(
+                    width: tileWidth,
+                    child: _WorkspaceMetric(
+                      icon: Icons.auto_awesome_outlined,
+                      label: 'TASK AGENT',
+                      value: latestChange == null
+                          ? 'Belum ada'
+                          : '${latestChange.files.length} file',
+                      color: latestChange == null
+                          ? colors.onSurfaceVariant
+                          : colors.primary,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          if (latestChange != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.76),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    pendingChanges != null
+                        ? Icons.rate_review_outlined
+                        : Icons.history_toggle_off_outlined,
+                    size: 17,
+                    color: pendingChanges != null
+                        ? colors.tertiary
+                        : colors.primary,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          latestChangeLabel,
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: pendingChanges != null
+                                ? colors.tertiary
+                                : colors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          latestChange.prompt,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '+${latestChange.additions}  -${latestChange.deletions}  ·  ${latestChange.files.length} file',
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 9,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (pendingChanges != null)
+                    IconButton(
+                      key: const ValueKey('dashboard-review-changes'),
+                      tooltip: 'Review changes',
+                      onPressed: onReviewChanges,
+                      icon: const Icon(Icons.chevron_right),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (recentFiles.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Text(
+                  'FILE TERBARU',
+                  style: TextStyle(
+                    fontFamily: 'Consolas',
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .8,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: onOpenEditor,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 26),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('OPEN EDITOR'),
+                ),
+              ],
+            ),
+            ...recentFiles
+                .take(3)
+                .map(
+                  (file) => ListTile(
+                    key: ValueKey('dashboard-recent-file-$file'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.description_outlined,
+                      size: 17,
+                      color: colors.primary,
+                    ),
+                    title: Text(
+                      _relativePath(file),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Consolas',
+                        fontSize: 10,
+                      ),
+                    ),
+                    onTap: () => onOpenFile(file),
+                    trailing: const Icon(Icons.chevron_right, size: 17),
+                  ),
+                ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onFocusComposer,
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('TULIS TASK'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('dashboard-open-git'),
+                onPressed: onGit,
+                icon: const Icon(Icons.account_tree_outlined, size: 16),
+                label: const Text('GIT CENTER'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onHistory,
+                icon: const Icon(Icons.history, size: 16),
+                label: const Text('HISTORY'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceMetric extends StatelessWidget {
+  const _WorkspaceMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.64),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Consolas',
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceStatusPill extends StatelessWidget {
+  const _WorkspaceStatusPill({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(maxWidth: 140),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.11),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Consolas',
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _RecentWorkspaceStrip extends StatelessWidget {
@@ -2594,9 +3088,14 @@ class _Composer extends StatefulWidget {
     required this.planMode,
     required this.onPlanModeChanged,
     required this.contextFiles,
+    required this.fileSuggestions,
     required this.onAttachContext,
     required this.onRemoveContext,
     required this.onClearContext,
+    required this.onPromptTemplates,
+    required this.onPromptHistory,
+    required this.onPasteCode,
+    required this.onSelectFileSuggestion,
     required this.onDropFiles,
     required this.slashCommands,
     required this.onSlashCommand,
@@ -2614,9 +3113,14 @@ class _Composer extends StatefulWidget {
   final bool planMode;
   final ValueChanged<bool> onPlanModeChanged;
   final List<String> contextFiles;
+  final List<String> fileSuggestions;
   final VoidCallback onAttachContext;
   final ValueChanged<String> onRemoveContext;
   final VoidCallback onClearContext;
+  final VoidCallback onPromptTemplates;
+  final VoidCallback onPromptHistory;
+  final VoidCallback onPasteCode;
+  final ValueChanged<String> onSelectFileSuggestion;
   final ValueChanged<List<String>> onDropFiles;
   final List<_SlashCommand> slashCommands;
   final Future<void> Function(String command) onSlashCommand;
@@ -2631,6 +3135,7 @@ class _ComposerState extends State<_Composer> {
   bool _focused = false;
   bool _dragging = false;
   List<_SlashCommand> _matchingCommands = const [];
+  List<String> _matchingFiles = const [];
 
   @override
   void initState() {
@@ -2652,6 +3157,7 @@ class _ComposerState extends State<_Composer> {
       widget.focusNode.addListener(_syncFocus);
       _syncFocus();
     }
+    if (oldWidget.fileSuggestions != widget.fileSuggestions) _syncText();
   }
 
   void _syncFocus() {
@@ -2668,10 +3174,31 @@ class _ComposerState extends State<_Composer> {
               .where((item) => item.command.startsWith(text.toLowerCase()))
               .toList()
         : const <_SlashCommand>[];
+    final cursor = widget.controller.selection.isValid
+        ? widget.controller.selection.baseOffset
+        : widget.controller.text.length;
+    final prefix = widget.controller.text.substring(
+      0,
+      cursor.clamp(0, widget.controller.text.length),
+    );
+    final mention = RegExp(r'@([^\s]*)$').firstMatch(prefix);
+    final mentionQuery = mention?.group(1)?.toLowerCase() ?? '';
+    final matchingFiles = mention == null
+        ? const <String>[]
+        : widget.fileSuggestions
+              .where(
+                (file) => file
+                    .replaceAll('\\', '/')
+                    .toLowerCase()
+                    .contains(mentionQuery),
+              )
+              .take(8)
+              .toList();
     if (mounted) {
       setState(() {
         _hasText = hasText;
         _matchingCommands = matchingCommands;
+        _matchingFiles = matchingFiles;
       });
     }
   }
@@ -2849,6 +3376,55 @@ class _ComposerState extends State<_Composer> {
                   ),
                 ),
               ),
+            if (_matchingFiles.isNotEmpty)
+              Container(
+                key: const ValueKey('composer-file-mention-menu'),
+                constraints: const BoxConstraints(maxHeight: 240),
+                margin: const EdgeInsets.only(bottom: 6),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border.all(color: theme.dividerColor),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: SilkyListView.builder(
+                    silkyConfig: _silkyScrollConfig,
+                    shrinkWrap: true,
+                    itemCount: _matchingFiles.length,
+                    itemBuilder: (context, index) {
+                      final file = _matchingFiles[index];
+                      return ListTile(
+                        key: ValueKey('composer-file-suggestion-$index'),
+                        dense: true,
+                        leading: Icon(
+                          Icons.insert_drive_file_outlined,
+                          size: 17,
+                          color: colors.primary,
+                        ),
+                        title: Text(
+                          file.replaceAll('\\', '/').split('/').last,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 11,
+                          ),
+                        ),
+                        subtitle: Text(
+                          file,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: widget.busy
+                            ? null
+                            : () => widget.onSelectFileSuggestion(file),
+                      );
+                    },
+                  ),
+                ),
+              ),
             if (widget.contextFiles.isNotEmpty) ...[
               Row(
                 children: [
@@ -2886,7 +3462,8 @@ class _ComposerState extends State<_Composer> {
                           color: colors.primary,
                         ),
                         label: Text(
-                          file.replaceAll('\\', '/').split('/').last,
+                          '${file.replaceAll('\\', '/').split('/').last} · '
+                          '${_fileSizeLabel(file)}',
                           style: const TextStyle(
                             fontFamily: 'Consolas',
                             fontSize: 10,
@@ -2911,6 +3488,24 @@ class _ComposerState extends State<_Composer> {
               spacing: 6,
               runSpacing: 4,
               children: [
+                _ComposerShortcut(
+                  key: const ValueKey('composer-templates'),
+                  label: 'TEMPLATES',
+                  tooltip: 'Pilih template prompt',
+                  onTap: widget.busy ? null : widget.onPromptTemplates,
+                ),
+                _ComposerShortcut(
+                  key: const ValueKey('composer-history'),
+                  label: 'HISTORY',
+                  tooltip: 'Gunakan kembali prompt sebelumnya',
+                  onTap: widget.busy ? null : widget.onPromptHistory,
+                ),
+                _ComposerShortcut(
+                  key: const ValueKey('composer-paste-code'),
+                  label: 'PASTE CODE',
+                  tooltip: 'Tempel clipboard sebagai code block',
+                  onTap: widget.busy ? null : widget.onPasteCode,
+                ),
                 _ComposerShortcut(
                   label: 'Ctrl+K',
                   tooltip: 'Buka command palette',
@@ -3063,10 +3658,22 @@ class _ComposerState extends State<_Composer> {
     }
     return (bytes / 4).ceil();
   }
+
+  String _fileSizeLabel(String filePath) {
+    try {
+      final bytes = File(filePath).lengthSync();
+      if (bytes < 1024) return '$bytes B';
+      if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } catch (_) {
+      return 'FILE';
+    }
+  }
 }
 
 class _ComposerShortcut extends StatelessWidget {
   const _ComposerShortcut({
+    super.key,
     required this.label,
     required this.tooltip,
     required this.onTap,
@@ -3269,12 +3876,16 @@ class _SuggestionCard extends StatefulWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.badge,
+    this.shortcut,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final String? badge;
+  final String? shortcut;
   final VoidCallback onTap;
 
   @override
@@ -3373,13 +3984,25 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                widget.title,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: colors.primary,
-                                ),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      widget.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: colors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                  if (widget.badge != null) ...[
+                                    const SizedBox(width: 6),
+                                    _SuggestionBadge(label: widget.badge!),
+                                  ],
+                                ],
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -3395,6 +4018,10 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                             ],
                           ),
                         ),
+                        if (widget.shortcut != null) ...[
+                          const SizedBox(width: 8),
+                          _SuggestionShortcut(label: widget.shortcut!),
+                        ],
                         AnimatedSlide(
                           duration: _fastMotion,
                           offset: _hovered || _focused
@@ -3416,6 +4043,63 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionBadge extends StatelessWidget {
+  const _SuggestionBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Consolas',
+          fontSize: 7,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .3,
+          color: colors.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionShortcut extends StatelessWidget {
+  const _SuggestionShortcut({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.onSurface.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: colors.onSurface.withValues(alpha: 0.1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Consolas',
+            fontSize: 8,
+            color: colors.onSurfaceVariant,
           ),
         ),
       ),

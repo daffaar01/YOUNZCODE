@@ -1504,6 +1504,7 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
   late Color _accentColor = widget.appearance.accentColor;
   late double _fontScale = widget.appearance.fontScale;
   late UiDensity _uiDensity = widget.appearance.uiDensity;
+  late UiPreset _preset = widget.appearance.preset;
   late String _favoriteModel = widget.appearance.favoriteModel;
   bool _testingConnection = false;
   String? _connectionStatus;
@@ -1530,6 +1531,7 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
         accentColor: _accentColor,
         fontScale: _fontScale,
         uiDensity: _uiDensity,
+        preset: _preset,
         favoriteModel: _favoriteModel,
       ),
     );
@@ -1759,7 +1761,73 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 12),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _FieldLabel('PRESET'),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<UiPreset>(
+                  key: const ValueKey('appearance-preset'),
+                  initialValue: _preset,
+                  items: const [
+                    DropdownMenuItem(
+                      value: UiPreset.minimal,
+                      child: Text('MINIMAL'),
+                    ),
+                    DropdownMenuItem(
+                      value: UiPreset.coding,
+                      child: Text('CODING'),
+                    ),
+                    DropdownMenuItem(
+                      value: UiPreset.focus,
+                      child: Text('FOCUS'),
+                    ),
+                    DropdownMenuItem(
+                      value: UiPreset.custom,
+                      child: Text('CUSTOM'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) _selectPreset(value);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _FieldLabel('FAVORITE MODEL'),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('appearance-favorite-model'),
+                  initialValue: widget.models.contains(_favoriteModel)
+                      ? _favoriteModel
+                      : '',
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Tidak ada favorit'),
+                    ),
+                    for (final model in widget.models)
+                      DropdownMenuItem(value: model, child: Text(model)),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _favoriteModel = value ?? ''),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 14),
       const _FieldLabel('UI DENSITY'),
       SegmentedButton<UiDensity>(
         segments: const [
@@ -1775,8 +1843,10 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
           ),
         ],
         selected: {_uiDensity},
-        onSelectionChanged: (values) =>
-            setState(() => _uiDensity = values.first),
+        onSelectionChanged: (values) => setState(() {
+          _uiDensity = values.first;
+          _preset = UiPreset.custom;
+        }),
       ),
       const SizedBox(height: 18),
       Row(
@@ -1792,7 +1862,10 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
         max: 1.2,
         divisions: 7,
         label: '${(_fontScale * 100).round()}%',
-        onChanged: (value) => setState(() => _fontScale = value),
+        onChanged: (value) => setState(() {
+          _fontScale = value;
+          _preset = UiPreset.custom;
+        }),
       ),
       const SizedBox(height: 12),
       const _FieldLabel('ACCENT COLOR'),
@@ -1810,7 +1883,10 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
             ChoiceChip(
               key: ValueKey('appearance-accent-${color.toARGB32()}'),
               selected: _accentColor.toARGB32() == color.toARGB32(),
-              onSelected: (_) => setState(() => _accentColor = color),
+              onSelected: (_) => setState(() {
+                _accentColor = color;
+                _preset = UiPreset.custom;
+              }),
               avatar: CircleAvatar(backgroundColor: color, radius: 8),
               label: Text(
                 '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
@@ -1818,22 +1894,30 @@ class _ProjectSettingsDialogState extends State<_ProjectSettingsDialog> {
             ),
         ],
       ),
-      const SizedBox(height: 18),
-      const _FieldLabel('FAVORITE MODEL'),
-      DropdownButtonFormField<String>(
-        key: const ValueKey('appearance-favorite-model'),
-        initialValue: widget.models.contains(_favoriteModel)
-            ? _favoriteModel
-            : '',
-        items: [
-          const DropdownMenuItem(value: '', child: Text('Tidak ada favorit')),
-          for (final model in widget.models)
-            DropdownMenuItem(value: model, child: Text(model)),
-        ],
-        onChanged: (value) => setState(() => _favoriteModel = value ?? ''),
-      ),
     ],
   );
+
+  void _selectPreset(UiPreset preset) {
+    setState(() {
+      _preset = preset;
+      switch (preset) {
+        case UiPreset.minimal:
+          _accentColor = const Color(0xFF5B9DFF);
+          _fontScale = 0.95;
+          _uiDensity = UiDensity.compact;
+        case UiPreset.coding:
+          _accentColor = const Color(0xFF2F9E69);
+          _fontScale = 1;
+          _uiDensity = UiDensity.comfortable;
+        case UiPreset.focus:
+          _accentColor = const Color(0xFF7C6CF2);
+          _fontScale = 0.98;
+          _uiDensity = UiDensity.compact;
+        case UiPreset.custom:
+          break;
+      }
+    });
+  }
 
   Widget _generalTab() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2987,6 +3071,10 @@ class _WorkspacePickerEntry {
     required this.sessionCount,
     required this.lastOpenedAt,
     required this.active,
+    required this.pinned,
+    this.branch = '',
+    this.isRepository = false,
+    this.dirty = false,
   });
 
   final String path;
@@ -2994,14 +3082,36 @@ class _WorkspacePickerEntry {
   final int sessionCount;
   final DateTime? lastOpenedAt;
   final bool active;
+  final bool pinned;
+  final String branch;
+  final bool isRepository;
+  final bool dirty;
+
+  _WorkspacePickerEntry copyWith({bool? pinned}) => _WorkspacePickerEntry(
+    path: path,
+    trusted: trusted,
+    sessionCount: sessionCount,
+    lastOpenedAt: lastOpenedAt,
+    active: active,
+    pinned: pinned ?? this.pinned,
+    branch: branch,
+    isRepository: isRepository,
+    dirty: dirty,
+  );
 }
 
 class _WorkspacePickerDialog extends StatefulWidget {
-  const _WorkspacePickerDialog({required this.entries});
+  const _WorkspacePickerDialog({
+    required this.entries,
+    required this.onTogglePinned,
+    required this.loadGitStatus,
+  });
 
   static const browseValue = '__browse_workspace__';
 
   final List<_WorkspacePickerEntry> entries;
+  final Future<void> Function(String workspace) onTogglePinned;
+  final Future<GitStatus> Function(String workspace) loadGitStatus;
 
   @override
   State<_WorkspacePickerDialog> createState() => _WorkspacePickerDialogState();
@@ -3009,13 +3119,43 @@ class _WorkspacePickerDialog extends StatefulWidget {
 
 class _WorkspacePickerDialogState extends State<_WorkspacePickerDialog> {
   String _query = '';
+  late List<_WorkspacePickerEntry> _entries = List.of(widget.entries);
+  final _gitStatuses = <String, GitStatus>{};
+
+  @override
+  void initState() {
+    super.initState();
+    for (final entry in _entries) {
+      unawaited(_loadGitStatus(entry.path));
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _WorkspacePickerDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entries != widget.entries) {
+      _entries = List.of(widget.entries);
+      for (final entry in _entries) {
+        if (!_gitStatuses.containsKey(entry.path)) {
+          unawaited(_loadGitStatus(entry.path));
+        }
+      }
+    }
+  }
+
+  Future<void> _loadGitStatus(String workspace) async {
+    if (_gitStatuses.containsKey(workspace)) return;
+    final status = await widget.loadGitStatus(workspace);
+    if (!mounted) return;
+    setState(() => _gitStatuses[workspace] = status);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final query = _query.trim().toLowerCase();
-    final entries = widget.entries.where((entry) {
+    final entries = _entries.where((entry) {
       if (query.isEmpty) return true;
       return entry.path.toLowerCase().contains(query) ||
           path.basename(entry.path).toLowerCase().contains(query);
@@ -3101,7 +3241,26 @@ class _WorkspacePickerDialogState extends State<_WorkspacePickerDialog> {
                         final entry = entries[index];
                         return _WorkspacePickerTile(
                           entry: entry,
+                          gitStatus: _gitStatuses[entry.path],
                           onTap: () => Navigator.pop(context, entry.path),
+                          onTogglePinned: () async {
+                            final index = _entries.indexOf(entry);
+                            setState(() {
+                              _entries[index] = entry.copyWith(
+                                pinned: !entry.pinned,
+                              );
+                              _entries.sort((left, right) {
+                                if (left.pinned != right.pinned) {
+                                  return left.pinned ? -1 : 1;
+                                }
+                                if (left.active != right.active) {
+                                  return left.active ? -1 : 1;
+                                }
+                                return left.path.compareTo(right.path);
+                              });
+                            });
+                            await widget.onTogglePinned(entry.path);
+                          },
                         );
                       },
                     ),
@@ -3184,15 +3343,27 @@ class _WorkspacePickerEmpty extends StatelessWidget {
 }
 
 class _WorkspacePickerTile extends StatelessWidget {
-  const _WorkspacePickerTile({required this.entry, required this.onTap});
+  const _WorkspacePickerTile({
+    required this.entry,
+    required this.gitStatus,
+    required this.onTap,
+    required this.onTogglePinned,
+  });
 
   final _WorkspacePickerEntry entry;
+  final GitStatus? gitStatus;
   final VoidCallback onTap;
+  final VoidCallback onTogglePinned;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final folder = path.basename(entry.path);
+    final status = gitStatus;
+    final isRepository = status?.isRepository ?? entry.isRepository;
+    final branch = status?.branch ?? entry.branch;
+    final dirty = status?.dirty ?? entry.dirty;
+    final gitLoading = status == null && !entry.isRepository;
     return Material(
       color: entry.active
           ? colors.primary.withValues(alpha: 0.1)
@@ -3276,6 +3447,29 @@ class _WorkspacePickerTile extends StatelessWidget {
                           label: '${entry.sessionCount} CHAT',
                           color: colors.onSurfaceVariant,
                         ),
+                        _WorkspacePickerMeta(
+                          icon: gitLoading
+                              ? Icons.sync_outlined
+                              : Icons.account_tree_outlined,
+                          label: gitLoading
+                              ? 'GIT...'
+                              : isRepository
+                              ? (branch.isEmpty
+                                    ? 'DETACHED'
+                                    : branch.split('/').last)
+                              : 'NO GIT',
+                          color: isRepository
+                              ? colors.onSurfaceVariant
+                              : colors.onSurfaceVariant.withValues(alpha: 0.7),
+                        ),
+                        if (isRepository)
+                          _WorkspacePickerMeta(
+                            icon: dirty
+                                ? Icons.edit_note_outlined
+                                : Icons.check_circle_outline,
+                            label: dirty ? 'CHANGES' : 'CLEAN',
+                            color: dirty ? colors.tertiary : colors.primary,
+                          ),
                         if (entry.lastOpenedAt != null)
                           _WorkspacePickerMeta(
                             icon: Icons.schedule,
@@ -3287,7 +3481,19 @@ class _WorkspacePickerTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              IconButton(
+                key: ValueKey('workspace-picker-pin-${entry.path}'),
+                tooltip: entry.pinned ? 'Unpin workspace' : 'Pin workspace',
+                visualDensity: VisualDensity.compact,
+                onPressed: onTogglePinned,
+                icon: Icon(
+                  entry.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  size: 18,
+                  color: entry.pinned
+                      ? colors.primary
+                      : colors.onSurfaceVariant,
+                ),
+              ),
               const Icon(Icons.chevron_right),
             ],
           ),
@@ -3881,27 +4087,112 @@ class _QuickFileDialogState extends State<_QuickFileDialog> {
   }
 }
 
+class _QuickSwitcherItem {
+  const _QuickSwitcherItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.category,
+    required this.icon,
+  });
+
+  final String id;
+  final String title;
+  final String subtitle;
+  final String category;
+  final IconData icon;
+}
+
 class _CommandPaletteDialog extends StatefulWidget {
-  const _CommandPaletteDialog();
+  const _CommandPaletteDialog({required this.items});
+
+  static const commands = <_QuickSwitcherItem>[
+    _QuickSwitcherItem(
+      id: 'file',
+      title: 'Open File',
+      subtitle: 'Cari dan buka file workspace',
+      category: 'COMMAND',
+      icon: Icons.file_open_outlined,
+    ),
+    _QuickSwitcherItem(
+      id: 'chat',
+      title: 'New Chat',
+      subtitle: 'Mulai percakapan baru',
+      category: 'COMMAND',
+      icon: Icons.add_comment_outlined,
+    ),
+    _QuickSwitcherItem(
+      id: 'search',
+      title: 'Search Workspace',
+      subtitle: 'Cari teks atau simbol di workspace',
+      category: 'COMMAND',
+      icon: Icons.manage_search,
+    ),
+    _QuickSwitcherItem(
+      id: 'images',
+      title: 'Image Generation',
+      subtitle: 'Buka Image Studio',
+      category: 'COMMAND',
+      icon: Icons.image_outlined,
+    ),
+    _QuickSwitcherItem(
+      id: 'browser',
+      title: 'Agent Browser',
+      subtitle: 'Buka browser agent',
+      category: 'COMMAND',
+      icon: Icons.travel_explore,
+    ),
+    _QuickSwitcherItem(
+      id: 'terminal',
+      title: 'Toggle Terminal',
+      subtitle: 'Tampilkan atau sembunyikan terminal',
+      category: 'COMMAND',
+      icon: Icons.terminal,
+    ),
+    _QuickSwitcherItem(
+      id: 'settings',
+      title: 'Project Settings',
+      subtitle: 'Appearance, API, Git, dan quality gate',
+      category: 'SETTINGS',
+      icon: Icons.tune,
+    ),
+    _QuickSwitcherItem(
+      id: 'model',
+      title: 'Switch Model',
+      subtitle: 'Provider dan model AI',
+      category: 'SETTINGS',
+      icon: Icons.psychology_outlined,
+    ),
+    _QuickSwitcherItem(
+      id: 'plan',
+      title: 'Toggle Plan Mode',
+      subtitle: 'Rencanakan sebelum mengubah workspace',
+      category: 'COMMAND',
+      icon: Icons.account_tree_outlined,
+    ),
+    _QuickSwitcherItem(
+      id: 'retry',
+      title: 'Prepare Retry Prompt',
+      subtitle: 'Siapkan ulang prompt terakhir',
+      category: 'COMMAND',
+      icon: Icons.replay,
+    ),
+    _QuickSwitcherItem(
+      id: 'continue',
+      title: 'Prepare Checkpoint Continue',
+      subtitle: 'Lanjutkan dari checkpoint terakhir',
+      category: 'COMMAND',
+      icon: Icons.play_arrow_outlined,
+    ),
+  ];
 
   @override
   State<_CommandPaletteDialog> createState() => _CommandPaletteDialogState();
+
+  final List<_QuickSwitcherItem> items;
 }
 
 class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
-  static const actions = <(String, IconData, String)>[
-    ('file', Icons.file_open_outlined, 'Open File'),
-    ('chat', Icons.add_comment_outlined, 'New Chat'),
-    ('search', Icons.manage_search, 'Search Workspace'),
-    ('images', Icons.image_outlined, 'Image Generation'),
-    ('browser', Icons.travel_explore, 'Agent Browser'),
-    ('terminal', Icons.terminal, 'Toggle Terminal'),
-    ('settings', Icons.tune, 'Project Settings'),
-    ('model', Icons.psychology_outlined, 'Switch Model'),
-    ('plan', Icons.account_tree_outlined, 'Toggle Plan Mode'),
-    ('retry', Icons.replay, 'Prepare Retry Prompt'),
-    ('continue', Icons.play_arrow_outlined, 'Prepare Checkpoint Continue'),
-  ];
   final _searchController = TextEditingController();
 
   @override
@@ -3913,13 +4204,15 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
   @override
   Widget build(BuildContext context) {
     final query = _searchController.text.trim().toLowerCase();
-    final matches = actions
+    final matches = widget.items
         .where(
-          (action) =>
+          (item) =>
               query.isEmpty ||
-              action.$1.contains(query) ||
-              action.$3.toLowerCase().contains(query),
+              item.title.toLowerCase().contains(query) ||
+              item.subtitle.toLowerCase().contains(query) ||
+              item.category.toLowerCase().contains(query),
         )
+        .take(100)
         .toList();
     return Dialog(
       child: SizedBox(
@@ -3932,7 +4225,9 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
               const ListTile(
                 leading: Icon(Icons.keyboard_command_key),
                 title: Text('COMMAND PALETTE'),
-                subtitle: Text('Ctrl+K · Ctrl+Shift+P'),
+                subtitle: Text(
+                  'Quick switcher · commands, files, chats, workspaces, settings',
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -3942,7 +4237,7 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                   autofocus: true,
                   onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
-                    hintText: 'Cari perintah...',
+                    hintText: 'Cari command, file, chat, workspace...',
                     prefixIcon: Icon(Icons.search),
                   ),
                 ),
@@ -3959,11 +4254,24 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
                         shrinkWrap: true,
                         itemCount: matches.length,
                         itemBuilder: (context, index) {
-                          final action = matches[index];
+                          final item = matches[index];
                           return ListTile(
-                            leading: Icon(action.$2, size: 18),
-                            title: Text(action.$3),
-                            onTap: () => Navigator.pop(context, action.$1),
+                            leading: Icon(item.icon, size: 18),
+                            title: Text(
+                              item.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${item.category} · ${item.subtitle}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 12,
+                            ),
+                            onTap: () => Navigator.pop(context, item.id),
                           );
                         },
                       ),
@@ -3976,18 +4284,189 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
   }
 }
 
+class _PromptTemplate {
+  const _PromptTemplate({
+    required this.title,
+    required this.description,
+    required this.prompt,
+    required this.icon,
+  });
+
+  final String title;
+  final String description;
+  final String prompt;
+  final IconData icon;
+}
+
+class _PromptTemplatesDialog extends StatelessWidget {
+  const _PromptTemplatesDialog();
+
+  static const templates = <_PromptTemplate>[
+    _PromptTemplate(
+      title: 'Generate Feature',
+      description: 'Buat fitur baru dengan rencana, implementasi, dan test.',
+      prompt:
+          'Tambahkan fitur baru secara bertahap. Jelaskan rencana singkat, '
+          'implementasikan dengan pola yang sudah ada, lalu tambahkan atau '
+          'jalankan test yang relevan.',
+      icon: Icons.auto_awesome,
+    ),
+    _PromptTemplate(
+      title: 'Fix Bug',
+      description: 'Cari akar masalah, perbaiki, dan verifikasi regresi.',
+      prompt:
+          'Investigasi bug ini dari akar masalahnya. Tunjukkan file yang '
+          'terlibat, terapkan perbaikan minimal, lalu verifikasi dengan test '
+          'yang relevan.',
+      icon: Icons.bug_report_outlined,
+    ),
+    _PromptTemplate(
+      title: 'Explain Codebase',
+      description: 'Dapatkan ringkasan arsitektur dan alur data.',
+      prompt:
+          'Jelaskan struktur codebase ini dalam bahasa sederhana. Fokus pada '
+          'entry point, alur data utama, dan file yang paling penting.',
+      icon: Icons.account_tree_outlined,
+    ),
+    _PromptTemplate(
+      title: 'Write Tests',
+      description: 'Tambahkan test untuk perilaku yang belum terlindungi.',
+      prompt:
+          'Tinjau area yang relevan lalu tambahkan test untuk perilaku utama, '
+          'edge case, dan regresi yang paling mungkin terjadi.',
+      icon: Icons.fact_check_outlined,
+    ),
+    _PromptTemplate(
+      title: 'Review Changes',
+      description: 'Periksa diff untuk bug, regresi, dan kualitas.',
+      prompt:
+          'Review perubahan workspace saat ini. Prioritaskan bug, regresi, '
+          'masalah keamanan, dan test yang masih kurang. Jangan mengubah file '
+          'sebelum menjelaskan temuan.',
+      icon: Icons.rate_review_outlined,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    key: const ValueKey('prompt-templates-dialog'),
+    title: const Text('PROMPT TEMPLATES'),
+    content: SizedBox(
+      width: 620,
+      child: SilkyListView(
+        silkyConfig: _silkyScrollConfig,
+        shrinkWrap: true,
+        children: [
+          for (final template in templates)
+            ListTile(
+              key: ValueKey('prompt-template-${template.title}'),
+              leading: Icon(template.icon),
+              title: Text(template.title),
+              subtitle: Text(template.description),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 13),
+              onTap: () => Navigator.pop(context, template.prompt),
+            ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('CLOSE'),
+      ),
+    ],
+  );
+}
+
+class _PromptHistoryDialog extends StatefulWidget {
+  const _PromptHistoryDialog({required this.prompts});
+
+  final List<String> prompts;
+
+  @override
+  State<_PromptHistoryDialog> createState() => _PromptHistoryDialogState();
+}
+
+class _PromptHistoryDialogState extends State<_PromptHistoryDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _controller.text.trim().toLowerCase();
+    final prompts = widget.prompts
+        .where((prompt) => prompt.toLowerCase().contains(query))
+        .take(30)
+        .toList();
+    return AlertDialog(
+      key: const ValueKey('prompt-history-dialog'),
+      title: const Text('PROMPT HISTORY'),
+      content: SizedBox(
+        width: 680,
+        height: 460,
+        child: Column(
+          children: [
+            TextField(
+              key: const ValueKey('prompt-history-search'),
+              controller: _controller,
+              autofocus: true,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Cari prompt sebelumnya...',
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: prompts.isEmpty
+                  ? const Center(child: Text('Belum ada prompt yang cocok.'))
+                  : SilkyListView.builder(
+                      silkyConfig: _silkyScrollConfig,
+                      itemCount: prompts.length,
+                      itemBuilder: (context, index) => ListTile(
+                        key: ValueKey('prompt-history-item-$index'),
+                        leading: const Icon(Icons.history, size: 18),
+                        title: Text(
+                          prompts[index],
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => Navigator.pop(context, prompts[index]),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CLOSE'),
+        ),
+      ],
+    );
+  }
+}
+
 class _GitDialog extends StatefulWidget {
   const _GitDialog({
     required this.service,
     required this.workspace,
     required this.onChanged,
     required this.onOpenFile,
+    required this.onNotice,
   });
 
   final GitService service;
   final String workspace;
   final Future<void> Function() onChanged;
   final ValueChanged<String> onOpenFile;
+  final ValueChanged<String> onNotice;
 
   @override
   State<_GitDialog> createState() => _GitDialogState();
@@ -3998,6 +4477,7 @@ class _GitDialogState extends State<_GitDialog> {
   final _commitController = TextEditingController();
   final _changesFilterController = TextEditingController();
   GitStatus _status = const GitStatus(isRepository: true);
+  GitSyncStatus _sync = const GitSyncStatus();
   List<String> _branches = const [];
   List<GitWorktree> _worktrees = const [];
   String _diff = '';
@@ -4007,6 +4487,7 @@ class _GitDialogState extends State<_GitDialog> {
   String? _operationNotice;
   bool _loading = true;
   bool _mutating = false;
+  String? _operationLabel;
 
   @override
   void initState() {
@@ -4027,6 +4508,7 @@ class _GitDialogState extends State<_GitDialog> {
     try {
       final values = await Future.wait([
         widget.service.status(widget.workspace),
+        widget.service.syncStatus(widget.workspace),
         widget.service.diff(widget.workspace),
         widget.service.history(widget.workspace),
         widget.service.branches(widget.workspace),
@@ -4035,10 +4517,11 @@ class _GitDialogState extends State<_GitDialog> {
       if (!mounted) return;
       setState(() {
         _status = values[0] as GitStatus;
-        _diff = values[1] as String;
-        _history = values[2] as String;
-        _branches = values[3] as List<String>;
-        _worktrees = values[4] as List<GitWorktree>;
+        _sync = values[1] as GitSyncStatus;
+        _diff = values[2] as String;
+        _history = values[3] as String;
+        _branches = values[4] as List<String>;
+        _worktrees = values[5] as List<GitWorktree>;
         _loading = false;
         _operationError = null;
       });
@@ -4056,10 +4539,12 @@ class _GitDialogState extends State<_GitDialog> {
     Future<void> Function() action, {
     bool clearCommit = false,
     String? successMessage,
+    String operationLabel = 'Memproses Git...',
   }) async {
     if (_mutating) return;
     setState(() {
       _mutating = true;
+      _operationLabel = operationLabel;
       _operationError = null;
       _operationNotice = null;
     });
@@ -4070,11 +4555,17 @@ class _GitDialogState extends State<_GitDialog> {
       await _refresh();
       if (mounted && successMessage != null) {
         setState(() => _operationNotice = successMessage);
+        widget.onNotice(successMessage);
       }
     } catch (error) {
       if (mounted) setState(() => _operationError = '$error');
     } finally {
-      if (mounted) setState(() => _mutating = false);
+      if (mounted) {
+        setState(() {
+          _mutating = false;
+          _operationLabel = null;
+        });
+      }
     }
   }
 
@@ -4129,6 +4620,7 @@ class _GitDialogState extends State<_GitDialog> {
     if (approved == true) {
       await _run(
         () => widget.service.pushCurrent(widget.workspace),
+        operationLabel: 'Mendorong branch ke origin...',
         successMessage: 'Branch berhasil di-push ke origin.',
       );
     }
@@ -4173,6 +4665,8 @@ class _GitDialogState extends State<_GitDialog> {
                     ),
                     const SizedBox(height: 5),
                     _GitStateBadge(status: _status),
+                    const SizedBox(height: 5),
+                    _GitSyncBadge(sync: _sync),
                   ],
                 ),
                 trailing: Row(
@@ -4254,6 +4748,21 @@ class _GitDialogState extends State<_GitDialog> {
                               : colors.error,
                         ),
                       ),
+                      Expanded(
+                        child: _GitSummaryMetric(
+                          key: const ValueKey('git-stat-sync'),
+                          icon: Icons.sync_alt,
+                          value: _sync.hasUpstream
+                              ? '↑${_sync.ahead} ↓${_sync.behind}'
+                              : '—',
+                          label: 'SYNC',
+                          color: _sync.diverged
+                              ? colors.error
+                              : _sync.synced
+                              ? const Color(0xFF2F9E69)
+                              : colors.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -4292,6 +4801,26 @@ class _GitDialogState extends State<_GitDialog> {
                       ),
                     ],
                   ),
+                ),
+              if (_mutating)
+                Column(
+                  children: [
+                    const LinearProgressIndicator(minHeight: 2),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 5, 18, 0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _operationLabel ?? 'Memproses Git...',
+                          style: TextStyle(
+                            fontFamily: 'Consolas',
+                            fontSize: 10,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               const TabBar(
                 tabs: [
@@ -4523,6 +5052,7 @@ class _GitDialogState extends State<_GitDialog> {
                           widget.workspace,
                           _commitController.text,
                         ),
+                        operationLabel: 'Membuat commit...',
                         clearCommit: true,
                         successMessage: 'Commit berhasil dibuat.',
                       ),
@@ -4789,6 +5319,53 @@ class _GitStateBadge extends StatelessWidget {
   }
 }
 
+class _GitSyncBadge extends StatelessWidget {
+  const _GitSyncBadge({required this.sync});
+
+  final GitSyncStatus sync;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final color = !sync.hasUpstream
+        ? colors.onSurfaceVariant
+        : sync.diverged
+        ? colors.error
+        : sync.synced
+        ? const Color(0xFF2F9E69)
+        : colors.tertiary;
+    final label = !sync.hasUpstream
+        ? 'NO UPSTREAM'
+        : sync.synced
+        ? 'SYNCED'
+        : '↑${sync.ahead} AHEAD · ↓${sync.behind} BEHIND';
+    return Container(
+      key: const ValueKey('git-sync-badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.sync_alt, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Consolas',
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _GitFileStatusBadge extends StatelessWidget {
   const _GitFileStatusBadge({required this.entry});
 
@@ -4824,15 +5401,22 @@ class _GitFileStatusBadge extends StatelessWidget {
   }
 }
 
-class _GitDiffPreview extends StatelessWidget {
+class _GitDiffPreview extends StatefulWidget {
   const _GitDiffPreview({required this.value});
 
   final String value;
 
   @override
+  State<_GitDiffPreview> createState() => _GitDiffPreviewState();
+}
+
+class _GitDiffPreviewState extends State<_GitDiffPreview> {
+  bool _split = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    if (value.trim().isEmpty) {
+    if (widget.value.trim().isEmpty) {
       return Center(
         child: Container(
           key: const ValueKey('git-diff-empty-state'),
@@ -4856,8 +5440,8 @@ class _GitDiffPreview extends StatelessWidget {
       );
     }
 
-    final lines = value.split('\n');
-    final stats = _GitDiffStats.fromDiff(value);
+    final lines = widget.value.split('\n');
+    final stats = _GitDiffStats.fromDiff(widget.value);
     return Column(
       children: [
         Padding(
@@ -4866,8 +5450,8 @@ class _GitDiffPreview extends StatelessWidget {
             children: [
               const Icon(Icons.difference_outlined, size: 18),
               const SizedBox(width: 8),
-              const Text(
-                'UNIFIED DIFF',
+              Text(
+                _split ? 'SPLIT DIFF' : 'UNIFIED DIFF',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
               ),
               const SizedBox(width: 12),
@@ -4889,12 +5473,29 @@ class _GitDiffPreview extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('UNIFIED')),
+                  ButtonSegment(value: true, label: Text('SPLIT')),
+                ],
+                selected: {_split},
+                onSelectionChanged: (selection) =>
+                    setState(() => _split = selection.first),
+                showSelectedIcon: false,
+                style: ButtonStyle(
+                  textStyle: WidgetStatePropertyAll(
+                    TextStyle(fontSize: 9, fontFamily: 'Consolas'),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 5),
               IconButton(
                 key: const ValueKey('copy-git-diff'),
                 tooltip: 'Copy diff',
                 visualDensity: VisualDensity.compact,
                 onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: value));
+                  await Clipboard.setData(ClipboardData(text: widget.value));
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Diff disalin.')),
@@ -4906,16 +5507,213 @@ class _GitDiffPreview extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: SilkyListView.builder(
-            key: const ValueKey('git-diff-preview'),
-            silkyConfig: _silkyScrollConfig,
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            itemCount: lines.length,
-            itemBuilder: (context, index) =>
-                _GitDiffLine(lineNumber: index + 1, value: lines[index]),
-          ),
+          child: _split
+              ? _GitSplitDiffPreview(value: widget.value)
+              : SilkyListView.builder(
+                  key: const ValueKey('git-diff-preview'),
+                  silkyConfig: _silkyScrollConfig,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  itemCount: lines.length,
+                  itemBuilder: (context, index) =>
+                      _GitDiffLine(lineNumber: index + 1, value: lines[index]),
+                ),
         ),
       ],
+    );
+  }
+}
+
+class _GitSplitDiffRow {
+  const _GitSplitDiffRow({
+    this.oldNumber,
+    this.newNumber,
+    this.oldText,
+    this.newText,
+    this.header = false,
+  });
+
+  final int? oldNumber;
+  final int? newNumber;
+  final String? oldText;
+  final String? newText;
+  final bool header;
+}
+
+class _GitSplitDiffPreview extends StatelessWidget {
+  const _GitSplitDiffPreview({required this.value});
+
+  final String value;
+
+  List<_GitSplitDiffRow> _rows() {
+    final lines = value.split('\n');
+    final rows = <_GitSplitDiffRow>[];
+    var oldLine = 0;
+    var newLine = 0;
+    var index = 0;
+    while (index < lines.length) {
+      final line = lines[index];
+      if (line.startsWith('@@')) {
+        final match = RegExp(r'@@ -(\d+).* \+(\d+)').firstMatch(line);
+        oldLine = int.tryParse(match?.group(1) ?? '') ?? oldLine;
+        newLine = int.tryParse(match?.group(2) ?? '') ?? newLine;
+        rows.add(_GitSplitDiffRow(oldText: line, newText: line, header: true));
+        index++;
+        continue;
+      }
+      if (line.startsWith('diff --git') ||
+          line.startsWith('index ') ||
+          line.startsWith('---') ||
+          line.startsWith('+++')) {
+        rows.add(_GitSplitDiffRow(oldText: line, newText: line, header: true));
+        index++;
+        continue;
+      }
+      if (line.startsWith(' ')) {
+        final text = line.substring(1);
+        rows.add(
+          _GitSplitDiffRow(
+            oldNumber: oldLine++,
+            newNumber: newLine++,
+            oldText: text,
+            newText: text,
+          ),
+        );
+        index++;
+        continue;
+      }
+      final deletions = <String>[];
+      while (index < lines.length &&
+          lines[index].startsWith('-') &&
+          !lines[index].startsWith('---')) {
+        deletions.add(lines[index].substring(1));
+        index++;
+      }
+      final additions = <String>[];
+      while (index < lines.length &&
+          lines[index].startsWith('+') &&
+          !lines[index].startsWith('+++')) {
+        additions.add(lines[index].substring(1));
+        index++;
+      }
+      if (deletions.isEmpty && additions.isEmpty) {
+        rows.add(_GitSplitDiffRow(oldText: line, newText: line, header: true));
+        index++;
+        continue;
+      }
+      final count = math.max(deletions.length, additions.length);
+      for (var offset = 0; offset < count; offset++) {
+        rows.add(
+          _GitSplitDiffRow(
+            oldNumber: offset < deletions.length ? oldLine++ : null,
+            newNumber: offset < additions.length ? newLine++ : null,
+            oldText: offset < deletions.length ? deletions[offset] : null,
+            newText: offset < additions.length ? additions[offset] : null,
+          ),
+        );
+      }
+    }
+    return rows;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows();
+    return SilkyListView.builder(
+      key: const ValueKey('git-split-diff-preview'),
+      silkyConfig: _silkyScrollConfig,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      itemCount: rows.length,
+      itemBuilder: (context, index) {
+        final row = rows[index];
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _GitSplitDiffCell(
+                  number: row.oldNumber,
+                  text: row.oldText,
+                  removed: row.oldText != null && row.newText == null,
+                  header: row.header,
+                ),
+              ),
+              Container(width: 1, color: Theme.of(context).dividerColor),
+              Expanded(
+                child: _GitSplitDiffCell(
+                  number: row.newNumber,
+                  text: row.newText,
+                  added: row.newText != null && row.oldText == null,
+                  header: row.header,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GitSplitDiffCell extends StatelessWidget {
+  const _GitSplitDiffCell({
+    this.number,
+    this.text,
+    this.added = false,
+    this.removed = false,
+    this.header = false,
+  });
+
+  final int? number;
+  final String? text;
+  final bool added;
+  final bool removed;
+  final bool header;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final color = added
+        ? const Color(0xFF2F9E69)
+        : removed
+        ? colors.error
+        : header
+        ? colors.tertiary
+        : colors.onSurfaceVariant;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 25),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      color: (added || removed || header)
+          ? color.withValues(alpha: header ? 0.08 : 0.11)
+          : Colors.transparent,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              number?.toString() ?? '',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 9,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: SelectableText(
+              text ?? '',
+              style: TextStyle(
+                fontFamily: 'Consolas',
+                fontSize: 10,
+                height: 1.35,
+                color: text == null ? colors.onSurfaceVariant : color,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
