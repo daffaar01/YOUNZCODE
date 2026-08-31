@@ -18,6 +18,7 @@ timestamp,os,workers,adapter,totalMs,ratio
 timestamp,os,workers,adapter,totalMs,ratio
 timestamp,os,workers,adapter,totalMs,ratio
 timestamp,os,workers,adapter,totalMs,ratio
+timestamp,os,workers,adapter,totalMs,ratio
 2026-08-12T04:10:25Z,ubuntu-latest,3,dart,37,0.00
 2026-08-12T04:10:25Z,ubuntu-latest,3,python,805,0.03
 2026-08-12T04:10:25Z,ubuntu-latest,3,pwa-node,177,0.01
@@ -132,3 +133,9 @@ timestamp,os,workers,adapter,totalMs,ratio
 2026-08-30T08:02:30Z,windows-latest,3,dart,131,0.00
 2026-08-30T08:02:30Z,windows-latest,3,python,1167,0.04
 2026-08-30T08:02:30Z,windows-latest,3,pwa-node,466,0.02
+2026-08-31T08:15:45Z,ubuntu-latest,3,dart,38,0.00
+2026-08-31T08:15:45Z,ubuntu-latest,3,python,844,0.03
+2026-08-31T08:15:45Z,ubuntu-latest,3,pwa-node,190,0.01
+2026-08-31T08:17:25Z,windows-latest,3,dart,128,0.00
+2026-08-31T08:17:25Z,windows-latest,3,python,1139,0.04
+2026-08-31T08:17:25Z,windows-latest,3,pwa-node,479,0.02
