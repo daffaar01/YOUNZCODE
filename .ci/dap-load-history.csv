@@ -1,10 +1,4 @@
 timestamp,os,workers,adapter,totalMs,ratio
-2026-09-21T07:44:39Z,ubuntu-latest,3,dart,43,0.00
-2026-09-21T07:44:39Z,ubuntu-latest,3,python,970,0.03
-2026-09-21T07:44:39Z,ubuntu-latest,3,pwa-node,186,0.01
-2026-09-21T07:46:49Z,windows-latest,3,dart,137,0.00
-2026-09-21T07:46:49Z,windows-latest,3,python,1173,0.04
-2026-09-21T07:46:49Z,windows-latest,3,pwa-node,510,0.02
 2026-09-22T07:26:59Z,ubuntu-latest,3,dart,51,0.00
 2026-09-22T07:26:59Z,ubuntu-latest,3,python,1008,0.03
 2026-09-22T07:26:59Z,ubuntu-latest,3,pwa-node,195,0.01
@@ -365,3 +359,9 @@ timestamp,os,workers,adapter,totalMs,ratio
 2026-11-21T09:22:04Z,windows-latest,3,dart,177,0.01
 2026-11-21T09:22:04Z,windows-latest,3,python,1214,0.04
 2026-11-21T09:22:04Z,windows-latest,3,pwa-node,456,0.02
+2026-11-22T09:28:41Z,ubuntu-latest,3,dart,31,0.00
+2026-11-22T09:28:41Z,ubuntu-latest,3,python,832,0.03
+2026-11-22T09:28:41Z,ubuntu-latest,3,pwa-node,178,0.01
+2026-11-22T09:30:20Z,windows-latest,3,dart,222,0.01
+2026-11-22T09:30:20Z,windows-latest,3,python,1133,0.04
+2026-11-22T09:30:20Z,windows-latest,3,pwa-node,355,0.01
